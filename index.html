@@ -46,7 +46,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 .row .hp{width:54px;height:6px;background:#23232f;border-radius:3px;overflow:hidden;flex:none}
 .row .hp i{display:block;height:100%}
 .row .rk{color:var(--muted);font-variant-numeric:tabular-nums;width:26px;text-align:right;font-size:12px;flex:none}
-.row.dead{color:#5f6170}.row.dead .nm{text-decoration:line-through;color:#6a6c7a}.row.dead .dot{background:#3a3a48!important}
+.row.dead{color:#5f6170}.row.dead .nm{text-decoration:line-through;opacity:.55}.row.dead .dot{background:#3a3a48!important}
 .row.win .nm{color:var(--gold)}
 </style>
 </head>
@@ -227,7 +227,9 @@ function setup(){
   const hue=new Map(ukeys.map((k,i)=>[k,(i*137.508+20)%360]));
   const n=names.length;
   const r=clamp(170/Math.sqrt(Math.max(n,1)),12,18); // 공이 많아도 반지름 12 아래로는 줄이지 않음 (100개≈17, 200개 이상 12)
-  S.marbles=names.map((nm,i)=>new Marble(i,nm,`hsl(${hue.get(keys[i]).toFixed(0)} 85% 62%)`,r));
+  // 파랑·보라 계열은 검정 배경에서 어두워 보여 명도를 올림 (h 190~310 구간에서 최대 74%)
+  const lightFor=h=>62+12*Math.max(0,1-Math.abs(h-250)/60);
+  S.marbles=names.map((nm,i)=>{const h=hue.get(keys[i]);return new Marble(i,nm,`hsl(${h.toFixed(0)} 85% ${lightFor(h).toFixed(0)}%)`,r)});
   S.factions=[];const fmap=new Map();
   S.marbles.forEach((m,i)=>{
     const k=keys[i];let f=fmap.get(k);
@@ -300,11 +302,10 @@ function zap(m,t,dmg){
   S.bolts.push({x1:m.x,y1:m.y,x2:t.x,y2:t.y,life:0.4,w:6});
   for(let k=0;k<3;k++)S.bolts.push({x1:t.x,y1:t.y,x2:t.x+rand(-90,90),y2:t.y+rand(-90,90),life:0.3,w:3});
   burst(t.x,t.y,28,'#ffe66d',300);burst(t.x,t.y,12,'#fff',180);
-  ring(t.x,t.y,t.r,420,5,0.4,'#ffe66d');ring(t.x,t.y,t.r,260,2,0.55,'#fff');
   hurt(t,dmg,m,t.x,t.y);
 }
 // 스킬 발동 표시: 이름 텍스트 + 시전자 주변 링 (모든 발동형 스킬 공통)
-function announce(m){const s=SKILLS[m.skill];addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}`,s.color,18);ring(m.x,m.y,m.r,420,4,0.45,s.color)}
+function announce(m){const s=SKILLS[m.skill];addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}`,s.color,18)}
 
 // ---------- 결전 단계 ----------
 function enterFinal(alive){
@@ -312,7 +313,7 @@ function enterFinal(alive){
   const keys=SKILL_KEYS.slice();
   for(let i=keys.length-1;i>0;i--){const j=(rng()*(i+1))|0;[keys[i],keys[j]]=[keys[j],keys[i]]}
   alive.forEach((m,i)=>{m.skill=keys[i%keys.length];m.skillCd=rand(1.5,3);m.shield=false;m.hp=CFG.hpMax;m.trail=[];
-    const s=SKILLS[m.skill];ring(m.x,m.y,m.r,420,4,0.6,s.color);burst(m.x,m.y,20,s.color,220);
+    const s=SKILLS[m.skill];burst(m.x,m.y,20,s.color,220);
     S.toasts.push({text:`${s.icon} ${s.name}`,sub:m.label,color:s.color,life:5,max:5});
   });
   while(S.toasts.length>10)S.toasts.shift();
@@ -324,7 +325,7 @@ function enterFinal(alive){
 function enterDuel(alive){
   S.duel=true;S.duelT=0;S.duelists=alive.slice().sort((a,b)=>a.x-b.x);
   const [A,B]=S.duelists;
-  for(const m of S.duelists){m.hp=Math.max(m.hp,CFG.hpMax*0.5);m.hpTrail=m.hp;ring(m.x,m.y,m.r,380,4,0.6,m.color);burst(m.x,m.y,14,m.color,160)} // 둘 다 최소 50%로 회복해 마지막 승부가 바로 끝나지 않게
+  for(const m of S.duelists){m.hp=Math.max(m.hp,CFG.hpMax*0.5);m.hpTrail=m.hp;burst(m.x,m.y,14,m.color,160)} // 둘 다 최소 50%로 회복해 마지막 승부가 바로 끝나지 않게
   S.banner={text:'⚔️ 1 : 1',sub:`${A.label}   vs   ${B.label}   ·   체력 회복`,age:0,life:2.4};
   addFeed(`⚔️ <b>마지막 1:1</b> · <b style="color:${A.color}">${esc(A.label)}</b> vs <b style="color:${B.color}">${esc(B.label)}</b>`,'gold');
 }
@@ -334,7 +335,7 @@ function useSkill(m,alive){
   const sc=SKILLS[m.skill].color;
   switch(m.skill){
     case 'shield':
-      if(!m.shield){m.shield=true;m.shieldFx=0.5;ring(m.x,m.y,m.r,340,4,0.45,sc);burst(m.x,m.y,18,sc,170);announce(m)}
+      if(!m.shield){m.shield=true;m.shieldFx=0.5;burst(m.x,m.y,18,sc,170);announce(m)}
       m.skillCd=6;break;
     case 'bolt':{
       const t=nearest(300);
@@ -349,18 +350,18 @@ function useSkill(m,alive){
         announce(m);
         for(let k=0;k<7;k++){const u=k/7;S.ghosts.push({x:lerp(m.x,nx,u),y:lerp(m.y,ny,u),r:m.r,color:sc,life:0.4+u*0.3})}
         burst(m.x,m.y,16,sc,200);
-        m.x=nx;m.y=ny;m.px=nx;m.py=ny;burst(m.x,m.y,26,sc,260);ring(m.x,m.y,m.r,380,4,0.4,sc);ring(m.x,m.y,m.r,240,2,0.55,'#fff');
+        m.x=nx;m.y=ny;m.px=nx;m.py=ny;burst(m.x,m.y,26,sc,260);
         const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;
         m.vx=dx/L*480;m.vy=dy/L*480;m.dash=0.3;m.skillCd=4.5;
       }else m.skillCd=0.5;
       break}
     case 'wave':
-      announce(m);ring(m.x,m.y,m.r,680,8,0.55,sc);ring(m.x,m.y,m.r,460,4,0.7,sc);ring(m.x,m.y,m.r,300,2,0.8,'#fff');burst(m.x,m.y,44,sc,340);
+      announce(m);ring(m.x,m.y,m.r,680,8,0.55,sc);ring(m.x,m.y,m.r,460,4,0.7,'#fff');burst(m.x,m.y,44,sc,340);
       for(const o of foes){const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy);if(d<190&&d>0){o.vx+=dx/d*400;o.vy+=dy/d*400;hurt(o,14,m,o.x,o.y)}}
       m.skillCd=6;break;
     case 'frost':{
       const t=nearest(280);
-      if(t){announce(m);t.frozen=1.2;t.vx*=0.2;t.vy*=0.2;burst(t.x,t.y,30,sc,170);burst(t.x,t.y,12,'#fff',100);ring(t.x,t.y,t.r,260,4,0.45,sc);ring(t.x,t.y,t.r,160,2,0.6,'#fff');
+      if(t){announce(m);t.frozen=1.2;t.vx*=0.2;t.vy*=0.2;burst(t.x,t.y,30,sc,170);burst(t.x,t.y,12,'#fff',100);
         S.bolts.push({x1:m.x,y1:m.y,x2:t.x,y2:t.y,life:0.3,w:3,color:sc});m.skillCd=5}
       else m.skillCd=0.5;
       break}
@@ -369,7 +370,7 @@ function useSkill(m,alive){
       for(const o of foes){const dx=m.x-o.x,dy=m.y-o.y,d=Math.hypot(dx,dy);
         if(d<260&&d>1){any=true;o.vx+=dx/d*400;o.vy+=dy/d*400;
           for(let k=0;k<12;k++)S.particles.push({x:o.x+rand(-8,8),y:o.y+rand(-8,8),vx:dx/d*rand(220,440),vy:dy/d*rand(220,440),life:rand(0.3,0.55),color:sc,r:rand(2,3.5)})}}
-      if(any){announce(m);ring(m.x,m.y,300,-520,5,0.55,sc);ring(m.x,m.y,230,-420,2,0.55,'#fff')}
+      if(any)announce(m);
       m.skillCd=any?6:0.5;break}
     case 'arrow':{
       const t=nearest(380);
@@ -404,7 +405,6 @@ function canUse(m,alive){
 function startFocus(m){
   const s=SKILLS[m.skill];
   S.focus={m,t:0,fired:false};
-  ring(m.x,m.y,m.r+46,-150,3,0.3,s.color);
   addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}!`,s.color,16);
 }
 function explodeBomb(b){
@@ -433,7 +433,7 @@ function step(dt){
     if(a.life<=0||segDist(a.x,a.y,ARENA_L)>ARENA_R||hitsObst(a.x,a.y,2)){spark(a.x,a.y,6);return false}
     for(const o of alive){if(!isFoe(a.owner,o))continue;
       if((o.x-a.x)**2+(o.y-a.y)**2<(o.r+4)**2){const L=Math.hypot(a.vx,a.vy)||1;o.vx+=a.vx/L*180;o.vy+=a.vy/L*180;
-        burst(o.x,o.y,24,SKILLS.arrow.color,260);ring(o.x,o.y,o.r,360,4,0.35,SKILLS.arrow.color);hurt(o,14,a.owner,o.x,o.y);return false}}
+        burst(o.x,o.y,24,SKILLS.arrow.color,260);hurt(o,14,a.owner,o.x,o.y);return false}}
     return true});
 
   for(const m of alive){
@@ -463,7 +463,7 @@ function step(dt){
         ax=(dx-dy*w)*acc;ay=(dy+dx*w)*acc;
         m.dashCd-=dt;
         if(m.dashCd<=0&&L<CFG.dashRange){let p=rand(CFG.dashMin,CFG.dashMax);if(m.skill==='flame')p*=1.3;m.vx+=dx*p;m.vy+=dy*p;m.dashCd=rand(CFG.dashCdMin,CFG.dashCdMax);m.dash=0.3;
-          if(m.skill==='flame'){burst(m.x,m.y,18,'#ff7a3d',160);ring(m.x,m.y,m.r,300,3,0.3,'#ff7a3d')}}
+          if(m.skill==='flame')burst(m.x,m.y,18,'#ff7a3d',160)}
       }
       // 구조물 회피
       for(const o of OBST){const c=obstClosest(o,m.x,m.y);const lim=m.r+o.rc+45;if(!c.inside&&c.d<lim&&c.d>0.01){const k=1-(c.d-(m.r+o.rc))/45;ax+=(m.x-c.px)/c.d*CFG.accel*1.4*k;ay+=(m.y-c.py)/c.d*CFG.accel*1.4*k}}
@@ -528,7 +528,7 @@ function step(dt){
         const atk=sa>=sb?a:b, def=atk===a?b:a; // 더 빠르게 들이받은 쪽이 공격자
         const mul=atk.skill==='flame'?1.5:1;
         if(def.inv<=0){hurt(def,base*mul*rand(0.8,1.2),atk,cx,cy);def.inv=CFG.hitInv;
-          if(S.final){burst(cx,cy,12,atk.skill==='flame'?'#ff7a3d':'#fff',240);if(base*mul>18)ring(cx,cy,6,420,3,0.3,'#fff')}}
+          if(S.final)burst(cx,cy,12,atk.skill==='flame'?'#ff7a3d':'#fff',240)}
         // 상대를 쓰러뜨렸으면 반격 피해 없음 (더블 KO 방지)
         if(def.alive&&atk.inv<=0){hurt(atk,base*CFG.counterRatio*rand(0.8,1.2),def,cx,cy);atk.inv=CFG.hitInv}
         spark(cx,cy,S.final?Math.min(10,3+rel/60):Math.min(4,1+rel/150));
@@ -562,7 +562,7 @@ function step(dt){
 
 function hurt(m,dmg,by,cx,cy){
   if(!m.alive)return;
-  if(m.shield&&by){m.shield=false;m.shieldFx=0.5;burst(cx,cy,24,'#7fd3ff',260);ring(m.x,m.y,m.r+6,320,4,0.4,'#7fd3ff');ring(m.x,m.y,m.r+6,200,2,0.5,'#fff');if(S.final)addText(cx,cy-12,'🛡️ BLOCK','#7fd3ff',18);return}
+  if(m.shield&&by){m.shield=false;m.shieldFx=0.5;burst(cx,cy,24,'#7fd3ff',260);if(S.final)addText(cx,cy-12,'🛡️ BLOCK','#7fd3ff',18);return}
   if(m.frozen>0)dmg*=1.4;
   dmg=Math.min(dmg,CFG.dmgCap);
   let crit=false;if(rng()<CFG.critChance){dmg*=2;crit=true}
@@ -580,9 +580,9 @@ function die(m,by){
   if(by)by.kills++;
   if(S.focus&&S.focus.m===m)S.focus=null;
   // 결전에서 마지막 상대가 쓰러지는 순간: 결정타 연출
-  if(S.final&&aliveList().length===1){S.finish={t:0,dur:2.2,x:m.x,y:m.y};S.focus=null;S.showdown=null;ring(m.x,m.y,m.r,900,4,0.6,'#fff')}
+  if(S.final&&aliveList().length===1){S.finish={t:0,dur:2.2,x:m.x,y:m.y};S.focus=null;S.showdown=null}
   boom(m,S.final?3:0.45);
-  if(S.final){ring(m.x,m.y,m.r,620,6,0.6,m.color);ring(m.x,m.y,m.r,380,3,0.8,'#fff');addText(m.x,m.y-m.r-14,'탈락',m.color,22)}
+  if(S.final)addText(m.x,m.y-m.r-14,'탈락',m.color,22);
   const me=`<b style="color:${m.color}">${esc(m.label)}</b>`;
   addFeed(by?`<b style="color:${by.color}">${esc(by.label)}</b> ⚔ ${me} 탈락`:`🌀 자기장 ⚔ ${me} 탈락`);
   const f=m.faction;f.alive--;
@@ -592,7 +592,7 @@ function die(m,by){
 function factionOut(f,m){
   f.out=true;f.outAnim=1.4;S.factionsOut.push(f);f.rank=S.factions.length-S.factionsOut.length+1;
   shatterBar(f);
-  if(S.final)boom(m,1.5);else ring(m.x,m.y,m.r,420,3,0.5,f.color);
+  if(S.final)boom(m,1.5);else burst(m.x,m.y,16,f.color,220);
   if(!S.single){S.toasts.push({text:`${f.name} 탈락`,sub:`${f.rank}위  ·  남은 팀 ${factionsAlive()}`,color:f.color,life:4,max:4});if(S.toasts.length>10)S.toasts.shift()}
   addFeed(`💥 <b style="color:${f.color}">${esc(f.name)}</b> 탈락 (${f.rank}위)`,'big');
 }
@@ -631,11 +631,11 @@ let deadKey=-1;
 function updateRank(){
   const n=S.marbles.length,alive=aliveList().sort((a,b)=>b.hp-a.hp||a.i-b.i),na=alive.length,max=80;
   rankHead.textContent=`생존 ${na} / ${n}`;
-  rankAlive.innerHTML=alive.slice(0,max).map((m,i)=>`<div class="row ${m.win?'win':''}"><span class="rk">${i+1}</span><span class="dot" style="background:${opt.faces&&S.faceOf&&S.faceOf[m.name]?`url(${FACE_IMAGES[S.faceOf[m.name]]}) center/cover`:m.color}"></span><span class="nm" title="${esc(m.label)}">${m.skill?SKILLS[m.skill].icon+' ':''}${esc(m.label)}</span><span class="hp"><i style="width:${clamp(m.hp/CFG.hpMax*100,0,100)}%;background:${hpColor(m.hp/CFG.hpMax*100)}"></i></span></div>`).join('');
+  rankAlive.innerHTML=alive.slice(0,max).map((m,i)=>`<div class="row ${m.win?'win':''}"><span class="rk">${i+1}</span><span class="dot" style="background:${opt.faces&&S.faceOf&&S.faceOf[m.name]?`url(${FACE_IMAGES[S.faceOf[m.name]]}) center/cover`:m.color}"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${m.skill?SKILLS[m.skill].icon+' ':''}${esc(m.label)}</span><span class="hp"><i style="width:${clamp(m.hp/CFG.hpMax*100,0,100)}%;background:${hpColor(m.hp/CFG.hpMax*100)}"></i></span></div>`).join('');
   const key=S.eliminated.length*1000+Math.min(na,max)+(S.winners.length?500000:0);
   if(key!==deadKey){deadKey=key;
     const dead=[...S.eliminated].reverse(),room=Math.max(0,max-Math.min(na,max));
-    rankDead.innerHTML=dead.slice(0,room).map((m,i)=>`<div class="row dead ${m.win?'win':''}"><span class="rk">${na+i+1}</span><span class="dot"></span><span class="nm" title="${esc(m.label)}">${esc(m.label)}</span><span class="rk">#${m.rank}</span></div>`).join('')
+    rankDead.innerHTML=dead.slice(0,room).map((m,i)=>`<div class="row dead ${m.win?'win':''}"><span class="rk">${na+i+1}</span><span class="dot"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${esc(m.label)}</span><span class="rk">#${m.rank}</span></div>`).join('')
       +(dead.length>room?`<div class="row" style="color:var(--muted)">… 외 ${dead.length-room}명</div>`:'');
   }
 }
@@ -730,7 +730,7 @@ function drawBar(f,r){
   ctx.strokeStyle=f.out?'rgba(255,77,109,0.55)':f.color;ctx.lineWidth=f.out?1:1.5;ctx.stroke();
   if(!f.out){ctx.globalAlpha=0.18*S.barsAnim;ctx.fillStyle=f.color;rrect(x,y,w,h,8);ctx.fill();ctx.globalAlpha=S.barsAnim}
   ctx.textBaseline='top';
-  ctx.font=`800 13px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=f.out?'#8b8d9c':'#fff';
+  ctx.font=`800 13px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=f.out?'#8b8d9c':f.color;
   const maxW=w-70;let nm=f.name;while(ctx.measureText(nm).width>maxW&&nm.length>1)nm=nm.slice(0,-1);if(nm!==f.name)nm+='…';
   ctx.fillText(nm,x+10,y+7);
   ctx.textAlign='right';ctx.fillStyle=f.out?'#ff4d6d':f.color;ctx.font=`800 13px ${FONT}`;ctx.fillText(`${f.alive} / ${f.total}`,x+w-10,y+7);
@@ -768,7 +768,7 @@ function drawDuelHud(L,R,T,B,cx){
     // 이름 + HP 숫자
     const tx0=right?x+12:x+12+fr*2+10,tx1=right?x+w-12-fr*2-10:x+w-12,inner=tx1-tx0;
     ctx.textBaseline='top';ctx.font=`800 14px ${FONT}`;const numS=`${Math.ceil(hp)} / ${CFG.hpMax}`,numW=ctx.measureText(numS).width;
-    ctx.font=`800 15px ${FONT}`;ctx.textAlign=right?'right':'left';ctx.fillStyle='#fff';
+    ctx.font=`800 15px ${FONT}`;ctx.textAlign=right?'right':'left';ctx.fillStyle=m.color;
     const showNum=inner>=150,nameMax=showNum?inner-numW-10:inner;let nm=m.label;while(ctx.measureText(nm).width>nameMax&&nm.length>1)nm=nm.slice(0,-1);if(nm!==m.label)nm+='…';
     ctx.fillText(nm,right?tx1:tx0,y+7);
     if(showNum){ctx.textAlign=right?'left':'right';ctx.fillStyle=low?'#ff4d6d':m.color;ctx.font=`800 14px ${FONT}`;ctx.fillText(numS,right?tx0:tx1,y+8)}
@@ -956,8 +956,8 @@ function drawMarble(m){
   if(m.win){ctx.strokeStyle='#ffd166';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(x,y,rr+5,0,TAU);ctx.stroke();ctx.setLineDash([])}
   const fs=Math.max(clamp(r*0.95,7,14),12/S.cam.zoom); // 공이 작아져도 이름은 화면에서 최소 12px
   ctx.font=`700 ${fs}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillText(m.name,x+1,y+rr+3+1);
-  ctx.fillStyle='#fff';ctx.fillText(m.name,x,y+rr+3);
+  ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillText(m.name,x+1,y+rr+3+1);ctx.fillText(m.name,x-1,y+rr+3+1);
+  ctx.fillStyle=m.color;ctx.fillText(m.name,x,y+rr+3); // 이름은 공 색으로
   if(s){ctx.font=`700 ${Math.max(11/S.cam.zoom,fs*0.85)}px ${FONT}`;ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillText(`${s.icon} ${s.name}`,x+1,y+rr+4+fs+1);ctx.fillStyle=s.color;ctx.fillText(`${s.icon} ${s.name}`,x,y+rr+4+fs)}
 }
 
