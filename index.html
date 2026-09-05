@@ -170,6 +170,10 @@ const SKILLS={
   iaido:{name:'발도술',icon:'⚔️',color:'#e8e8ff',desc:'삿갓과 일본도. 6초마다 가까운 상대를 향해 일직선으로 3연속 베기, 각 피해 16'},
   tornado:{name:'회오리',icon:'🌪️',color:'#4fd1c5',desc:'바람개비와 부채. 7초마다 1.5초 동안 회오리를 일으켜 주위 상대를 빙글 돌리며 밀어냄, 피해 10'},
   snipe:{name:'저격',icon:'🎯',color:'#8bc34a',desc:'베레모와 저격총. 7초마다 1.5초 조준 뒤 맵 어디든 한 발, 피해 40. 조준 중엔 못 움직임'},
+  boomerang:{name:'부메랑',icon:'🪃',color:'#d4a24c',desc:'챙 넓은 모자와 부메랑. 5초마다 곡선으로 날아갔다 돌아오는 부메랑, 갈 때·올 때 각각 피해 12'},
+  breath:{name:'화염 브레스',icon:'🐉',color:'#ff6d00',desc:'용 뿔. 6초마다 정면 부채꼴로 0.7초 동안 불을 뿜음, 안에 있으면 0.12초마다 피해 4'},
+  bees:{name:'벌떼',icon:'🐝',color:'#ffca28',desc:'양봉 모자. 8초마다 벌 5마리가 가까운 상대에게 붙어 3초 동안 따라다니며 0.3초마다 피해 2 (방패 무시)'},
+  rocket:{name:'로켓 돌진',icon:'🚀',color:'#ff8a65',desc:'고글과 로켓 배낭. 7초마다 0.4초 점화 뒤 직선 폭주, 부딪히면 폭발 피해 22. 벽에 부딪히면 자기도 피해 12'},
 };
 const SKILL_KEYS=Object.keys(SKILLS);
 // 기본 얼굴 이미지 (이름별). 이 이름의 공은 원 안에 이 이미지가 잘려 들어감
@@ -177,7 +181,7 @@ const FACE_IMAGES={'드응으루마루헤이요':'data:image/jpeg;base64,/9j/4AA
 const faceImgs={};for(const k in FACE_IMAGES){const img=new Image();const rec={img,ok:false};img.onload=()=>{rec.ok=true};img.src=FACE_IMAGES[k];faceImgs[k]=rec}
 
 const S={phase:'idle',marbles:[],factions:[],factionsOut:[],eliminated:[],particles:[],texts:[],shards:[],rings:[],bolts:[],ghosts:[],bombs:[],arrows:[],confetti:[],feed:[],
-  slashes:[],lasers:[],fires:[],spears:[], // 검 궤적, 레이저, 불길, 얼음 창
+  slashes:[],lasers:[],fires:[],spears:[],boomerangs:[],swarms:[], // 검 궤적, 레이저, 불길, 얼음 창, 부메랑, 벌떼
   toasts:[],banner:null,bannerDelay:0,bannerNext:null,single:false,
   barsActive:false,barsAnim:0,final:false,finalT:0,zoneHold:0,
   focus:null,focusCd:0,showdown:null,showdownCd:0,finish:null,letterbox:0, // 결전 연출 상태
@@ -210,7 +214,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.aim=null;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.aim=null;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -269,7 +273,7 @@ function setup(){
     }
     if(!done){m.x=rand(-ARENA_L,ARENA_L);m.y=rand(-100,100);placed.push(m)}
   }
-  S.factionsOut=[];S.eliminated=[];S.particles=[];S.texts=[];S.shards=[];S.rings=[];S.bolts=[];S.ghosts=[];S.bombs=[];S.arrows=[];S.confetti=[];S.slashes=[];S.lasers=[];S.fires=[];S.spears=[];S.feed=[];feedEl.innerHTML='';
+  S.factionsOut=[];S.eliminated=[];S.particles=[];S.texts=[];S.shards=[];S.rings=[];S.bolts=[];S.ghosts=[];S.bombs=[];S.arrows=[];S.confetti=[];S.slashes=[];S.lasers=[];S.fires=[];S.spears=[];S.boomerangs=[];S.swarms=[];S.feed=[];feedEl.innerHTML='';
   S.toasts=[];S.banner=null;S.bannerDelay=0;S.bannerNext=null;
   S.barsActive=false;S.barsAnim=0;S.final=false;S.finalT=0;S.zoneHold=0;
   S.focus=null;S.focusCd=0;S.showdown=null;S.showdownCd=0;S.finish=null;S.letterbox=0;S.duel=false;S.duelists=null;S.duelT=0;
@@ -306,7 +310,10 @@ const isFoe=(m,o)=>o!==m&&o.alive&&(opt.teamFire||o.faction!==m.faction);
 function burst(x,y,n,color,speed){n=Math.ceil(n*0.7);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(0.3,1)*speed;S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.35,0.8),color,r:rand(1.5,3.5)})}}
 function ring(x,y,r0,vr,w,life,color,fill,rmax){S.rings.push({x,y,r:r0,vr,w,life,max:life,color,fill:!!fill,rmax:rmax||Infinity})}
 // 검 궤적: 호(arc)는 휘두른 부채꼴, 선(line)은 일직선 베기
-function slashArc(x,y,a,r,color,span){S.slashes.push({type:'arc',x,y,a,r,span:span||2.6,life:0.32,max:0.32,color})}
+function slashArc(x,y,a,r,color,span,life){life=life||0.32;S.slashes.push({type:'arc',x,y,a,r,span:span||2.6,life,max:life,color})}
+// 화염검 휘두르기: 검 회전 + 큰 부채꼴 궤적 + 궤적을 따라 불꽃
+function flameSwing(m,ang){m.swing=0.42;m.swingDur=0.42;m.swingA=ang;slashArc(m.x,m.y,ang,m.r*3.2,'#ff7a3d',3.0,0.45);
+  for(let k=0;k<=12;k++){const a=ang-1.5+3.0*k/12,rr=m.r*2.9;S.particles.push({x:m.x+Math.cos(a)*rr,y:m.y+Math.sin(a)*rr,vx:Math.cos(a)*rand(60,160),vy:Math.sin(a)*rand(60,160),life:rand(0.3,0.55),color:k%2?'#ffd166':'#ff7a3d',r:rand(2.5,5)})}}
 function slashLine(x1,y1,x2,y2,color,w){S.slashes.push({type:'line',x1,y1,x2,y2,w:w||6,life:0.3,max:0.3,color})}
 function boom(m,mult){const n=Math.min(80,(8+m.r)*mult);const sm=Math.sqrt(mult);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(60,320)*sm;S.particles.push({x:m.x,y:m.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.5,1.1)*sm,color:m.color,r:rand(1.5,m.r*0.35+1.5)})}}
 function spark(x,y,n){for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(40,220);S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.15,0.4),color:'#fff',r:rand(1,2.5)})}}
@@ -423,11 +430,32 @@ function useSkill(m,alive){
       let t=null;for(const o of foes)if(!t||o.hp<t.hp)t=o;
       if(t){announce(m);m.aim={t:0,dur:1.5,target:t};m.vx*=0.3;m.vy*=0.3;m.skillCd=7}else m.skillCd=0.5;
       break}
+    case 'boomerang':{ // 곡선으로 날아갔다 돌아옴 (비행·피해는 step에서)
+      const t=nearest(400);
+      if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+        S.boomerangs.push({x:m.x+ux*(m.r+6),y:m.y+uy*(m.r+6),vx:ux*540-uy*170,vy:uy*540+ux*170,owner:m,t:0,rot:0,hitOut:new Set(),hitBack:new Set()});
+        announce(m);burst(m.x+ux*m.r,m.y+uy*m.r,8,sc,120);m.skillCd=5}
+      else m.skillCd=0.5;
+      break}
+    case 'breath':{ // 0.7초 동안 정면 부채꼴 화염
+      const t=nearest(200);
+      if(t){announce(m);m.breathT=0.7;m.breathCd=0;m.breathA=Math.atan2(t.y-m.y,t.x-m.x);m.skillCd=6}else m.skillCd=0.5;
+      break}
+    case 'bees':{ // 벌 5마리가 상대에게 붙어 3초
+      const t=nearest(320);
+      if(t){announce(m);const bees=[];for(let k=0;k<5;k++)bees.push({x:m.x+rand(-8,8),y:m.y-m.r-rand(0,10),vx:0,vy:0,ph:rand(0,TAU)});
+        S.swarms.push({owner:m,target:t,bees,t:3,tick:0.2});m.skillCd=8}
+      else m.skillCd=0.5;
+      break}
+    case 'rocket':{ // 0.4초 점화 뒤 직선 폭주
+      const t=nearest(500);
+      if(t){announce(m);m.rocketCharge=0.4;m.rocketA=Math.atan2(t.y-m.y,t.x-m.x);m.rocketTarget=t;m.skillCd=7}else m.skillCd=0.5;
+      break}
     default:m.skillCd=1; // 화염 돌진, 흡혈, 파이어스텝, 거인화는 상시 효과
   }
 }
 // 발동형 스킬만 연출(카메라 이동 + 0.7배속)을 붙인다. 화염검/흡혈은 상시 효과
-const ACTIVE=new Set(['shield','bolt','blink','wave','frost','magnet','arrow','bomb','laser','hammer','iaido','tornado','snipe']);
+const ACTIVE=new Set(['shield','bolt','blink','wave','frost','magnet','arrow','bomb','laser','hammer','iaido','tornado','snipe','boomerang','breath','bees','rocket']);
 function canUse(m,alive){
   const foes=alive.filter(o=>isFoe(m,o));if(!foes.length)return false;
   const near=range=>foes.some(o=>(o.x-m.x)**2+(o.y-m.y)**2<range*range);
@@ -444,6 +472,10 @@ function canUse(m,alive){
     case 'iaido':return near(420);
     case 'tornado':return near(200);
     case 'snipe':return true;
+    case 'boomerang':return near(400);
+    case 'breath':return near(200);
+    case 'bees':return near(320);
+    case 'rocket':return near(500);
     case 'blink':return true;
     default:return false;
   }
@@ -453,6 +485,12 @@ function startFocus(m){
   S.focus={m,t:0,fired:false};
   addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}!`,s.color,16);
 }
+// 로켓 돌진 폭발: 반경 110, 벽에 부딪혔으면 자기도 피해
+function rocketBoom(m,kind){m.rocketT=0;m.rocketTarget=null;const x=m.x,y=m.y,sc=SKILLS.rocket.color;
+  ring(x,y,16,900,0,0.4,sc,true,110);burst(x,y,40,'#ffb347',320);burst(x,y,20,'#ff4d6d',220);burst(x,y,12,'#fff',160);addText(x,y-m.r-16,'💥 로켓 폭발',sc,22);
+  for(const o of aliveList()){if(!isFoe(m,o))continue;const dx=o.x-x,dy=o.y-y,d=Math.hypot(dx,dy);if(d<110+o.r&&d>0){o.vx+=dx/d*500;o.vy+=dy/d*500;hurt(o,22,m,o.x,o.y)}}
+  m.vx*=0.15;m.vy*=0.15;m.fling=0;
+  if(kind==='wall'){hurt(m,12,m,x,y);if(S.final&&m.alive)addText(x,y-m.r-38,'벽 충돌!','#8b8d9c',15)}}
 function explodeBomb(b){
   ring(b.x,b.y,20,1000,0,0.45,'#ff7a3d',true,150);ring(b.x,b.y,20,1000,4,0.5,'#ffb347',false,150);
   burst(b.x,b.y,60,'#ffb347',380);burst(b.x,b.y,30,'#ff4d6d',250);burst(b.x,b.y,20,'#fff',180);
@@ -487,6 +525,25 @@ function step(dt){
     if(a.life<=0||segDist(a.x,a.y,ARENA_L)>ARENA_R||hitsObst(a.x,a.y,2)){burst(a.x,a.y,14,'#dff7ff',160);return false}
     for(const o of alive){if(!isFoe(a.owner,o)||a.hit.has(o))continue;
       if((o.x-a.x)**2+(o.y-a.y)**2<(o.r+9)**2){a.hit.add(o);o.frozen=1.2;o.vx*=0.2;o.vy*=0.2;burst(o.x,o.y,26,SKILLS.frost.color,170);burst(o.x,o.y,10,'#fff',100);if(S.final)addText(o.x,o.y-o.r-10,'❄️ 빙결',SKILLS.frost.color,16)}}
+    return true});
+  // 부메랑: 주인 쪽으로 계속 당겨져 곡선을 그리며 돌아옴. 나가는 길·돌아오는 길에 각각 한 번씩 피해
+  S.boomerangs=S.boomerangs.filter(b=>{b.t+=dt;b.rot+=22*dt;const o=b.owner;
+    const dx=o.x-b.x,dy=o.y-b.y,d=Math.hypot(dx,dy)||1;b.vx+=dx/d*700*dt;b.vy+=dy/d*700*dt;
+    const sp=Math.hypot(b.vx,b.vy);if(sp>640){b.vx*=640/sp;b.vy*=640/sp}
+    b.x+=b.vx*dt;b.y+=b.vy*dt;
+    if(rng()<0.5)S.particles.push({x:b.x,y:b.y,vx:rand(-20,20),vy:rand(-20,20),life:rand(0.2,0.35),color:SKILLS.boomerang.color,r:rand(1.5,3)});
+    if(!o.alive||b.t>2.4||(b.t>0.35&&d<o.r+10)){if(o.alive)burst(b.x,b.y,8,SKILLS.boomerang.color,120);return false}
+    if(segDist(b.x,b.y,ARENA_L)>ARENA_R-4||hitsObst(b.x,b.y,4)){spark(b.x,b.y,8);b.vx=dx/d*500;b.vy=dy/d*500} // 벽에 맞으면 바로 돌아옴
+    const out=(b.vx*dx+b.vy*dy)<0;const set=out?b.hitOut:b.hitBack;
+    for(const t of alive){if(!isFoe(o,t)||set.has(t))continue;if((t.x-b.x)**2+(t.y-b.y)**2<(t.r+12)**2){set.add(t);const L=Math.hypot(b.vx,b.vy)||1;t.vx+=b.vx/L*220;t.vy+=b.vy/L*220;burst(t.x,t.y,18,SKILLS.boomerang.color,220);spark(t.x,t.y,6);hurt(t,12,o,t.x,t.y)}}
+    return true});
+  // 벌떼: 상대 주위를 윙윙 돌며 0.3초마다 2 (방패 무시). 상대가 죽으면 근처 다른 상대에게
+  S.swarms=S.swarms.filter(sw=>{sw.t-=dt;let t=sw.target;
+    if(!t||!t.alive){let best=null,bd=200*200;const b0=sw.bees[0];for(const o of alive){if(!isFoe(sw.owner,o))continue;const d=(o.x-b0.x)**2+(o.y-b0.y)**2;if(d<bd){bd=d;best=o}}sw.target=t=best}
+    if(!t||sw.t<=0||!sw.owner.alive){for(const b of sw.bees)burst(b.x,b.y,2,SKILLS.bees.color,80);return false}
+    for(const b of sw.bees){b.ph+=dt*9;const gx=t.x+Math.cos(b.ph)*(t.r+10),gy=t.y+Math.sin(b.ph*1.3)*(t.r+10);const dx=gx-b.x,dy=gy-b.y,d=Math.hypot(dx,dy)||1;const sp=Math.min(900,d*12+200);b.vx=dx/d*sp+rand(-60,60);b.vy=dy/d*sp+rand(-60,60);b.x+=b.vx*dt;b.y+=b.vy*dt}
+    sw.tick-=dt;const near=sw.bees.some(b=>(b.x-t.x)**2+(b.y-t.y)**2<(t.r+16)**2);
+    if(near&&sw.tick<=0){sw.tick=0.3;t.hp-=2;t.beeDmg+=2;t.hit=Math.max(t.hit,0.4);S.hits++;S.dmgTotal+=2;spark(t.x+rand(-t.r,t.r),t.y+rand(-t.r,t.r),2);if(t.hp<=0)die(t,sw.owner)}
     return true});
   // 불길: 밟는 상대에게 지속 피해 (방패 무시, 0.3초마다 4)
   for(const f of S.fires){for(const o of alive){if(!isFoe(f.owner,o)||o.fireCd>0)continue;
@@ -537,6 +594,24 @@ function step(dt){
           burst(sx,sy,10,'#ffe66d',200);spark(sx,sy,6);
           if(blocked){spark(ex,ey,10);if(S.final)addText(ex,ey-10,'빗나감','#8b8d9c',15)}
           else{t.vx+=ux*320;t.vy+=uy*320;burst(t.x,t.y,26,SKILLS.snipe.color,260);burst(t.x,t.y,10,'#fff',160);hurt(t,40,m,t.x,t.y)}}}}
+    if(m.beeDmg>0){m.beeTextT-=dt;if(m.beeTextT<=0){if(S.final)addText(m.x+rand(-6,6),m.y-10,'🐝 -'+m.beeDmg,SKILLS.bees.color,16);m.beeDmg=0;m.beeTextT=0.6}}
+    // 화염 브레스: 부채꼴(길이 190, 반각 0.55) 안의 상대에게 0.12초마다 4, 불 파편을 계속 분사
+    if(m.breathT>0){m.breathT-=dt;m.breathCd-=dt;
+      if(m.target&&m.target.alive){let d=Math.atan2(m.target.y-m.y,m.target.x-m.x)-m.breathA;d=Math.atan2(Math.sin(d),Math.cos(d));m.breathA+=d*Math.min(1,dt*4)}
+      for(let k=0;k<6;k++){const a=m.breathA+rand(-0.5,0.5),sp=rand(260,520);S.particles.push({x:m.x+Math.cos(m.breathA)*m.r,y:m.y+Math.sin(m.breathA)*m.r,vx:Math.cos(a)*sp+m.vx*0.3,vy:Math.sin(a)*sp+m.vy*0.3,life:rand(0.25,0.5),color:k<2?'#ffd166':k<5?'#ff7a3d':'#ff3b3b',r:rand(3,6.5)})}
+      if(m.breathCd<=0){m.breathCd=0.12;
+        for(const o of alive){if(!isFoe(m,o))continue;const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy);if(d>190+o.r||d<1)continue;let da=Math.atan2(dy,dx)-m.breathA;da=Math.atan2(Math.sin(da),Math.cos(da));
+          if(Math.abs(da)<0.55+o.r/d){o.vx+=dx/d*60;o.vy+=dy/d*60;hurt(o,4,m,o.x,o.y)}}}}
+    // 로켓 돌진: 점화(0.4초, 배기 불꽃) → 직선 폭주(최대 0.6초). 상대·벽·구조물에 닿으면 폭발
+    if(m.rocketCharge>0){m.rocketCharge-=dt;m.vx*=0.85;m.vy*=0.85;
+      if(m.rocketTarget&&m.rocketTarget.alive)m.rocketA=Math.atan2(m.rocketTarget.y-m.y,m.rocketTarget.x-m.x);
+      for(let k=0;k<2;k++)S.particles.push({x:m.x-Math.cos(m.rocketA)*m.r*1.3,y:m.y-Math.sin(m.rocketA)*m.r*1.3,vx:-Math.cos(m.rocketA)*rand(60,160)+rand(-40,40),vy:-Math.sin(m.rocketA)*rand(60,160)+rand(-40,40),life:rand(0.2,0.4),color:k?'#ff7a3d':'#ffd166',r:rand(2,4)});
+      if(m.rocketCharge<=0){m.rocketT=0.6;m.fling=0.7;m.vx=Math.cos(m.rocketA)*1100;m.vy=Math.sin(m.rocketA)*1100;m.dash=0.6;burst(m.x,m.y,16,'#ffd166',200);if(S.final)addText(m.x,m.y-m.r-30,'🚀 발사!',SKILLS.rocket.color,18)}}
+    else if(m.rocketT>0){m.rocketT-=dt;m.vx=Math.cos(m.rocketA)*1100;m.vy=Math.sin(m.rocketA)*1100;m.fling=Math.max(m.fling,0.1);
+      for(let k=0;k<4;k++)S.particles.push({x:m.x-Math.cos(m.rocketA)*m.r,y:m.y-Math.sin(m.rocketA)*m.r,vx:-Math.cos(m.rocketA)*rand(150,320)+rand(-60,60),vy:-Math.sin(m.rocketA)*rand(150,320)+rand(-60,60),life:rand(0.25,0.5),color:k<2?'#ffd166':k<3?'#ff7a3d':'#8b8d9c',r:rand(2.5,5.5)});
+      let hitFoe=null;for(const o of alive){if(!isFoe(m,o))continue;if((o.x-m.x)**2+(o.y-m.y)**2<(o.r+m.r+2)**2){hitFoe=o;break}}
+      const nx2=m.x+m.vx*dt,ny2=m.y+m.vy*dt;const wall=segDist(nx2,ny2,ARENA_L)>ARENA_R-m.r-2||hitsObst(nx2,ny2,m.r+1);
+      if(hitFoe||wall||m.rocketT<=0)rocketBoom(m,hitFoe?'foe':wall?'wall':'end')}
     m.retarget-=dt;
     if(m.retarget<=0||!m.target||!m.target.alive){
       m.retarget=rand(0.5,1.4);
@@ -562,7 +637,7 @@ function step(dt){
         ax=(dx-dy*w)*acc;ay=(dy+dx*w)*acc;
         m.dashCd-=dt;
         if(m.dashCd<=0&&L<CFG.dashRange){let p=rand(CFG.dashMin,CFG.dashMax);if(m.skill==='flame')p*=1.3;m.vx+=dx*p;m.vy+=dy*p;m.dashCd=rand(CFG.dashCdMin,CFG.dashCdMax);m.dash=0.3;
-          if(m.skill==='flame')burst(m.x,m.y,18,'#ff7a3d',160)}
+          if(m.skill==='flame'){burst(m.x,m.y,18,'#ff7a3d',160);if(S.final&&L<170)flameSwing(m,Math.atan2(dy,dx))}}
       }
       // 구조물 회피
       for(const o of OBST){const c=obstClosest(o,m.x,m.y);const lim=m.r+o.rc+45;if(!c.inside&&c.d<lim&&c.d>0.01){const k=1-(c.d-(m.r+o.rc))/45;ax+=(m.x-c.px)/c.d*CFG.accel*1.4*k;ay+=(m.y-c.py)/c.d*CFG.accel*1.4*k}}
@@ -629,7 +704,7 @@ function step(dt){
         const mul=atk.skill==='flame'?1.5:1;
         if(def.inv<=0){hurt(def,base*mul*rand(0.8,1.2),atk,cx,cy);def.inv=CFG.hitInv;
           if(S.final)burst(cx,cy,12,atk.skill==='flame'?'#ff7a3d':'#fff',240)
-          if(S.final&&atk.skill==='flame'){const ang=Math.atan2(def.y-atk.y,def.x-atk.x);atk.swing=0.32;atk.swingA=ang;slashArc(atk.x,atk.y,ang,atk.r*2.4,'#ff7a3d',2.6)}}
+          if(S.final&&atk.skill==='flame')flameSwing(atk,Math.atan2(def.y-atk.y,def.x-atk.x))}
         // 상대를 쓰러뜨렸으면 반격 피해 없음 (더블 KO 방지)
         if(def.alive&&atk.inv<=0){hurt(atk,base*CFG.counterRatio*rand(0.8,1.2),def,cx,cy);atk.inv=CFG.hitInv}
         spark(cx,cy,S.final?Math.min(10,3+rel/60):Math.min(4,1+rel/150));
@@ -956,6 +1031,12 @@ function drawMarble(m){
     ctx.strokeStyle=m.shield?'#7fd3ff':'#9fb0cc';ctx.lineWidth=m.shield?3:2;ctx.stroke();
     ctx.strokeStyle='#dfe8ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(sx,sy-r*0.5);ctx.lineTo(sx,sy+r*0.5);ctx.moveTo(sx-r*0.35,sy);ctx.lineTo(sx+r*0.35,sy);ctx.stroke();
   }
+  if(m.skill==='rocket'){ // 로켓 배낭 (점화·폭주 중엔 진행 방향 반대로, 평소엔 왼쪽 뒤)
+    const on=m.rocketT>0||m.rocketCharge>0,a=on?m.rocketA+Math.PI:Math.PI*0.8;ctx.save();ctx.translate(x+Math.cos(a)*r*0.95,y+Math.sin(a)*r*0.95);ctx.rotate(a);
+    ctx.fillStyle='#8a8f9a';ctx.fillRect(-r*0.2,-r*0.32,r*1.0,r*0.64);ctx.fillStyle='#ff4d6d';ctx.beginPath();ctx.moveTo(-r*0.2,-r*0.32);ctx.lineTo(-r*0.6,0);ctx.lineTo(-r*0.2,r*0.32);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#5a5f6a';ctx.fillRect(r*0.8,-r*0.42,r*0.25,r*0.84);
+    if(on){const fl=r*(0.8+Math.random()*0.9);ctx.fillStyle='#ffd166';ctx.beginPath();ctx.moveTo(r*1.05,-r*0.3);ctx.lineTo(r*1.05+fl,0);ctx.lineTo(r*1.05,r*0.3);ctx.closePath();ctx.fill();ctx.fillStyle='#ff7a3d';ctx.beginPath();ctx.moveTo(r*1.05,-r*0.18);ctx.lineTo(r*1.05+fl*0.6,0);ctx.lineTo(r*1.05,r*0.18);ctx.closePath();ctx.fill()}
+    ctx.restore()}
   if(m.dash>0){ctx.globalAlpha=m.dash*1.2;ctx.fillStyle=m.skill==='flame'?'#ff7a3d':m.color;ctx.beginPath();ctx.arc(x,y,r*1.45,0,TAU);ctx.fill();ctx.globalAlpha=1}
   // ---- 몸통 (히트박스 = r). 기본 얼굴 이미지가 있는 이름은 원 안에 잘라 넣음 ----
   const face=opt.faces&&S.faceOf&&S.faceOf[m.name]?faceImgs[S.faceOf[m.name]]:null;
@@ -1024,6 +1105,17 @@ function drawMarble(m){
       const px=x,py=y-r*1.55,spin=S.time*(m.tornadoT>0?18:3);ctx.strokeStyle='#8a6a3a';ctx.lineWidth=Math.max(2,r*0.12);ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,y-r*0.8);ctx.stroke();
       for(let k=0;k<4;k++){const a=spin+k*Math.PI/2;ctx.fillStyle=k%2?'#4fd1c5':'#e6fffb';ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(a)*r*0.7,py+Math.sin(a)*r*0.7);ctx.lineTo(px+Math.cos(a+0.7)*r*0.5,py+Math.sin(a+0.7)*r*0.5);ctx.closePath();ctx.fill()}
       ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px,py,r*0.1,0,TAU);ctx.fill();break}
+    case 'boomerang':{ // 챙 넓은 모자
+      ctx.fillStyle='#b98b4a';ctx.beginPath();ctx.ellipse(x,y-r*0.6,r*1.55,r*0.4,0,0,TAU);ctx.fill();ctx.fillStyle='#c9a05a';ctx.beginPath();ctx.arc(x,y-r*0.6,r*0.85,Math.PI,TAU);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#5a3a1b';ctx.fillRect(x-r*0.85,y-r*0.85,r*1.7,r*0.2);break}
+    case 'breath':{ // 용 뿔
+      ctx.strokeStyle='#d32f2f';ctx.lineCap='round';ctx.lineWidth=Math.max(3,r*0.3);for(const k of [-1,1]){ctx.beginPath();ctx.moveTo(x+k*r*0.55,y-r*0.7);ctx.quadraticCurveTo(x+k*r*1.1,y-r*1.3,x+k*r*0.9,y-r*2.0);ctx.stroke()}
+      ctx.lineCap='butt';ctx.fillStyle='#ffab91';for(const k of [-1,1]){ctx.beginPath();ctx.arc(x+k*r*0.9,y-r*2.0,r*0.16,0,TAU);ctx.fill()}break}
+    case 'bees':{ // 양봉 모자 + 망사
+      ctx.fillStyle='#e8e0c8';ctx.beginPath();ctx.ellipse(x,y-r*0.65,r*1.5,r*0.36,0,0,TAU);ctx.fill();ctx.beginPath();ctx.arc(x,y-r*0.65,r*0.8,Math.PI,TAU);ctx.closePath();ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.22)';ctx.fillRect(x-r*1.0,y-r*0.65,r*2.0,r*1.4);ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=1;ctx.beginPath();for(let k=-2;k<=2;k++){ctx.moveTo(x+k*r*0.4,y-r*0.65);ctx.lineTo(x+k*r*0.4,y+r*0.75)}ctx.moveTo(x-r*1.0,y+r*0.75);ctx.lineTo(x+r*1.0,y+r*0.75);ctx.stroke();break}
+    case 'rocket':{ // 조종사 고글
+      ctx.fillStyle='#4a3a2a';ctx.fillRect(x-r*1.0,y-r*0.4,r*2.0,r*0.28);for(const k of [-1,1]){ctx.fillStyle='#4a3a2a';ctx.beginPath();ctx.arc(x+k*r*0.42,y-r*0.26,r*0.36,0,TAU);ctx.fill();ctx.fillStyle='#7fd3ff';ctx.beginPath();ctx.arc(x+k*r*0.42,y-r*0.26,r*0.26,0,TAU);ctx.fill()}break}
     case 'snipe':{ // 베레모 (왼쪽으로 기울어진 납작 모자)
       ctx.fillStyle='#2e5e2a';ctx.beginPath();ctx.ellipse(x-r*0.15,y-r*0.85,r*1.15,r*0.45,-0.25,0,TAU);ctx.fill();
       ctx.fillStyle='#3f7a38';ctx.fillRect(x-r*0.9,y-r*0.7,r*1.8,r*0.2);ctx.fillStyle='#ffd166';ctx.beginPath();ctx.arc(x+r*0.5,y-r*0.95,r*0.12,0,TAU);ctx.fill();break}
@@ -1031,8 +1123,8 @@ function drawMarble(m){
   // ---- 무기 ----
   switch(m.skill){
     case 'flame':{ // 불타는 검 (평소엔 오른쪽 위, 부딪힐 때 상대 쪽으로 휘두름)
-      let ang=-Math.PI/4;if(m.swing>0){const u=1-m.swing/0.32;ang=m.swingA+1.3-2.6*u}
-      const ux=Math.cos(ang),uy=Math.sin(ang),hx=x+ux*r*0.55-uy*r*0.35,hy=y+uy*r*0.55+ux*r*0.35,len=r*2.1;
+      let ang=-Math.PI/4;if(m.swing>0){const u=1-m.swing/(m.swingDur||0.32);ang=m.swingA+1.5-3.0*u}
+      const ux=Math.cos(ang),uy=Math.sin(ang),hx=x+ux*r*0.55-uy*r*0.35,hy=y+uy*r*0.55+ux*r*0.35,len=r*(m.swing>0?2.9:2.1);
       ctx.strokeStyle='#6b4a2b';ctx.lineWidth=Math.max(3,r*0.22);ctx.beginPath();ctx.moveTo(hx-ux*r*0.35,hy-uy*r*0.35);ctx.lineTo(hx+ux*r*0.25,hy+uy*r*0.25);ctx.stroke();
       ctx.strokeStyle='#b08a4a';ctx.lineWidth=Math.max(2,r*0.16);ctx.beginPath();ctx.moveTo(hx+ux*r*0.25-uy*r*0.45,hy+uy*r*0.25+ux*r*0.45);ctx.lineTo(hx+ux*r*0.25+uy*r*0.45,hy+uy*r*0.25-ux*r*0.45);ctx.stroke();
       ctx.strokeStyle='#ffb347';ctx.lineWidth=Math.max(4,r*0.34);ctx.beginPath();ctx.moveTo(hx+ux*r*0.3,hy+uy*r*0.3);ctx.lineTo(hx+ux*len,hy+uy*len);ctx.stroke();
@@ -1095,6 +1187,8 @@ function drawMarble(m){
       const fx=x+r*1.05,fy=y+r*0.5;ctx.fillStyle='#e6fffb';ctx.beginPath();ctx.moveTo(fx,fy);ctx.arc(fx,fy,r*1.2,-Math.PI*0.75,-Math.PI*0.1);ctx.closePath();ctx.fill();
       ctx.strokeStyle='#4fd1c5';ctx.lineWidth=1.5;ctx.stroke();ctx.beginPath();for(let k=0;k<4;k++){const a=-Math.PI*0.75+k*Math.PI*0.65/3;ctx.moveTo(fx,fy);ctx.lineTo(fx+Math.cos(a)*r*1.2,fy+Math.sin(a)*r*1.2)}ctx.stroke();
       break}
+    case 'boomerang':{ // 손에 든 부메랑 (왼쪽)
+      ctx.save();ctx.translate(x-r*1.25,y+r*0.2);ctx.rotate(-0.6);ctx.lineCap='round';ctx.strokeStyle='#d4a24c';ctx.lineWidth=Math.max(3,r*0.28);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(r*0.9,0);ctx.moveTo(0,0);ctx.lineTo(Math.cos(1.85)*r*0.9,Math.sin(1.85)*r*0.9);ctx.stroke();ctx.lineCap='butt';ctx.restore();break}
     case 'snipe':{ // 저격총 (오른쪽으로 길게, 조준 중엔 상대 쪽을 향함)
       let ang=-0.2;if(m.aim&&m.aim.target.alive)ang=Math.atan2(m.aim.target.y-y,m.aim.target.x-x);
       ctx.save();ctx.translate(x,y);ctx.rotate(ang);
@@ -1185,6 +1279,18 @@ function render(){
     ctx.moveTo(t.x-sz*0.5,t.y);ctx.lineTo(t.x+sz*0.5,t.y);ctx.moveTo(t.x,t.y-sz*0.5);ctx.lineTo(t.x,t.y+sz*0.5);ctx.stroke();
     if(u>0.8&&Math.floor(S.time*12)%2===0){ctx.fillStyle='rgba(255,59,59,0.25)';ctx.fillRect(t.x-sz,t.y-sz,sz*2,sz*2)}}
   ctx.globalAlpha=1;
+  // 화염 브레스 부채꼴 (파편이 주 연출, 부채꼴은 범위 표시)
+  for(const m of S.marbles){if(!m.alive||m.breathT<=0)continue;ctx.globalAlpha=0.16+0.1*Math.random();ctx.fillStyle='#ff6d00';ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.arc(m.x,m.y,190,m.breathA-0.55,m.breathA+0.55);ctx.closePath();ctx.fill();
+    ctx.globalAlpha=0.2;ctx.fillStyle='#ffd166';ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.arc(m.x,m.y,110,m.breathA-0.4,m.breathA+0.4);ctx.closePath();ctx.fill()}
+  ctx.globalAlpha=1;
+  // 부메랑: 빙글 도는 V자
+  for(const b of S.boomerangs){ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.rot);ctx.lineCap='round';ctx.strokeStyle='#d4a24c';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(24,0);ctx.moveTo(0,0);ctx.lineTo(Math.cos(1.85)*24,Math.sin(1.85)*24);ctx.stroke();
+    ctx.strokeStyle='#fff3d0';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(20,0);ctx.moveTo(Math.cos(1.85)*4,Math.sin(1.85)*4);ctx.lineTo(Math.cos(1.85)*20,Math.sin(1.85)*20);ctx.stroke();ctx.lineCap='butt';ctx.restore()}
+  // 벌떼
+  for(const sw of S.swarms)for(const b of sw.bees){ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.vy,b.vx));
+    ctx.fillStyle='rgba(255,255,255,0.8)';const wf=Math.random()<0.5?1:0.4;ctx.beginPath();ctx.ellipse(-1,-4*wf,4,2.5,0,0,TAU);ctx.ellipse(-1,4*wf,4,2.5,0,0,TAU);ctx.fill();
+    ctx.fillStyle='#ffca28';ctx.beginPath();ctx.ellipse(0,0,6,3.8,0,0,TAU);ctx.fill();ctx.strokeStyle='#222';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-1,-3.5);ctx.lineTo(-1,3.5);ctx.moveTo(2,-3.2);ctx.lineTo(2,3.2);ctx.stroke();
+    ctx.fillStyle='#222';ctx.beginPath();ctx.moveTo(6,0);ctx.lineTo(9,-1);ctx.lineTo(9,1);ctx.closePath();ctx.fill();ctx.restore()}
   // 폭탄: 폭발 범위(연한 붉은 원) + 큰 폭탄 모양
   for(const b of S.bombs){ctx.fillStyle='rgba(255,60,80,0.12)';ctx.beginPath();ctx.arc(b.x,b.y,150,0,TAU);ctx.fill();ctx.strokeStyle='rgba(255,90,110,0.45)';ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.lineDashOffset=-S.time*40;ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle='#1a1a22';ctx.beginPath();ctx.arc(b.x,b.y,16,0,TAU);ctx.fill();ctx.strokeStyle='#ffb347';ctx.lineWidth=2.5;ctx.stroke();
@@ -1210,14 +1316,15 @@ function render(){
   for(const l of S.lasers){const a=clamp(l.life/l.max,0,1),k=l.life>l.max-0.08?1.4:1;ctx.beginPath();ctx.moveTo(l.x1,l.y1);ctx.lineTo(l.x2,l.y2);
     ctx.globalAlpha=a*0.3;ctx.strokeStyle=l.color;ctx.lineWidth=l.w*2.6*k;ctx.stroke();ctx.globalAlpha=a;ctx.lineWidth=l.w*k;ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=l.w*0.35*k;ctx.stroke()}
   ctx.globalAlpha=1;
-  // 검 궤적: 부채꼴(휘두름) / 직선(베기)
+  for(const m of S.marbles){if(m.alive)drawMarble(m)}
+  // 검 궤적: 부채꼴(휘두름) / 직선(베기). 공 위에 그려서 가려지지 않게
   for(const o of S.slashes){const a=clamp(o.life/o.max,0,1);
-    if(o.type==='arc'){const u=1-a;const a0=o.a-o.span/2,a1=o.a-o.span/2+o.span*Math.min(1,u*2.2);ctx.globalAlpha=a*0.75;ctx.fillStyle=o.color;ctx.beginPath();ctx.arc(o.x,o.y,o.r,a0,a1);ctx.arc(o.x,o.y,o.r*0.45,a1,a0,true);ctx.closePath();ctx.fill();
-      ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(o.x,o.y,o.r,a0,a1);ctx.stroke()}
+    if(o.type==='arc'){const u=1-a;const a0=o.a-o.span/2,a1=o.a-o.span/2+o.span*Math.min(1,u*2.2);
+      ctx.globalAlpha=a*0.85;ctx.fillStyle=o.color;ctx.beginPath();ctx.arc(o.x,o.y,o.r,a0,a1);ctx.arc(o.x,o.y,o.r*0.5,a1,a0,true);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=a*0.6;ctx.strokeStyle=o.color;ctx.lineWidth=8;ctx.beginPath();ctx.arc(o.x,o.y,o.r+2,a0,a1);ctx.stroke();
+      ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(o.x,o.y,o.r,a0,a1);ctx.stroke()}
     else{ctx.globalAlpha=a*0.4;ctx.strokeStyle=o.color;ctx.lineWidth=o.w*2.4;ctx.beginPath();ctx.moveTo(o.x1,o.y1);ctx.lineTo(o.x2,o.y2);ctx.stroke();ctx.globalAlpha=a;ctx.lineWidth=o.w;ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=o.w*0.35;ctx.stroke()}}
   ctx.globalAlpha=1;
-
-  for(const m of S.marbles){if(m.alive)drawMarble(m)}
   for(const t of S.texts){ctx.globalAlpha=clamp(t.life/0.4,0,1);ctx.font=`800 ${t.size}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillText(t.text,t.x+1.5,t.y+1.5);ctx.fillStyle=t.color;ctx.fillText(t.text,t.x,t.y)}
   ctx.globalAlpha=1;
   ctx.restore();
@@ -1281,7 +1388,8 @@ function frame(now){
   if(sim){acc+=real*opt.speed*slow;let g=0;while(acc>=HS&&g++<48){step(HS);acc-=HS}}else acc=0;
   if(S.finish){S.finish.t+=real;if(S.finish.t>=S.finish.dur)S.finish=null}
   // 전투가 끝나 시뮬레이션이 멈춘 뒤에도 피격 번쩍임·돌진 잔광·보호막·화상 같은 순간 효과는 계속 사그라들게 (마지막 장면이 하얗게 굳지 않도록)
-  if(S.phase==='finished')for(const m of S.marbles){if(!m.alive)continue;m.hit=Math.max(0,m.hit-real*4);m.dash=Math.max(0,m.dash-real);m.shieldFx=Math.max(0,m.shieldFx-real);m.burn=Math.max(0,m.burn-real*3);m.frozen=Math.max(0,m.frozen-real);m.swing=Math.max(0,m.swing-real);m.hammerT=Math.max(0,m.hammerT-real);m.magnetT=Math.max(0,m.magnetT-real);m.tornadoT=Math.max(0,m.tornadoT-real);m.aim=null}
+  if(S.phase==='finished')for(const m of S.marbles){if(!m.alive)continue;m.hit=Math.max(0,m.hit-real*4);m.dash=Math.max(0,m.dash-real);m.shieldFx=Math.max(0,m.shieldFx-real);m.burn=Math.max(0,m.burn-real*3);m.frozen=Math.max(0,m.frozen-real);m.swing=Math.max(0,m.swing-real);m.hammerT=Math.max(0,m.hammerT-real);m.magnetT=Math.max(0,m.magnetT-real);m.tornadoT=Math.max(0,m.tornadoT-real);m.aim=null;m.breathT=0;m.rocketT=0;m.rocketCharge=0}
+  if(S.phase==='finished'){S.boomerangs.length=0;S.swarms.length=0}
   fx(real*slow);
   S.fight=Math.max(0,S.fight-real);
   // 물리 스텝 사이를 보간해서 그린다 (0.7배속처럼 한 프레임에 스텝 수가 들쭉날쭉해도 움직임이 매끄럽게)
