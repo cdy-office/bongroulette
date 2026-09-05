@@ -226,7 +226,7 @@ function setup(){
   const ukeys=[...new Set(keys)];
   const hue=new Map(ukeys.map((k,i)=>[k,(i*137.508+20)%360]));
   const n=names.length;
-  const r=clamp(116/Math.sqrt(Math.max(n,1)),5,18);
+  const r=clamp(170/Math.sqrt(Math.max(n,1)),12,18); // 공이 많아도 반지름 12 아래로는 줄이지 않음 (100개≈17, 200개 이상 12)
   S.marbles=names.map((nm,i)=>new Marble(i,nm,`hsl(${hue.get(keys[i]).toFixed(0)} 85% 62%)`,r));
   S.factions=[];const fmap=new Map();
   S.marbles.forEach((m,i)=>{
