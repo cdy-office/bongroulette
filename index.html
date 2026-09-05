@@ -15,7 +15,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 #ctrl .head{font-weight:800;font-size:15px;letter-spacing:.3px}
 #ctrl .head small{display:block;color:var(--muted);font-weight:500;font-size:11px;margin-top:2px}
 #ctrl label.t{display:block;font-weight:700;margin-bottom:5px;font-size:12px}
-#ctrl textarea{width:100%;height:110px;resize:none;background:#0d0d14;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:13px;line-height:1.4}
+#ctrl textarea{width:100%;height:210px;resize:none;background:#0d0d14;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:13px;line-height:1.4}
 #ctrl textarea:disabled{opacity:.5}
 .hint{color:var(--muted);font-size:11px;margin-top:4px}
 .opts{display:flex;flex-direction:column;gap:7px}
@@ -54,8 +54,11 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 <canvas id="game"></canvas>
 
 <div id="ctrl" class="panel">
-  <div class="head">봉 룰렛<small>Bong Roulette</small></div>
+  <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
   <div>
+    <div class="opt" style="margin-bottom:8px" title="켜기: 이름과 같은 그림은 자동 매칭, 없는 이름은 무작위 얼굴 / 끄기: 색 공만"><span class="k">🖼️ 얼굴</span>
+      <div class="seg" id="faceSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
+    </div>
     <label class="t" for="names">이름들을 입력하세요</label>
     <textarea id="names" spellcheck="false">송판*1, 네즈미*1, 강자*1, 루시엘*1, 신가호*1, 게코스*1, 비아트리체*1, 드응으루마루헤이요*1, 테무르*1, 미카엘린*1, 미카엘라*1, 러한테스메르*1, 배해수*1, 안나*1, 오마에*1, 헤이즐*1, 한봉식*1, 큐피*1, 세실리아*1, 광견이형*1, 햇냥이*1, 메리미*1,</textarea>
     <div class="hint">쉼표나 줄바꿈으로 구분. <b>이름*숫자</b>로 같은 이름을 여러 개 넣어요. 입력을 고치면 바로 리셋됩니다.</div>
@@ -73,12 +76,6 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
     </div>
     <div class="opt" title="켜기: 같은 이름끼리도 서로 공격 (완전 개인전) / 끄기: 같은 이름끼리는 노리지도 않고 피해도 없음"><span class="k">⚔️ 팀킬</span>
       <div class="seg" id="teamSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
-    </div>
-    <div class="opt" title="켜기: 이름과 같은 그림은 자동 매칭, 없는 이름은 무작위 얼굴 / 끄기: 색 공만"><span class="k">🖼️ 얼굴</span>
-      <div class="seg" id="faceSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
-    </div>
-    <div class="opt" title="켜기: 결전에서 스킬 쓸 때 카메라 이동 + 0.7배속 / 끄기: 슬로모션 없이 바로 발동 (결정타 연출만 유지)"><span class="k">🎬 연출</span>
-      <div class="seg" id="cineSeg"><button data-v="1">켜기</button><button data-v="0" class="on">끄기</button></div>
     </div>
     <div class="opt"><span class="k">🎲 시드</span><span class="seedv" id="seedText"></span></div>
   </div>
@@ -1028,7 +1025,6 @@ seg($('#modeSeg'),v=>{opt.mode=v;multiRow.hidden=v!=='multi'});
 seg($('#speedSeg'),v=>{opt.speed=+v});
 seg($('#zoneSeg'),v=>{opt.zone=v==='1'});
 seg($('#teamSeg'),v=>{opt.teamFire=v==='1'});
-seg($('#cineSeg'),v=>{opt.cine=v==='1'});
 seg($('#faceSeg'),v=>{opt.faces=v==='1';deadKey=-1;updateRank()});
 btnStart.addEventListener('click',start);
 btnShuffle.addEventListener('click',()=>{seed=(Math.random()*1e9)>>>0;S.seedUsed=false;setup()});
