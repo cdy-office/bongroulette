@@ -160,14 +160,16 @@ const SKILLS={
   wave:{name:'충격파',icon:'💥',color:'#ff5ca8',desc:'뿔 투구와 전쟁 망치. 6초마다 주변을 밀쳐내며 피해 14'},
   drain:{name:'흡혈',icon:'🩸',color:'#ff4d6d',desc:'망토와 실크햇. 입힌 피해의 절반만큼 회복'},
   frost:{name:'빙결',icon:'❄️',color:'#9fe8ff',desc:'얼음 왕관과 지팡이. 5초마다 얼음 창을 날려 궤적의 상대를 1.2초 얼림, 언 상대는 피해 1.4배'},
-  magnet:{name:'자석',icon:'🧲',color:'#ff9de2',desc:'안전모와 U자 자석. 6초마다 2초 동안 물결 원 안의 상대를 끌어당김'},
+  magnet:{name:'자석',icon:'🧲',color:'#ff9de2',desc:'안전모와 U자 자석. 6초마다 2초 동안 물결 원(반경 170) 안의 상대를 끌어당김'},
   arrow:{name:'화살',icon:'🏹',color:'#e0c080',desc:'깃털 모자와 활. 3초마다 가까운 상대에게 화살 14'},
   bomb:{name:'폭탄',icon:'💣',color:'#ffb347',desc:'철모와 폭탄. 6초마다 폭탄 설치, 1.5초 뒤 폭발 피해 26 (붉은 원이 폭발 범위)'},
   laser:{name:'레이저',icon:'🔴',color:'#ff3b5c',desc:'바이저와 레이저 총. 6초마다 벽까지 뻗는 직선 레이저, 선 위의 모두에게 피해 30'},
   firestep:{name:'파이어스텝',icon:'👣',color:'#ff5722',desc:'불꽃 신발. 지나간 길에 불이 남아 밟는 상대에게 초당 피해 13 (방패 무시)'},
   hammer:{name:'망치',icon:'🔨',color:'#ffcc00',desc:'두건과 대형 망치. 6초마다 망치를 휘둘러 닿는 상대를 아주 멀리 날려버림, 피해 18'},
-  giant:{name:'거인화',icon:'🗿',color:'#c49a6c',desc:'몸집 1.6배, 체력 1.75배, 대신 느림. 다른 스킬 없음'},
+  giant:{name:'거인화',icon:'🗿',color:'#c49a6c',desc:'몸집 1.6배, 체력 1.4배, 대신 느림. 다른 스킬 없음'},
   iaido:{name:'발도술',icon:'⚔️',color:'#e8e8ff',desc:'삿갓과 일본도. 6초마다 가까운 상대를 향해 일직선으로 3연속 베기, 각 피해 16'},
+  tornado:{name:'회오리',icon:'🌪️',color:'#4fd1c5',desc:'바람개비와 부채. 7초마다 1.5초 동안 회오리를 일으켜 주위 상대를 빙글 돌리며 밀어냄, 피해 10'},
+  snipe:{name:'저격',icon:'🎯',color:'#8bc34a',desc:'베레모와 저격총. 7초마다 1.5초 조준 뒤 맵 어디든 한 발, 피해 40. 조준 중엔 못 움직임'},
 };
 const SKILL_KEYS=Object.keys(SKILLS);
 // 기본 얼굴 이미지 (이름별). 이 이름의 공은 원 안에 이 이미지가 잘려 들어감
@@ -208,7 +210,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.aim=null;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -324,7 +326,7 @@ function enterFinal(alive){
   const keys=SKILL_KEYS.slice();
   for(let i=keys.length-1;i>0;i--){const j=(rng()*(i+1))|0;[keys[i],keys[j]]=[keys[j],keys[i]]}
   alive.forEach((m,i)=>{m.skill=keys[i%keys.length];m.skillCd=rand(1.5,3);m.shield=false;m.trail=[];
-    if(m.skill==='giant'){m.r*=1.6;m.mass=m.r*m.r;m.hpMax=Math.round(CFG.hpMax*1.75);m.speedMul=0.7} // 거인화: 몸집·체력 증가, 느려짐
+    if(m.skill==='giant'){m.r*=1.6;m.mass=m.r*m.r;m.hpMax=Math.round(CFG.hpMax*1.4);m.speedMul=0.7} // 거인화: 몸집·체력 증가, 느려짐 (1.75배는 너무 잘 살아남아 1.4배로)
     m.hp=m.hpMax;
     const s=SKILLS[m.skill];burst(m.x,m.y,20,s.color,220);
     S.toasts.push({text:`${s.icon} ${s.name}`,sub:m.label,color:s.color,life:5,max:5});
@@ -382,7 +384,7 @@ function useSkill(m,alive){
       else m.skillCd=0.5;
       break}
     case 'magnet': // 2초 동안 물결 원(반경 260) 안의 상대를 끌어당김 (실제 당김은 step에서)
-      announce(m);m.magnetT=2;burst(m.x,m.y,14,sc,150);
+      announce(m);m.magnetT=2;burst(m.x,m.y,14,sc,150); // 반경 170
       m.skillCd=6;break;
     case 'arrow':{
       const t=nearest(380);
@@ -414,11 +416,18 @@ function useSkill(m,alive){
     case 'iaido': // 3연속 베기 시작 (실제 베기는 step에서 0.2초 간격)
       announce(m);m.iai={n:3,timer:0.05,hit:[]};
       m.skillCd=6;break;
+    case 'tornado': // 1.5초 동안 회오리 (밀어내기·회전은 step에서)
+      announce(m);m.tornadoT=1.5;m.tornadoHits=new Set();burst(m.x,m.y,20,sc,220);
+      m.skillCd=7;break;
+    case 'snipe':{ // 체력이 가장 낮은 상대를 조준 (거리 무관), 1.5초 뒤 발사
+      let t=null;for(const o of foes)if(!t||o.hp<t.hp)t=o;
+      if(t){announce(m);m.aim={t:0,dur:1.5,target:t};m.vx*=0.3;m.vy*=0.3;m.skillCd=7}else m.skillCd=0.5;
+      break}
     default:m.skillCd=1; // 화염 돌진, 흡혈, 파이어스텝, 거인화는 상시 효과
   }
 }
 // 발동형 스킬만 연출(카메라 이동 + 0.7배속)을 붙인다. 화염검/흡혈은 상시 효과
-const ACTIVE=new Set(['shield','bolt','blink','wave','frost','magnet','arrow','bomb','laser','hammer','iaido']);
+const ACTIVE=new Set(['shield','bolt','blink','wave','frost','magnet','arrow','bomb','laser','hammer','iaido','tornado','snipe']);
 function canUse(m,alive){
   const foes=alive.filter(o=>isFoe(m,o));if(!foes.length)return false;
   const near=range=>foes.some(o=>(o.x-m.x)**2+(o.y-m.y)**2<range*range);
@@ -428,11 +437,13 @@ function canUse(m,alive){
     case 'frost':return near(340);
     case 'arrow':return near(380);
     case 'wave':return near(220);
-    case 'magnet':return near(260);
+    case 'magnet':return near(170);
     case 'bomb':return near(260);
     case 'laser':return near(600);
     case 'hammer':return near(130);
     case 'iaido':return near(420);
+    case 'tornado':return near(200);
+    case 'snipe':return true;
     case 'blink':return true;
     default:return false;
   }
@@ -508,7 +519,24 @@ function step(dt){
     // 자석: 물결 원 안의 상대를 계속 끌어당김
     if(m.magnetT>0){m.magnetT-=dt;
       for(const o of alive){if(!isFoe(m,o))continue;const dx=m.x-o.x,dy=m.y-o.y,d=Math.hypot(dx,dy);
-        if(d<260&&d>m.r+o.r+2){o.vx+=dx/d*900*dt;o.vy+=dy/d*900*dt;if(rng()<0.5)S.particles.push({x:o.x+rand(-6,6),y:o.y+rand(-6,6),vx:dx/d*rand(200,380),vy:dy/d*rand(200,380),life:rand(0.25,0.45),color:SKILLS.magnet.color,r:rand(1.5,3)})}}}
+        if(d<170&&d>m.r+o.r+2){o.vx+=dx/d*900*dt;o.vy+=dy/d*900*dt;if(rng()<0.5)S.particles.push({x:o.x+rand(-6,6),y:o.y+rand(-6,6),vx:dx/d*rand(200,380),vy:dy/d*rand(200,380),life:rand(0.25,0.45),color:SKILLS.magnet.color,r:rand(1.5,3)})}}}
+    // 회오리: 반경 220 안의 상대를 바깥으로 밀며 시계 방향으로 돌림, 처음 닿을 때 피해 10
+    if(m.tornadoT>0){m.tornadoT-=dt;
+      for(const o of alive){if(!isFoe(m,o))continue;const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy);
+        if(d<220&&d>1){const k=1-d/220;o.vx+=(dx/d*500+(-dy/d)*1000)*dt*(0.4+k);o.vy+=(dy/d*500+(dx/d)*1000)*dt*(0.4+k);
+          if(!m.tornadoHits.has(o)){m.tornadoHits.add(o);hurt(o,10,m,o.x,o.y)}}}
+      for(let k=0;k<3;k++){const a=rand(0,TAU),rr2=rand(40,210);S.particles.push({x:m.x+Math.cos(a)*rr2,y:m.y+Math.sin(a)*rr2,vx:-Math.sin(a)*rand(200,420)+Math.cos(a)*80,vy:Math.cos(a)*rand(200,420)+Math.sin(a)*80,life:rand(0.25,0.5),color:k?SKILLS.tornado.color:'#e6fffb',r:rand(1.5,3.5)})}}
+    // 저격: 조준선이 상대를 따라가다 시간이 되면 발사 (구조물에 막히면 빗나감)
+    if(m.aim){const t=m.aim.target;
+      if(!t.alive){m.aim=null}
+      else{m.aim.t+=dt;
+        if(m.aim.t>=m.aim.dur){m.aim=null;const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+          const sx=m.x+ux*(m.r+6),sy=m.y+uy*(m.r+6);let ex=sx,ey=sy,blocked=false;
+          for(let k=0;k<400;k++){const nx2=ex+ux*6,ny2=ey+uy*6;if(hitsObst(nx2,ny2,2)){blocked=true;break}ex=nx2;ey=ny2;if((ex-sx)*ux+(ey-sy)*uy>=L-t.r)break}
+          S.lasers.push({x1:sx,y1:sy,x2:ex,y2:ey,life:0.3,max:0.3,color:SKILLS.snipe.color,w:5});
+          burst(sx,sy,10,'#ffe66d',200);spark(sx,sy,6);
+          if(blocked){spark(ex,ey,10);if(S.final)addText(ex,ey-10,'빗나감','#8b8d9c',15)}
+          else{t.vx+=ux*320;t.vy+=uy*320;burst(t.x,t.y,26,SKILLS.snipe.color,260);burst(t.x,t.y,10,'#fff',160);hurt(t,40,m,t.x,t.y)}}}}
     m.retarget-=dt;
     if(m.retarget<=0||!m.target||!m.target.alive){
       m.retarget=rand(0.5,1.4);
@@ -523,7 +551,7 @@ function step(dt){
     }
     let ax=0,ay=0;
     if(m.frozen>0){m.frozen-=dt;m.vx*=0.85;m.vy*=0.85}
-    else if(m.iai){m.vx*=0.9;m.vy*=0.9}
+    else if(m.iai||m.aim){m.vx*=0.9;m.vy*=0.9}
     else{
       const zx=clamp(m.x,-zl,zl),dz=Math.hypot(m.x-zx,m.y)||1e-6;
       if(opt.zone&&dz+m.r>S.zoneR-6){ax=-(m.x-zx)/dz*CFG.accel*1.5;ay=-m.y/dz*CFG.accel*1.5}
@@ -992,6 +1020,13 @@ function drawMarble(m){
     case 'iaido':{ // 삿갓
       ctx.fillStyle='#c9a86a';ctx.beginPath();ctx.moveTo(x-r*1.6,y-r*0.55);ctx.lineTo(x+r*1.6,y-r*0.55);ctx.lineTo(x,y-r*1.75);ctx.closePath();ctx.fill();
       ctx.strokeStyle='#8a6a3a';ctx.lineWidth=1.5;ctx.stroke();ctx.beginPath();ctx.moveTo(x-r*0.8,y-r*0.98);ctx.lineTo(x+r*0.8,y-r*0.98);ctx.stroke();break}
+    case 'tornado':{ // 머리 위 바람개비 (회오리 중엔 빨리 돎)
+      const px=x,py=y-r*1.55,spin=S.time*(m.tornadoT>0?18:3);ctx.strokeStyle='#8a6a3a';ctx.lineWidth=Math.max(2,r*0.12);ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,y-r*0.8);ctx.stroke();
+      for(let k=0;k<4;k++){const a=spin+k*Math.PI/2;ctx.fillStyle=k%2?'#4fd1c5':'#e6fffb';ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(a)*r*0.7,py+Math.sin(a)*r*0.7);ctx.lineTo(px+Math.cos(a+0.7)*r*0.5,py+Math.sin(a+0.7)*r*0.5);ctx.closePath();ctx.fill()}
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(px,py,r*0.1,0,TAU);ctx.fill();break}
+    case 'snipe':{ // 베레모 (왼쪽으로 기울어진 납작 모자)
+      ctx.fillStyle='#2e5e2a';ctx.beginPath();ctx.ellipse(x-r*0.15,y-r*0.85,r*1.15,r*0.45,-0.25,0,TAU);ctx.fill();
+      ctx.fillStyle='#3f7a38';ctx.fillRect(x-r*0.9,y-r*0.7,r*1.8,r*0.2);ctx.fillStyle='#ffd166';ctx.beginPath();ctx.arc(x+r*0.5,y-r*0.95,r*0.12,0,TAU);ctx.fill();break}
   }
   // ---- 무기 ----
   switch(m.skill){
@@ -1056,6 +1091,16 @@ function drawMarble(m){
       ctx.lineWidth=Math.max(6,r*0.5);ctx.beginPath();ctx.moveTo(lerp(bx,tx,0.55),lerp(by,ty,0.55));ctx.lineTo(tx,ty);ctx.stroke();ctx.lineCap='butt';
       ctx.fillStyle='#5a3a1b';for(const q of [0.65,0.85]){ctx.beginPath();ctx.arc(lerp(bx,tx,q)+r*0.2,lerp(by,ty,q),r*0.09,0,TAU);ctx.fill()}
       break}
+    case 'tornado':{ // 부채 (오른쪽)
+      const fx=x+r*1.05,fy=y+r*0.5;ctx.fillStyle='#e6fffb';ctx.beginPath();ctx.moveTo(fx,fy);ctx.arc(fx,fy,r*1.2,-Math.PI*0.75,-Math.PI*0.1);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#4fd1c5';ctx.lineWidth=1.5;ctx.stroke();ctx.beginPath();for(let k=0;k<4;k++){const a=-Math.PI*0.75+k*Math.PI*0.65/3;ctx.moveTo(fx,fy);ctx.lineTo(fx+Math.cos(a)*r*1.2,fy+Math.sin(a)*r*1.2)}ctx.stroke();
+      break}
+    case 'snipe':{ // 저격총 (오른쪽으로 길게, 조준 중엔 상대 쪽을 향함)
+      let ang=-0.2;if(m.aim&&m.aim.target.alive)ang=Math.atan2(m.aim.target.y-y,m.aim.target.x-x);
+      ctx.save();ctx.translate(x,y);ctx.rotate(ang);
+      ctx.fillStyle='#4a3a2a';ctx.fillRect(r*0.2,-r*0.18,r*1.1,r*0.36);ctx.fillRect(r*0.5,r*0.1,r*0.3,r*0.5);
+      ctx.fillStyle='#2b2b33';ctx.fillRect(r*1.2,-r*0.11,r*1.7,r*0.22);ctx.fillStyle='#5a5f6a';ctx.fillRect(r*0.7,-r*0.42,r*0.8,r*0.2);
+      ctx.restore();break}
     case 'iaido':{ // 일본도 (왼쪽 허리에 칼집, 베는 중엔 오른쪽으로 빼든 칼)
       if(m.dash>0){const ux=Math.SQRT1_2,uy=-Math.SQRT1_2,hx=x+r*0.7,hy=y+r*0.3;ctx.strokeStyle='#222';ctx.lineWidth=Math.max(2,r*0.16);ctx.beginPath();ctx.moveTo(hx-ux*r*0.4,hy-uy*r*0.4);ctx.lineTo(hx,hy);ctx.stroke();
         ctx.strokeStyle='#e8e8ff';ctx.lineWidth=Math.max(2.5,r*0.2);ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(hx+ux*r*2.4,hy+uy*r*2.4);ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke()}
@@ -1124,8 +1169,21 @@ function render(){
   ctx.globalAlpha=1;
   // 자석 물결 원 (당기는 동안만)
   for(const m of S.marbles){if(!m.alive||m.magnetT<=0)continue;const a=clamp(m.magnetT/0.3,0,1);ctx.globalAlpha=a*0.9;ctx.strokeStyle=SKILLS.magnet.color;ctx.lineWidth=2.5;ctx.beginPath();
-    for(let i=0;i<=96;i++){const t=i/96*TAU,rr2=260-8-8*Math.sin(t*14-S.time*12);const px=m.x+Math.cos(t)*rr2,py=m.y+Math.sin(t)*rr2;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke();
-    ctx.globalAlpha=a*0.04;ctx.fillStyle=SKILLS.magnet.color;ctx.beginPath();ctx.arc(m.x,m.y,260,0,TAU);ctx.fill()}
+    for(let i=0;i<=96;i++){const t=i/96*TAU,rr2=170-7-7*Math.sin(t*12-S.time*12);const px=m.x+Math.cos(t)*rr2,py=m.y+Math.sin(t)*rr2;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke();
+    ctx.globalAlpha=a*0.04;ctx.fillStyle=SKILLS.magnet.color;ctx.beginPath();ctx.arc(m.x,m.y,170,0,TAU);ctx.fill()}
+  ctx.globalAlpha=1;
+  // 회오리: 도는 나선 팔 3개
+  for(const m of S.marbles){if(!m.alive||m.tornadoT<=0)continue;const a=clamp(m.tornadoT/0.3,0,1);ctx.lineWidth=3;
+    for(let k=0;k<3;k++){ctx.globalAlpha=a*(k?0.55:0.8);ctx.strokeStyle=k?SKILLS.tornado.color:'#e6fffb';ctx.beginPath();
+      for(let i=0;i<=28;i++){const u=i/28,rr2=30+u*185,ang=k*TAU/3+u*3.2+S.time*11;const px=m.x+Math.cos(ang)*rr2,py=m.y+Math.sin(ang)*rr2;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}}
+  ctx.globalAlpha=1;
+  // 저격 조준선: 점선 + 조준 괄호 (시간이 갈수록 붉어지고 조여듦)
+  for(const m of S.marbles){if(!m.alive||!m.aim||!m.aim.target.alive)continue;const t=m.aim.target,u=clamp(m.aim.t/m.aim.dur,0,1);
+    ctx.globalAlpha=0.35+0.55*u;ctx.strokeStyle='#ff3b3b';ctx.lineWidth=1.5+u;ctx.setLineDash([8,6]);ctx.lineDashOffset=-S.time*60;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(t.x,t.y);ctx.stroke();ctx.setLineDash([]);
+    const sz=t.r*(2.6-1.2*u),g=sz*0.45;ctx.lineWidth=2.5;ctx.beginPath();
+    for(const [kx,ky] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ctx.moveTo(t.x+kx*sz,t.y+ky*(sz-g));ctx.lineTo(t.x+kx*sz,t.y+ky*sz);ctx.lineTo(t.x+kx*(sz-g),t.y+ky*sz)}
+    ctx.moveTo(t.x-sz*0.5,t.y);ctx.lineTo(t.x+sz*0.5,t.y);ctx.moveTo(t.x,t.y-sz*0.5);ctx.lineTo(t.x,t.y+sz*0.5);ctx.stroke();
+    if(u>0.8&&Math.floor(S.time*12)%2===0){ctx.fillStyle='rgba(255,59,59,0.25)';ctx.fillRect(t.x-sz,t.y-sz,sz*2,sz*2)}}
   ctx.globalAlpha=1;
   // 폭탄: 폭발 범위(연한 붉은 원) + 큰 폭탄 모양
   for(const b of S.bombs){ctx.fillStyle='rgba(255,60,80,0.12)';ctx.beginPath();ctx.arc(b.x,b.y,150,0,TAU);ctx.fill();ctx.strokeStyle='rgba(255,90,110,0.45)';ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.lineDashOffset=-S.time*40;ctx.stroke();ctx.setLineDash([]);
@@ -1223,7 +1281,7 @@ function frame(now){
   if(sim){acc+=real*opt.speed*slow;let g=0;while(acc>=HS&&g++<48){step(HS);acc-=HS}}else acc=0;
   if(S.finish){S.finish.t+=real;if(S.finish.t>=S.finish.dur)S.finish=null}
   // 전투가 끝나 시뮬레이션이 멈춘 뒤에도 피격 번쩍임·돌진 잔광·보호막·화상 같은 순간 효과는 계속 사그라들게 (마지막 장면이 하얗게 굳지 않도록)
-  if(S.phase==='finished')for(const m of S.marbles){if(!m.alive)continue;m.hit=Math.max(0,m.hit-real*4);m.dash=Math.max(0,m.dash-real);m.shieldFx=Math.max(0,m.shieldFx-real);m.burn=Math.max(0,m.burn-real*3);m.frozen=Math.max(0,m.frozen-real);m.swing=Math.max(0,m.swing-real);m.hammerT=Math.max(0,m.hammerT-real);m.magnetT=Math.max(0,m.magnetT-real)}
+  if(S.phase==='finished')for(const m of S.marbles){if(!m.alive)continue;m.hit=Math.max(0,m.hit-real*4);m.dash=Math.max(0,m.dash-real);m.shieldFx=Math.max(0,m.shieldFx-real);m.burn=Math.max(0,m.burn-real*3);m.frozen=Math.max(0,m.frozen-real);m.swing=Math.max(0,m.swing-real);m.hammerT=Math.max(0,m.hammerT-real);m.magnetT=Math.max(0,m.magnetT-real);m.tornadoT=Math.max(0,m.tornadoT-real);m.aim=null}
   fx(real*slow);
   S.fight=Math.max(0,S.fight-real);
   // 물리 스텝 사이를 보간해서 그린다 (0.7배속처럼 한 프레임에 스텝 수가 들쭉날쭉해도 움직임이 매끄럽게)
