@@ -77,6 +77,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
     <div class="opt" style="margin-bottom:8px" title="켜기: 이름과 같은 그림은 자동 매칭, 없는 이름은 무작위 얼굴 / 끄기: 색 공만"><span class="k">🖼️ 얼굴</span>
       <div class="seg" id="faceSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
     </div>
+    <div class="opt" style="margin-bottom:8px" title="효과음 (타격·탈락·스킬별 소리). 브라우저 정책상 첫 클릭 뒤부터 소리가 납니다"><span class="k">🔊 소리</span>
+      <div class="seg" id="sndSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
+    </div>
     <label class="t" for="names">이름들을 입력하세요</label>
     <textarea id="names" spellcheck="false">송판*1, 네즈미*1, 강자*1, 루시엘*1, 신가호*1, 게코스*1, 비아트리체*1, 드응으루마루헤이요*1, 테무르*1, 미카엘린*1, 미카엘라*1, 러한테스메르*1, 배해수*1, 안나*1, 오마에*1, 헤이즐*1, 한봉식*1, 큐피*1, 세실리아*1, 광견이형*1, 햇냥이*1, 메리미*1,</textarea>
     <div class="hint">쉼표나 줄바꿈으로 구분. <b>이름*숫자</b>로 같은 이름을 여러 개 넣어요. 입력을 고치면 바로 리셋됩니다.</div>
@@ -268,12 +271,13 @@ function holeMove(m,dt){
   m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);m.boost=Math.max(0,m.boost-dt);
   const g=(HOLE.pull+HOLE.grow*S.time)*Math.sqrt(HOLE.R/Math.max(d,40)); // 안쪽일수록 강하게 당김
   const panic=d<HOLE.R*HOLE.danger; // 위험 구역: 더 자주, 더 세게 몸부림치지만 대개 못 나옴
+  if(panic&&!m.inDanger){m.inDanger=true;SFX.play('alarm')}else if(!panic)m.inDanger=false;
   const able=!(m.stun>0||m.frozen>0);
   let esc=able?HOLE.esc*m.esc*m.speedMul*(m.boost>0?1.5:1)*(m.slow>0?0.4:1):0;
   m.wob+=rand(-1,1)*(panic?9:4)*dt;const w=Math.sin(m.wob)*0.5;
   m.vx+=(rx*(esc-g)+tx*(70+esc*w*0.6))*dt;m.vy+=(ry*(esc-g)+ty*(70+esc*w*0.6))*dt;
   // 몸부림: 주기적으로 바깥으로 힘껏 도약 (먼지가 블랙홀 쪽으로 튐)
-  m.escCd-=dt;if(m.escCd<=0&&able){m.escCd=rand(0.9,1.8)*(panic?0.6:1);const p=HOLE.kick*rand(0.8,1.2)*m.esc*(m.slow>0?0.5:1)*(panic?1.15:1);m.vx+=rx*p;m.vy+=ry*p;m.dash=0.2;
+  m.escCd-=dt;if(m.escCd<=0&&able){m.escCd=rand(0.9,1.8)*(panic?0.6:1);SFX.play('leap');const p=HOLE.kick*rand(0.8,1.2)*m.esc*(m.slow>0?0.5:1)*(panic?1.15:1);m.vx+=rx*p;m.vy+=ry*p;m.dash=0.2;
     for(let k=0;k<5;k++)S.particles.push({x:m.x-rx*m.r,y:m.y-ry*m.r,vx:-rx*rand(120,260)+rand(-60,60),vy:-ry*rand(120,260)+rand(-60,60),life:rand(0.2,0.4),color:panic?'#ff4d6d':'#b388ff',r:rand(1.5,3)})}
   // 싸움: 근처 상대에게 돌진해 안쪽으로 밀어 넣음 (부딪힘 처리에서 상대는 안쪽, 나는 바깥으로)
   m.atkCd-=dt;if(m.atkCd<=0&&able&&S.time>4){let best=null,bd=140*140; // 처음 4초는 자리 잡는 시간, 공격 없음for(const o of S.marbles){if(!o.alive||o===m||!isFoe(m,o))continue;const dd=(o.x-m.x)**2+(o.y-m.y)**2;if(dd<bd){bd=dd;best=o}}
@@ -414,12 +418,13 @@ function checkBars(instant){
   if(S.barsActive)return;
   const alive=S.factions.filter(f=>!f.out);
   if(S.factions.length>=2&&alive.length<=BARS_AT){
-    S.barsActive=true;S.barsAnim=instant?1:0;
+    S.barsActive=true;S.barsAnim=instant?1:0;if(!instant)SFX.play('bars');
     alive.forEach((f,i)=>{f.barred=true;f.side=i%2?'bottom':'top'});
   }
 }
 
 function start(){
+  SFX.ensure(); // 사용자 클릭 시점에 오디오 켜기
   // 대기 화면에 보이는 배치 그대로 시작. 진행 중이거나 끝난 뒤라면 새 판을 만든다
   if(S.phase!=='idle')setup();
   if(S.marbles.length<2)return;
@@ -432,13 +437,78 @@ const factionsAlive=()=>S.factions.length-S.factionsOut.length;
 const fhp=f=>f.members.reduce((s,m)=>s+(m.alive?m.hp:0),0);
 const isFoe=(m,o)=>o!==m&&o.alive&&(opt.teamFire||o.faction!==m.faction);
 
+// ---------- 효과음: Web Audio로 그 자리에서 합성 (외부 파일 없음). 같은 소리는 쿨타임, 전체는 0.12초에 8개까지 ----------
+const SFX=(()=>{
+  let ctx=null,master=null,on=true,vol=0.55;const last={};let win=[];
+  const ensure=()=>{if(!ctx){try{ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.gain.value=vol;master.connect(ctx.destination)}catch(e){on=false;return false}}
+    if(ctx.state==='suspended')ctx.resume().catch(()=>{});return true};
+  const ok=(name,cool,cap)=>{if(!on||!ctx||ctx.state!=='running')return false;const t=performance.now();if(last[name]&&t-last[name]<cool)return false;win=win.filter(x=>t-x<120);if(win.length>=cap)return false;last[name]=t;win.push(t);return true};
+  // 톤: type, f(시작 주파수), f2(끝 주파수), dur, g(음량), a(어택), at(지연), lfo/lfoAmt(떨림)
+  const tone=o=>{const t0=ctx.currentTime+(o.at||0),d=o.dur||0.2;const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=o.type||'sine';osc.frequency.setValueAtTime(o.f,t0);if(o.f2)osc.frequency.exponentialRampToValueAtTime(Math.max(20,o.f2),t0+d);
+    g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(o.g||0.3,t0+(o.a||0.005));g.gain.exponentialRampToValueAtTime(0.0001,t0+d);
+    if(o.lfo){const l=ctx.createOscillator(),lg=ctx.createGain();l.frequency.value=o.lfo;lg.gain.value=o.lfoAmt||20;l.connect(lg);lg.connect(osc.frequency);l.start(t0);l.stop(t0+d+0.05)}
+    osc.connect(g);g.connect(master);osc.start(t0);osc.stop(t0+d+0.05)};
+  // 노이즈(필터): ft(lowpass/highpass/bandpass), f→f2 필터 주파수, q
+  let nbuf=null;const noise=o=>{if(!nbuf){nbuf=ctx.createBuffer(1,ctx.sampleRate*1.5,ctx.sampleRate);const dd=nbuf.getChannelData(0);for(let i=0;i<dd.length;i++)dd[i]=Math.random()*2-1}
+    const t0=ctx.currentTime+(o.at||0),d=o.dur||0.3;const src=ctx.createBufferSource();src.buffer=nbuf;src.loop=true;const f=ctx.createBiquadFilter();f.type=o.ft||'lowpass';f.frequency.setValueAtTime(o.f||1000,t0);if(o.f2)f.frequency.exponentialRampToValueAtTime(Math.max(40,o.f2),t0+d);f.Q.value=o.q||0.7;
+    const g=ctx.createGain();g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(o.g||0.3,t0+(o.a||0.005));g.gain.exponentialRampToValueAtTime(0.0001,t0+d);src.connect(f);f.connect(g);g.connect(master);src.start(t0);src.stop(t0+d+0.05)};
+  const L={};const def=(name,cool,fn,cap)=>{fn.cool=cool;fn.cap=cap||8;L[name]=fn};
+  // 공통
+  def('tick',0,()=>tone({f:880,dur:0.08,g:0.22,type:'square'}));
+  def('go',0,()=>{tone({f:660,f2:1320,dur:0.25,g:0.3,type:'square'});noise({f:3000,dur:0.2,g:0.12,ft:'highpass'})},99);
+  def('hit',55,a=>{const k=Math.min(1,(a.dmg||10)/30);noise({f:1200+900*k,f2:200,dur:0.08+0.08*k,g:0.12+0.2*k});tone({f:180-60*k,f2:60,dur:0.12,g:0.06+0.2*k,type:'triangle'})});
+  def('block',80,()=>{tone({f:1500,f2:900,dur:0.18,g:0.22,type:'square'});tone({f:2200,dur:0.25,g:0.1})});
+  def('death',60,a=>{if(a.big){noise({f:400,f2:60,dur:0.7,g:0.55});tone({f:120,f2:35,dur:0.6,g:0.45})}else{tone({f:500,f2:120,dur:0.25,g:0.22,type:'triangle'});noise({f:2500,f2:300,dur:0.15,g:0.18})}},99);
+  def('shatter',100,()=>{for(let i=0;i<5;i++)tone({f:1400+Math.random()*1800,f2:400,dur:0.25,g:0.1,at:i*0.03,type:'triangle'});noise({f:3000,f2:800,dur:0.35,g:0.2,ft:'bandpass'})},99);
+  def('bars',0,()=>noise({f:400,f2:3000,dur:0.4,g:0.18,ft:'bandpass'}),99);
+  def('final',0,()=>{tone({f:110,dur:1.4,g:0.35});tone({f:220,f2:440,dur:0.8,g:0.2,type:'triangle'});noise({f:200,f2:4000,dur:0.9,g:0.2,ft:'bandpass'});for(let i=0;i<3;i++)tone({f:330*(i+2)/2,dur:0.5,g:0.12,at:0.3+i*0.12})},99);
+  def('duel',0,()=>{tone({f:80,f2:40,dur:0.5,g:0.55,type:'triangle'});noise({f:800,f2:100,dur:0.4,g:0.35});tone({f:440,dur:0.6,g:0.12,at:0.25,type:'square'});tone({f:660,dur:0.7,g:0.12,at:0.45,type:'square'})},99);
+  def('finish',0,()=>{tone({f:70,f2:30,dur:1.2,g:0.6});noise({f:600,f2:80,dur:1.0,g:0.45})},99);
+  def('win',0,()=>{[523,659,784,1046].forEach((f,i)=>{tone({f,dur:0.5,g:0.2,at:i*0.13,type:'triangle'});tone({f:f*2,dur:0.4,g:0.07,at:i*0.13})});noise({f:5000,dur:1.2,g:0.07,ft:'highpass',at:0.5})},99);
+  def('lap',0,()=>{tone({f:1568,dur:0.35,g:0.22,type:'triangle'});tone({f:2093,dur:0.5,g:0.18,at:0.12,type:'triangle'})},99);
+  def('last',0,()=>{tone({f:392,f2:330,dur:0.25,g:0.22,type:'sawtooth'});tone({f:330,f2:262,dur:0.35,g:0.22,at:0.25,type:'sawtooth'});tone({f:262,f2:180,dur:0.6,g:0.22,at:0.55,type:'sawtooth'})},99);
+  def('bump',120,()=>{tone({f:150,f2:70,dur:0.12,g:0.25,type:'triangle'});noise({f:900,f2:200,dur:0.1,g:0.12})});
+  def('suck',80,()=>{tone({f:900,f2:60,dur:0.7,g:0.3,lfo:14,lfoAmt:40});noise({f:2000,f2:150,dur:0.6,g:0.22,ft:'bandpass'})},99);
+  def('leap',160,()=>noise({f:600,f2:2400,dur:0.12,g:0.06,ft:'bandpass'}));
+  def('alarm',400,()=>{tone({f:1200,dur:0.08,g:0.13,type:'square'});tone({f:1200,dur:0.08,g:0.13,at:0.12,type:'square'})});
+  // 스킬 (이름 = 스킬 키). 발동 시 announce()에서 재생
+  def('flame',120,()=>{noise({f:800,f2:3500,dur:0.25,g:0.22,ft:'bandpass',q:1.2});noise({f:300,dur:0.35,g:0.1,at:0.05})});
+  def('shield',0,()=>{tone({f:1300,dur:0.4,g:0.18});tone({f:1950,dur:0.5,g:0.09,at:0.02});tone({f:650,dur:0.3,g:0.1,type:'triangle'})});
+  def('bolt',60,()=>{noise({f:6000,f2:800,dur:0.22,g:0.3,ft:'highpass'});tone({f:2400,f2:200,dur:0.2,g:0.22,type:'square'});tone({f:90,dur:0.25,g:0.18,type:'triangle'})});
+  def('blink',0,()=>{tone({f:400,f2:1800,dur:0.14,g:0.22});tone({f:1800,f2:500,dur:0.18,g:0.15,at:0.14,type:'triangle'})});
+  def('wave',0,()=>{tone({f:90,f2:35,dur:0.6,g:0.55});noise({f:500,f2:80,dur:0.5,g:0.3})});
+  def('drain',150,()=>tone({f:900,f2:200,dur:0.35,g:0.18,lfo:22,lfoAmt:60}));
+  def('frost',80,()=>{[1760,2637,3520].forEach((f,i)=>tone({f,dur:0.7,g:0.1,at:i*0.05,type:'triangle'}));noise({f:6000,dur:0.3,g:0.08,ft:'highpass'})});
+  def('magnet',0,()=>{tone({f:55,dur:2,g:0.22,type:'sawtooth',lfo:6,lfoAmt:8});tone({f:110,dur:2,g:0.08,type:'square',lfo:6,lfoAmt:10})});
+  def('arrow',0,()=>{tone({f:700,f2:300,dur:0.12,g:0.22,type:'triangle'});noise({f:2500,f2:600,dur:0.25,g:0.1,ft:'bandpass',at:0.05})});
+  def('arrowHit',80,()=>{tone({f:900,f2:300,dur:0.1,g:0.18,type:'square'});noise({f:1500,f2:300,dur:0.1,g:0.12})});
+  def('bomb',0,()=>{noise({f:4000,dur:1.4,g:0.07,ft:'highpass'});for(let i=0;i<5;i++)tone({f:1400,dur:0.05,g:0.07,at:i*0.28,type:'square'})});
+  def('explosion',60,()=>{noise({f:500,f2:60,dur:0.8,g:0.6});tone({f:100,f2:30,dur:0.7,g:0.5})},99);
+  def('laser',0,()=>{tone({f:1400,f2:250,dur:0.35,g:0.28,type:'sawtooth'});tone({f:2800,f2:500,dur:0.3,g:0.1,type:'square'})});
+  def('hammer',0,()=>noise({f:400,f2:2000,dur:0.3,g:0.18,ft:'bandpass'}));
+  def('clank',80,()=>{tone({f:300,f2:120,dur:0.25,g:0.35,type:'square'});noise({f:2500,f2:400,dur:0.2,g:0.25});tone({f:1800,dur:0.3,g:0.08})});
+  def('stomp',100,()=>{tone({f:70,f2:30,dur:0.35,g:0.45,type:'triangle'});noise({f:300,f2:60,dur:0.25,g:0.25})});
+  def('iaido',60,()=>{noise({f:3000,f2:9000,dur:0.12,g:0.28,ft:'highpass'});tone({f:2200,f2:900,dur:0.1,g:0.12,type:'triangle'})});
+  def('tornado',0,()=>{noise({f:300,f2:2500,dur:1.0,g:0.28,ft:'bandpass',q:1.5});tone({f:120,f2:400,dur:1.0,g:0.08,type:'sawtooth'})});
+  def('fling',80,()=>{noise({f:1500,f2:4000,dur:0.3,g:0.25,ft:'bandpass'});tone({f:600,f2:1500,dur:0.25,g:0.12})});
+  def('snipe',0,()=>{for(let i=0;i<3;i++)tone({f:1100+i*250,dur:0.05,g:0.13,at:i*0.45,type:'square'})});
+  def('shot',0,()=>{noise({f:5000,f2:300,dur:0.25,g:0.55});tone({f:600,f2:60,dur:0.3,g:0.35,type:'sawtooth'})},99);
+  def('boomerang',0,()=>tone({f:520,dur:1.3,g:0.1,type:'triangle',lfo:11,lfoAmt:120}));
+  def('breath',0,()=>{noise({f:250,f2:900,dur:0.75,g:0.3,q:1});tone({f:80,dur:0.7,g:0.22,type:'sawtooth',lfo:9,lfoAmt:12})});
+  def('bees',0,()=>{tone({f:210,dur:3,g:0.08,type:'sawtooth',lfo:8,lfoAmt:25});tone({f:315,dur:3,g:0.04,type:'sawtooth',lfo:13,lfoAmt:30})});
+  def('rocket',0,()=>{noise({f:200,f2:2000,dur:0.45,g:0.22,ft:'bandpass'});tone({f:200,f2:900,dur:0.6,g:0.22,type:'sawtooth',at:0.35})});
+  def('giant',0,()=>{tone({f:60,f2:40,dur:0.8,g:0.45,type:'triangle'});tone({f:120,dur:0.6,g:0.12,type:'sawtooth'})});
+  def('firestep',0,()=>noise({f:900,f2:3000,dur:0.3,g:0.12,ft:'bandpass'}));
+  return {play:(n,a)=>{const fn=L[n];if(fn&&ok(n,fn.cool,fn.cap))try{fn(a||{})}catch(e){}},test:(n,a)=>{ensure();L[n](a||{})},names:()=>Object.keys(L),ensure,get on(){return on},set on(v){on=v},setVol:v=>{vol=v;if(master)master.gain.value=v}};
+})();
+
 // ---------- 이펙트 도우미 ----------
 function burst(x,y,n,color,speed){n=Math.ceil(n*0.7);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(0.3,1)*speed;S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.35,0.8),color,r:rand(1.5,3.5)})}}
 function ring(x,y,r0,vr,w,life,color,fill,rmax){S.rings.push({x,y,r:r0,vr,w,life,max:life,color,fill:!!fill,rmax:rmax||Infinity})}
 // 검 궤적: 호(arc)는 휘두른 부채꼴, 선(line)은 일직선 베기
 function slashArc(x,y,a,r,color,span,life){life=life||0.32;S.slashes.push({type:'arc',x,y,a,r,span:span||2.6,life,max:life,color})}
 // 화염검 휘두르기: 검 회전 + 큰 부채꼴 궤적 + 궤적을 따라 불꽃
-function flameSwing(m,ang){m.swing=0.42;m.swingDur=0.42;m.swingA=ang;slashArc(m.x,m.y,ang,m.r*3.2,'#ff7a3d',3.0,0.45);
+function flameSwing(m,ang){SFX.play('flame');m.swing=0.42;m.swingDur=0.42;m.swingA=ang;slashArc(m.x,m.y,ang,m.r*3.2,'#ff7a3d',3.0,0.45);
   for(let k=0;k<=12;k++){const a=ang-1.5+3.0*k/12,rr=m.r*2.9;S.particles.push({x:m.x+Math.cos(a)*rr,y:m.y+Math.sin(a)*rr,vx:Math.cos(a)*rand(60,160),vy:Math.sin(a)*rand(60,160),life:rand(0.3,0.55),color:k%2?'#ffd166':'#ff7a3d',r:rand(2.5,5)})}}
 function slashLine(x1,y1,x2,y2,color,w){S.slashes.push({type:'line',x1,y1,x2,y2,w:w||6,life:0.3,max:0.3,color})}
 function boom(m,mult){const n=Math.min(80,(8+m.r)*mult);const sm=Math.sqrt(mult);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(60,320)*sm;S.particles.push({x:m.x,y:m.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.5,1.1)*sm,color:m.color,r:rand(1.5,m.r*0.35+1.5)})}}
@@ -451,11 +521,11 @@ function zap(m,t,dmg){
   hurt(t,dmg,m,t.x,t.y);
 }
 // 스킬 발동 표시: 이름 텍스트 + 시전자 주변 링 (모든 발동형 스킬 공통)
-function announce(m){const s=SKILLS[m.skill];addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}`,s.color,18)}
+function announce(m){const s=SKILLS[m.skill];addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}`,s.color,18);SFX.play(m.skill)}
 
 // ---------- 결전 단계 ----------
 function enterFinal(alive){
-  S.final=true;S.finalT=0;S.zoneHold=3;
+  S.final=true;S.finalT=0;S.zoneHold=3;SFX.play('final');
   const keys=SKILL_KEYS.slice();
   for(let i=keys.length-1;i>0;i--){const j=(rng()*(i+1))|0;[keys[i],keys[j]]=[keys[j],keys[i]]}
   alive.forEach((m,i)=>{m.skill=keys[i%keys.length];m.skillCd=rand(1.5,3);m.shield=false;m.trail=[];
@@ -471,7 +541,7 @@ function enterFinal(alive){
 }
 // 마지막 1:1: 격투게임식 대결 화면으로 전환 (체력바 2개 + 얼굴, 배너, 카메라 근접)
 function enterDuel(alive){
-  S.duel=true;S.duelT=0;S.duelists=alive.slice().sort((a,b)=>a.x-b.x);
+  S.duel=true;S.duelT=0;SFX.play('duel');S.duelists=alive.slice().sort((a,b)=>a.x-b.x);
   const [A,B]=S.duelists;
   for(const m of S.duelists){m.hp=m.hpMax;m.hpTrail=m.hp;m.speedMul*=1.2;burst(m.x,m.y,14,m.color,160)} // 둘 다 체력 전부 회복 + 이동 속도 20% 증가
   S.banner={text:'⚔️ 1 : 1',sub:`${A.label}   vs   ${B.label}   ·   체력 전부 회복 · 이동 속도 +20%`,age:0,life:2.4};
@@ -614,12 +684,13 @@ function startFocus(m){
   addText(m.x,m.y-m.r-26,`${s.icon} ${s.name}!`,s.color,16);
 }
 // 로켓 돌진 폭발: 반경 110, 벽에 부딪혔으면 자기도 피해
-function rocketBoom(m,kind){m.rocketT=0;m.rocketTarget=null;const x=m.x,y=m.y,sc=SKILLS.rocket.color;
+function rocketBoom(m,kind){m.rocketT=0;m.rocketTarget=null;const x=m.x,y=m.y,sc=SKILLS.rocket.color;SFX.play('explosion');
   ring(x,y,16,900,0,0.4,sc,true,110);burst(x,y,40,'#ffb347',320);burst(x,y,20,'#ff4d6d',220);burst(x,y,12,'#fff',160);addText(x,y-m.r-16,'💥 로켓 폭발',sc,22);
   for(const o of aliveList()){if(!isFoe(m,o))continue;const dx=o.x-x,dy=o.y-y,d=Math.hypot(dx,dy);if(d<110+o.r&&d>0){shove(o,dx/d*500,dy/d*500);hurt(o,BAL.rocketDmg,m,o.x,o.y)}}
   m.vx*=0.15;m.vy*=0.15;m.fling=0;
   if(kind==='wall'){hurt(m,BAL.rocketSelf,m,x,y);if(S.final&&m.alive)addText(x,y-m.r-38,'벽 충돌!','#8b8d9c',15)}}
 function explodeBomb(b){
+  SFX.play('explosion');
   ring(b.x,b.y,20,1000,0,0.45,'#ff7a3d',true,150);ring(b.x,b.y,20,1300,4,0.5,'#ffb347',false,240);
   burst(b.x,b.y,60,'#ffb347',380);burst(b.x,b.y,30,'#ff4d6d',250);burst(b.x,b.y,20,'#fff',180);
   addText(b.x,b.y-14,'💥 폭발','#ffb347',26);
@@ -628,7 +699,7 @@ function explodeBomb(b){
 
 // ---------- 시뮬레이션 ----------
 function step(dt){
-  if(S.phase==='countdown'){S.countdown-=dt;if(S.countdown<=0){S.phase='battle';S.fight=1;addFeed('⚔️ 전투 시작!')}return}
+  if(S.phase==='countdown'){const c0=Math.ceil(S.countdown);S.countdown-=dt;if(Math.ceil(S.countdown)<c0&&S.countdown>0)SFX.play('tick');if(S.countdown<=0){S.phase='battle';S.fight=1;addFeed('⚔️ 전투 시작!');SFX.play('go')}return}
   if(S.phase!=='battle')return;
   S.time+=dt;
   const alive=aliveList();const na=alive.length;
@@ -648,14 +719,14 @@ function step(dt){
     if(a.life<=0||outOfArena(a.x,a.y,0)||hitsObst(a.x,a.y,2)){spark(a.x,a.y,6);return false}
     for(const o of alive){if(!isFoe(a.owner,o))continue;
       if((o.x-a.x)**2+(o.y-a.y)**2<(o.r+7)**2){const L=Math.hypot(a.vx,a.vy)||1;shove(o,a.vx/L*180,a.vy/L*180);
-        burst(o.x,o.y,24,SKILLS.arrow.color,260);hurt(o,BAL.arrowDmg,a.owner,o.x,o.y);return false}}
+        burst(o.x,o.y,24,SKILLS.arrow.color,260);SFX.play('arrowHit');hurt(o,BAL.arrowDmg,a.owner,o.x,o.y);return false}}
     return true});
   // 얼음 창: 관통하며 궤적의 상대를 얼림
   S.spears=S.spears.filter(a=>{a.life-=dt;a.x+=a.vx*dt;a.y+=a.vy*dt;
     if(rng()<0.7)S.particles.push({x:a.x+rand(-3,3),y:a.y+rand(-3,3),vx:rand(-30,30),vy:rand(-30,30),life:rand(0.25,0.45),color:rng()<0.5?'#dff7ff':SKILLS.frost.color,r:rand(1.5,3)});
     if(a.life<=0||outOfArena(a.x,a.y,0)||hitsObst(a.x,a.y,2)){burst(a.x,a.y,14,'#dff7ff',160);return false}
     for(const o of alive){if(!isFoe(a.owner,o)||a.hit.has(o))continue;
-      if((o.x-a.x)**2+(o.y-a.y)**2<(o.r+9)**2){a.hit.add(o);o.frozen=1.2;o.vx*=0.2;o.vy*=0.2;if(BAL.frostDmg>0)hurt(o,BAL.frostDmg,a.owner,o.x,o.y);burst(o.x,o.y,26,SKILLS.frost.color,170);burst(o.x,o.y,10,'#fff',100);if(S.final)addText(o.x,o.y-o.r-10,'❄️ 빙결',SKILLS.frost.color,16)}}
+      if((o.x-a.x)**2+(o.y-a.y)**2<(o.r+9)**2){a.hit.add(o);o.frozen=1.2;o.vx*=0.2;o.vy*=0.2;SFX.play('frost');if(BAL.frostDmg>0)hurt(o,BAL.frostDmg,a.owner,o.x,o.y);burst(o.x,o.y,26,SKILLS.frost.color,170);burst(o.x,o.y,10,'#fff',100);if(S.final)addText(o.x,o.y-o.r-10,'❄️ 빙결',SKILLS.frost.color,16)}}
     return true});
   // 부메랑: 주인 쪽으로 계속 당겨져 곡선을 그리며 돌아옴. 나가는 길·돌아오는 길에 각각 한 번씩 피해
   S.boomerangs=S.boomerangs.filter(b=>{b.t+=dt;b.rot+=22*dt;const o=b.owner;
@@ -666,7 +737,7 @@ function step(dt){
     if(!o.alive||b.t>2.4||(b.t>0.35&&d<o.r+10)){if(o.alive)burst(b.x,b.y,8,SKILLS.boomerang.color,120);return false}
     if(outOfArena(b.x,b.y,4)||hitsObst(b.x,b.y,4)){spark(b.x,b.y,8);b.vx=dx/d*500;b.vy=dy/d*500} // 벽에 맞으면 바로 돌아옴
     const out=(b.vx*dx+b.vy*dy)<0;const set=out?b.hitOut:b.hitBack;
-    for(const t of alive){if(!isFoe(o,t)||set.has(t))continue;if((t.x-b.x)**2+(t.y-b.y)**2<(t.r+12)**2){set.add(t);const L=Math.hypot(b.vx,b.vy)||1;shove(t,b.vx/L*220,b.vy/L*220);burst(t.x,t.y,18,SKILLS.boomerang.color,220);spark(t.x,t.y,6);hurt(t,BAL.boomDmg,o,t.x,t.y)}}
+    for(const t of alive){if(!isFoe(o,t)||set.has(t))continue;if((t.x-b.x)**2+(t.y-b.y)**2<(t.r+12)**2){set.add(t);SFX.play('bump');const L=Math.hypot(b.vx,b.vy)||1;shove(t,b.vx/L*220,b.vy/L*220);burst(t.x,t.y,18,SKILLS.boomerang.color,220);spark(t.x,t.y,6);hurt(t,BAL.boomDmg,o,t.x,t.y)}}
     return true});
   // 벌떼: 상대 주위를 윙윙 돌며 0.3초마다 2 (방패 무시). 상대가 죽으면 근처 다른 상대에게
   S.swarms=S.swarms.filter(sw=>{sw.t-=dt;let t=sw.target;
@@ -695,13 +766,13 @@ function step(dt){
           let nx=t.x+ux*(t.r+m.r+16),ny=t.y+uy*(t.r+m.r+16);
           if(outOfArena(nx,ny,m.r+2)||hitsObst(nx,ny,m.r)){nx=t.x-ux*(t.r+m.r+4);ny=t.y-uy*(t.r+m.r+4)}
           m.x=nx;m.y=ny;m.px=nx;m.py=ny;m.vx=ux*260;m.vy=uy*260;m.dash=0.2;
-          slashLine(sx,sy,nx,ny,SKILLS.iaido.color,7);slashArc(t.x,t.y,Math.atan2(uy,ux)+Math.PI/2,t.r*1.9,'#fff',1.6);
+          SFX.play('iaido');slashLine(sx,sy,nx,ny,SKILLS.iaido.color,7);slashArc(t.x,t.y,Math.atan2(uy,ux)+Math.PI/2,t.r*1.9,'#fff',1.6);
           shove(t,-uy*140,ux*140);spark(t.x,t.y,8);hurt(t,BAL.iaidoDmg,m,t.x,t.y);
           m.iai.hit.push(t);if(--m.iai.n<=0)m.iai=null;else m.iai.timer=0.2}}}
     // 망치 휘두르기: 망치 머리에 닿은 상대를 아주 멀리 날림
     if(m.hammerT>0){m.hammerT-=dt;m.hammerA+=9*dt;const hd=m.r*2.4,hx=m.x+Math.cos(m.hammerA)*hd,hy=m.y+Math.sin(m.hammerA)*hd;
       for(const o of alive){if(!isFoe(m,o)||m.hammerHits.has(o))continue;
-        if((o.x-hx)**2+(o.y-hy)**2<(o.r+m.r*0.6)**2){m.hammerHits.add(o);const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy)||1;
+        if((o.x-hx)**2+(o.y-hy)**2<(o.r+m.r*0.6)**2){m.hammerHits.add(o);SFX.play('clank');const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy)||1;
           o.vx=0;o.vy=0;shove(o,dx/d*1300,dy/d*1300);o.fling=0.6;o.frozen=0;slashArc(hx,hy,m.hammerA+Math.PI/2,m.r*1.6,SKILLS.hammer.color,2.0);burst(hx,hy,22,SKILLS.hammer.color,260);spark(hx,hy,10);
           hurt(o,BAL.hammerDmg,m,o.x,o.y);if(S.final&&o.alive)addText(o.x,o.y-o.r-24,'🔨 홈런!',SKILLS.hammer.color,18)}}}
     // 자석: 물결 원 안의 상대를 계속 끌어당김
@@ -712,7 +783,7 @@ function step(dt){
     if(m.tornadoT>0){m.tornadoT-=dt;
       if(m.tornadoT>0.5){for(const o of alive){if(!isFoe(m,o))continue;const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy);
           if(d<240&&d>m.r+o.r+6){const k=0.5+0.5*(1-d/240);shove(o,(-dx/d*700+(-dy/d)*1100)*dt*k,(-dy/d*700+(dx/d)*1100)*dt*k)}}}
-      else if(!m.tornadoFlung){m.tornadoFlung=true;burst(m.x,m.y,30,SKILLS.tornado.color,360);
+      else if(!m.tornadoFlung){m.tornadoFlung=true;SFX.play('fling');burst(m.x,m.y,30,SKILLS.tornado.color,360);
         for(const o of alive){if(!isFoe(m,o))continue;const dx=o.x-m.x,dy=o.y-m.y,d=Math.hypot(dx,dy)||1;
           if(d<240){o.vx=0;o.vy=0;shove(o,dx/d*1200-dy/d*300,dy/d*1200+dx/d*300);o.fling=0.6;o.frozen=0;hurt(o,BAL.tornadoDmg,m,o.x,o.y);if(S.final&&o.alive)addText(o.x,o.y-o.r-24,'🌪️ 날아감!',SKILLS.tornado.color,16)}}}
       for(let k=0;k<3;k++){const a=rand(0,TAU),rr2=rand(40,210);S.particles.push({x:m.x+Math.cos(a)*rr2,y:m.y+Math.sin(a)*rr2,vx:-Math.sin(a)*rand(200,420)+Math.cos(a)*80,vy:Math.cos(a)*rand(200,420)+Math.sin(a)*80,life:rand(0.25,0.5),color:k?SKILLS.tornado.color:'#e6fffb',r:rand(1.5,3.5)})}}
@@ -720,7 +791,7 @@ function step(dt){
     if(m.aim){const t=m.aim.target;
       if(!t.alive){m.aim=null}
       else{m.aim.t+=dt;
-        if(m.aim.t>=m.aim.dur){m.aim=null;const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+        if(m.aim.t>=m.aim.dur){m.aim=null;SFX.play('shot');const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
           const sx=m.x+ux*(m.r+6),sy=m.y+uy*(m.r+6);let ex=sx,ey=sy,blocked=false;
           for(let k=0;k<400;k++){const nx2=ex+ux*6,ny2=ey+uy*6;if(hitsObst(nx2,ny2,2)){blocked=true;break}ex=nx2;ey=ny2;if((ex-sx)*ux+(ey-sy)*uy>=L-t.r)break}
           S.lasers.push({x1:sx,y1:sy,x2:ex,y2:ey,life:0.3,max:0.3,color:SKILLS.snipe.color,w:5});
@@ -840,7 +911,7 @@ function step(dt){
       a.vx-=imp*ima*nx;a.vy-=imp*ima*ny;b.vx+=imp*imb*nx;b.vy+=imp*imb*ny;
       const rel=-vn;
       if(hole&&rel>110&&(opt.teamFire||a.faction!==b.faction)){const atk=sa>=sb?a:b,def=atk===a?b:a,sg=atk===a?1:-1; // 블랙홀: 밟고 올라가기
-        shove(def,sg*nx*rel*0.6,sg*ny*rel*0.6);const da=Math.hypot(atk.x,atk.y)||1;atk.vx+=atk.x/da*rel*0.3;atk.vy+=atk.y/da*rel*0.3;spark(a.x+nx*a.r,a.y+ny*a.r,3)}
+        shove(def,sg*nx*rel*0.6,sg*ny*rel*0.6);SFX.play('bump');const da=Math.hypot(atk.x,atk.y)||1;atk.vx+=atk.x/da*rel*0.3;atk.vy+=atk.y/da*rel*0.3;spark(a.x+nx*a.r,a.y+ny*a.r,3)}
       if(rel>CFG.dmgThreshold&&(opt.teamFire||a.faction!==b.faction)&&((!race&&!hole)||S.final)){ // 레이스·블랙홀은 결전부터만 부딪힘 피해(정지)
         const base=(rel-CFG.dmgThreshold)*CFG.dmgScale;
         const cx=a.x+nx*a.r,cy=a.y+ny*a.r;
@@ -857,7 +928,7 @@ function step(dt){
         atk.recoil=CFG.recoil;def.recoil=CFG.recoil;
         a.vx-=nx*CFG.recoilKick;a.vy-=ny*CFG.recoilKick;b.vx+=nx*CFG.recoilKick;b.vy+=ny*CFG.recoilKick;
         // 거인화: 자기를 들이받은 상대를 멀리 튕겨냄
-        if(def.skill==='giant'&&def.alive&&atk.alive){const sg=atk===a?-1:1;atk.vx=0;atk.vy=0;shove(atk,sg*nx*1100,sg*ny*1100);atk.fling=0.5;burst(cx,cy,16,SKILLS.giant.color,220);if(S.final)addText(atk.x,atk.y-atk.r-24,'🗿 튕겨냄!',SKILLS.giant.color,16)}
+        if(def.skill==='giant'&&def.alive&&atk.alive){SFX.play('stomp');const sg=atk===a?-1:1;atk.vx=0;atk.vy=0;shove(atk,sg*nx*1100,sg*ny*1100);atk.fling=0.5;burst(cx,cy,16,SKILLS.giant.color,220);if(S.final)addText(atk.x,atk.y-atk.r-24,'🗿 튕겨냄!',SKILLS.giant.color,16)}
         spark(cx,cy,S.final?Math.min(10,3+rel/60):Math.min(4,1+rel/150));
       }
     }
@@ -872,7 +943,7 @@ function step(dt){
     }else if(race){ // 트랙 가장자리: 밀어 넣고, 세게 부딪히면 잠깐 정지
       const tp=trackPos(m.x,m.y);const hw=halfWAt(tp.s)-m.r;
       if(Math.abs(tp.lat)>hw){const sg=Math.sign(tp.lat),nx=-tp.ty,ny=tp.tx,over=(Math.abs(tp.lat)-hw)*sg;m.x-=nx*over;m.y-=ny*over;
-        const vn=m.vx*nx+m.vy*ny;if(vn*sg>0){m.vx-=vn*nx*1.6;m.vy-=vn*ny*1.6;if(Math.abs(vn)>220){m.stun=Math.max(m.stun,0.25);spark(m.x+nx*m.r*sg,m.y+ny*m.r*sg,6)}}}
+        const vn=m.vx*nx+m.vy*ny;if(vn*sg>0){m.vx-=vn*nx*1.6;m.vy-=vn*ny*1.6;if(Math.abs(vn)>220){m.stun=Math.max(m.stun,0.25);SFX.play('bump');spark(m.x+nx*m.r*sg,m.y+ny*m.r*sg,6)}}}
     }else{
     const wx=clamp(m.x,-ARENA_L,ARENA_L);let dw=Math.hypot(m.x-wx,m.y);
     if(dw+m.r>ARENA_R){
@@ -895,9 +966,9 @@ function step(dt){
   }
   // 레이스: 선두가 한 바퀴를 돌 때마다 꼴찌 탈락 (결전 전엔 여러 명, 결전부터 한 명씩)
   if(race){let lead=0;for(const m of alive)if(m.alive&&m.lap>lead)lead=m.lap;
-    if(lead>S.raceLap){S.raceLap=lead;const live=alive.filter(m=>m.alive),n=live.length,k=lead>=2?raceK(n):0; // 첫 바퀴는 자리 잡는 시간, 탈락 없음
+    if(lead>S.raceLap){S.raceLap=lead;SFX.play('lap');const live=alive.filter(m=>m.alive),n=live.length,k=lead>=2?raceK(n):0; // 첫 바퀴는 자리 잡는 시간, 탈락 없음
       if(lead===1)S.banner={text:'🏁 LAP 1',sub:'첫 바퀴는 탈락 없음  ·  다음 바퀴부터 꼴찌 탈락',age:0,life:1.8};
-      if(k>0){const sorted=live.slice().sort((a,b)=>a.prog-b.prog);
+      if(k>0){SFX.play('last');const sorted=live.slice().sort((a,b)=>a.prog-b.prog);
         for(let i=0;i<k;i++){const m=sorted[i];boom(m,1.2);addText(m.x,m.y-m.r-14,'꼴찌!',m.color,20);die(m,null,'race')}
         S.banner={text:`🏁 LAP ${lead}`,sub:`꼴찌 ${k}명 탈락  ·  남은 ${n-k}명`,age:0,life:1.6}}}}
   checkEnd();
@@ -905,20 +976,21 @@ function step(dt){
 
 function hurt(m,dmg,by,cx,cy){
   if(!m.alive)return;
-  if(m.shield&&by){m.shield=false;m.shieldFx=0.5;burst(cx,cy,24,'#7fd3ff',260);if(S.final)addText(cx,cy-12,'🛡️ BLOCK','#7fd3ff',18);return}
+  if(m.shield&&by){m.shield=false;m.shieldFx=0.5;SFX.play('block');burst(cx,cy,24,'#7fd3ff',260);if(S.final)addText(cx,cy-12,'🛡️ BLOCK','#7fd3ff',18);return}
   if(m.frozen>0)dmg*=BAL.frozenMul;
   dmg=Math.min(dmg,CFG.dmgCap);
   let crit=false;if(rng()<CFG.critChance){dmg*=2;crit=true}
   dmg=Math.round(dmg);if(dmg<=0)return;
+  SFX.play('hit',{dmg});
   if(isRace()||isHole()){ // 레이스·블랙홀: 체력 대신 잠깐 정지 + 뒤로(안쪽으로) 밀림 (피해량만큼). 흡혈은 대신 가속
     m.stun=Math.max(m.stun,Math.min(1.0,dmg*0.025));m.hit=1;S.hits++;S.dmgTotal+=dmg;S.lastDmgT=S.time;
     if(isHole()){const d=Math.hypot(m.x,m.y)||1;shove(m,-m.x/d*dmg*7,-m.y/d*dmg*7)}else if(m.tx!==undefined)shove(m,-m.tx*dmg*7,-m.ty*dmg*7);
     if(S.final)addText(cx+rand(-8,8),cy-10+rand(-6,6),(crit?'💥':isHole()?'🌀':'🐌')+' -'+dmg,crit?'#ffd166':'#fff',crit?24:17);
-    if(by&&by.alive&&by.skill==='drain'){by.boost=Math.max(by.boost,0.8);if(S.final)addText(by.x,by.y-by.r-8,'🩸 가속','#5be38b',16)}
+    if(by&&by.alive&&by.skill==='drain'){by.boost=Math.max(by.boost,0.8);SFX.play('drain');if(S.final)addText(by.x,by.y-by.r-8,'🩸 가속','#5be38b',16)}
     return}
   m.hp-=dmg;m.hit=1;S.hits++;S.dmgTotal+=dmg;
   if(S.final)addText(cx+rand(-8,8),cy-10+rand(-6,6),(crit?'💥':'')+'-'+dmg,crit?'#ffd166':'#fff',crit?24:17);
-  if(by&&by.alive&&by.skill==='drain'){const heal=Math.round(dmg*BAL.drainHeal);if(heal>0&&by.hp<by.hpMax){by.hp=Math.min(by.hpMax,by.hp+heal);
+  if(by&&by.alive&&by.skill==='drain'){const heal=Math.round(dmg*BAL.drainHeal);if(heal>0&&by.hp<by.hpMax){by.hp=Math.min(by.hpMax,by.hp+heal);SFX.play('drain');
     const dx=by.x-m.x,dy=by.y-m.y,d=Math.hypot(dx,dy)||1;for(let k=0;k<8;k++)S.particles.push({x:m.x+rand(-6,6),y:m.y+rand(-6,6),vx:dx/d*rand(200,380),vy:dy/d*rand(200,380),life:rand(0.25,0.45),color:'#ff4d6d',r:rand(1.5,3)});
     for(let k=0;k<9;k++){const a=rand(-2.6,-0.5);S.particles.push({x:cx,y:cy,vx:Math.cos(a)*rand(60,220),vy:Math.sin(a)*rand(60,220)+120,life:rand(0.35,0.6),color:k%2?'#c8102e':'#ff2d55',r:rand(2,4)})} // 피 튀김
     burst(by.x,by.y,12,'#5be38b',120);if(S.final)addText(by.x,by.y-by.r-8,'🩸 +'+heal,'#5be38b',16)}}
@@ -927,10 +999,11 @@ function hurt(m,dmg,by,cx,cy){
 function die(m,by,reason){
   if(!m.alive)return;
   m.alive=false;m.hp=0;m.killer=by;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;
+  if(reason==='hole')SFX.play('suck');else if(reason!=='race')SFX.play('death',{big:S.final});
   if(by)by.kills++;
   if(S.focus&&S.focus.m===m)S.focus=null;
   // 결전에서 마지막 상대가 쓰러지는 순간: 결정타 연출
-  if(S.final&&aliveList().length===1){S.finish={t:0,dur:2.2,x:m.x,y:m.y};S.focus=null;S.showdown=null}
+  if(S.final&&aliveList().length===1){S.finish={t:0,dur:2.2,x:m.x,y:m.y};S.focus=null;S.showdown=null;SFX.play('finish')}
   boom(m,S.final?3:0.45);
   if(S.final)addText(m.x,m.y-m.r-14,'탈락',m.color,22);
   const me=`<b style="color:${m.color}">${esc(m.label)}</b>`;
@@ -941,7 +1014,7 @@ function die(m,by,reason){
 }
 function factionOut(f,m){
   f.out=true;f.outAnim=1.4;S.factionsOut.push(f);f.rank=S.factions.length-S.factionsOut.length+1;
-  shatterBar(f);
+  shatterBar(f);if(barsOn())SFX.play('shatter');
   if(S.final)boom(m,1.5);else burst(m.x,m.y,16,f.color,220);
   if(!S.single){S.toasts.push({text:`${f.name} 탈락`,sub:`${f.rank}위  ·  남은 팀 ${factionsAlive()}`,color:f.color,life:4,max:4});if(S.toasts.length>10)S.toasts.shift()}
   addFeed(`💥 <b style="color:${f.color}">${esc(f.name)}</b> 탈락 (${f.rank}위)`,'big');
@@ -1020,7 +1093,7 @@ function fx(dt){
   if(S.barsActive&&S.barsAnim<1)S.barsAnim=Math.min(1,S.barsAnim+dt*2);
   if(S.duel&&S.duelists)for(const m of S.duelists){const hp=Math.max(0,m.hp);m.hpTrail=(m.hpTrail===undefined||m.hpTrail<hp)?hp:Math.max(hp,m.hpTrail-dt*CFG.hpMax*0.35)}
   const lbTarget=S.finish?52:(S.focus||S.showdown)?28:0;S.letterbox+=(lbTarget-S.letterbox)*Math.min(1,dt*8);
-  if(S.bannerDelay>0){S.bannerDelay-=dt;if(S.bannerDelay<=0&&S.bannerNext){S.banner={...S.bannerNext,age:0};S.bannerNext=null;confettiBurst()}}
+  if(S.bannerDelay>0){S.bannerDelay-=dt;if(S.bannerDelay<=0&&S.bannerNext){S.banner={...S.bannerNext,age:0};S.bannerNext=null;confettiBurst();SFX.play('win')}}
   if(S.banner){S.banner.age+=dt;if(S.banner.life!==undefined){S.banner.life-=dt;if(S.banner.life<=0)S.banner=null}}
   for(const f of S.factions){
     if(f.outAnim>0)f.outAnim=Math.max(0,f.outAnim-dt);
@@ -1614,6 +1687,8 @@ seg($('#speedSeg'),v=>{opt.speed=+v});
 seg($('#zoneSeg'),v=>{opt.zone=v==='1'});
 seg($('#teamSeg'),v=>{opt.teamFire=v==='1'});
 seg($('#faceSeg'),v=>{opt.faces=v==='1';deadKey=-1;updateRank()});
+seg($('#sndSeg'),v=>{SFX.on=v==='1';if(SFX.on){SFX.ensure();SFX.play('tick')}});
+document.addEventListener('pointerdown',()=>{if(SFX.on)SFX.ensure()},{passive:true}); // 첫 클릭에서 오디오 켜기 (브라우저 정책)
 document.querySelectorAll('#mtabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#mtabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');document.body.dataset.tab=b.dataset.t}));
 finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN(v))opt.finalAt=clamp(v,2,10)});
 finalN.addEventListener('change',()=>{opt.finalAt=clamp(parseInt(finalN.value,10)||FINAL_AT,2,10);finalN.value=opt.finalAt});
@@ -1623,7 +1698,7 @@ btnShuffle.addEventListener('click',()=>{seed=(Math.random()*1e9)>>>0;S.seedUsed
 let deb=0;namesEl.addEventListener('input',()=>{if(S.phase!=='idle')setup();clearTimeout(deb);deb=setTimeout(()=>setup(),200)});
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&document.activeElement!==namesEl){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
-window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,trackPos,step,setup,start,aliveList,ranking,factionRanking,render,updateCamera,fx,setSeed:v=>{seed=v>>>0}};
+window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,SFX,trackPos,step,setup,start,aliveList,ranking,factionRanking,render,updateCamera,fx,setSeed:v=>{seed=v>>>0}};
 setup();
 requestAnimationFrame(frame);
 })();
