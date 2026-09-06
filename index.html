@@ -260,16 +260,24 @@ const hitsObst=(x,y,pad)=>OB.some(o=>{const c=obstClosest(o,x,y);return c.inside
 const isRace=()=>opt.game==='race';
 // ---------- 블랙홀 모드: 가운데로 나선형으로 빨려 들어감, 빨려 들어가면 탈락, 마지막까지 버틴 공이 승리 ----------
 const isHole=()=>opt.game==='hole';
-const HOLE={R:360,r0:42,pull:180,grow:1.3,esc:215}; // R 바닥 반지름, r0 블랙홀 반지름, pull 기본 흡인력(초당 grow씩 증가), esc 공이 버티는 힘
+const HOLE={R:360,r0:42,pull:185,grow:1.5,esc:90,kick:300,atk:320,danger:0.42}; // pull 기본 흡인력(초당 grow 증가), esc 상시 버티기, kick 몸부림 도약, atk 상대 밀어 넣기 돌진, danger 못 빠져나오는 반경 비율 // R 바닥 반지름, r0 블랙홀 반지름, pull 기본 흡인력(초당 grow씩 증가), esc 공이 버티는 힘
 function holeMove(m,dt){
   const d=Math.hypot(m.x,m.y)||1,rx=m.x/d,ry=m.y/d,tx=-ry,ty=rx; // rx,ry 바깥 방향 / tx,ty 시계 방향 접선
   m.dist=d;m.prog=d;
   m.escT-=dt;if(m.escT<=0){m.escT=rand(1,2.5);m.escTarget=rand(0.8,1.15)}m.esc+=(m.escTarget-m.esc)*Math.min(1,dt*1.5);
   m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);m.boost=Math.max(0,m.boost-dt);
   const g=(HOLE.pull+HOLE.grow*S.time)*Math.sqrt(HOLE.R/Math.max(d,40)); // 안쪽일수록 강하게 당김
-  let esc=HOLE.esc*m.esc*m.speedMul*(m.boost>0?1.5:1)*(m.slow>0?0.4:1);if(m.stun>0||m.frozen>0)esc=0;
-  m.wob+=rand(-1,1)*4*dt;const w=Math.sin(m.wob)*0.5;
-  m.vx+=(rx*(esc-g)+tx*(70+esc*w*0.6))*dt;m.vy+=(ry*(esc-g)+ty*(70+esc*w*0.6))*dt; // 접선 성분은 약하게 (세면 원심력으로 바깥 벽에 눌러붙어 절대 안 빨려 들어감)
+  const panic=d<HOLE.R*HOLE.danger; // 위험 구역: 더 자주, 더 세게 몸부림치지만 대개 못 나옴
+  const able=!(m.stun>0||m.frozen>0);
+  let esc=able?HOLE.esc*m.esc*m.speedMul*(m.boost>0?1.5:1)*(m.slow>0?0.4:1):0;
+  m.wob+=rand(-1,1)*(panic?9:4)*dt;const w=Math.sin(m.wob)*0.5;
+  m.vx+=(rx*(esc-g)+tx*(70+esc*w*0.6))*dt;m.vy+=(ry*(esc-g)+ty*(70+esc*w*0.6))*dt;
+  // 몸부림: 주기적으로 바깥으로 힘껏 도약 (먼지가 블랙홀 쪽으로 튐)
+  m.escCd-=dt;if(m.escCd<=0&&able){m.escCd=rand(0.9,1.8)*(panic?0.6:1);const p=HOLE.kick*rand(0.8,1.2)*m.esc*(m.slow>0?0.5:1)*(panic?1.15:1);m.vx+=rx*p;m.vy+=ry*p;m.dash=0.2;
+    for(let k=0;k<5;k++)S.particles.push({x:m.x-rx*m.r,y:m.y-ry*m.r,vx:-rx*rand(120,260)+rand(-60,60),vy:-ry*rand(120,260)+rand(-60,60),life:rand(0.2,0.4),color:panic?'#ff4d6d':'#b388ff',r:rand(1.5,3)})}
+  // 싸움: 근처 상대에게 돌진해 안쪽으로 밀어 넣음 (부딪힘 처리에서 상대는 안쪽, 나는 바깥으로)
+  m.atkCd-=dt;if(m.atkCd<=0&&able&&S.time>4){let best=null,bd=140*140; // 처음 4초는 자리 잡는 시간, 공격 없음for(const o of S.marbles){if(!o.alive||o===m||!isFoe(m,o))continue;const dd=(o.x-m.x)**2+(o.y-m.y)**2;if(dd<bd){bd=dd;best=o}}
+    if(best){m.atkCd=rand(1.4,2.8);const dx=best.x-m.x,dy=best.y-m.y,L=Math.hypot(dx,dy)||1;m.vx+=dx/L*HOLE.atk;m.vy+=dy/L*HOLE.atk;m.dash=0.3;m.target=best}else m.atkCd=0.3}
 }
 const RACE={halfW:180,base:320,W:900,H:480,R:180,pts:[],seg:[],L:0}; // base: 기본 주행 속도 (고무줄 보정으로 뒤처지면 +25%, 혼자 앞선 선두는 -10%)
 function buildTrack(){
@@ -321,7 +329,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -831,6 +839,8 @@ function step(dt){
       const imp=-(1+CFG.restitution)*vn/(ima+imb);
       a.vx-=imp*ima*nx;a.vy-=imp*ima*ny;b.vx+=imp*imb*nx;b.vy+=imp*imb*ny;
       const rel=-vn;
+      if(hole&&rel>110&&(opt.teamFire||a.faction!==b.faction)){const atk=sa>=sb?a:b,def=atk===a?b:a,sg=atk===a?1:-1; // 블랙홀: 밟고 올라가기
+        shove(def,sg*nx*rel*0.6,sg*ny*rel*0.6);const da=Math.hypot(atk.x,atk.y)||1;atk.vx+=atk.x/da*rel*0.3;atk.vy+=atk.y/da*rel*0.3;spark(a.x+nx*a.r,a.y+ny*a.r,3)}
       if(rel>CFG.dmgThreshold&&(opt.teamFire||a.faction!==b.faction)&&((!race&&!hole)||S.final)){ // 레이스·블랙홀은 결전부터만 부딪힘 피해(정지)
         const base=(rel-CFG.dmgThreshold)*CFG.dmgScale;
         const cx=a.x+nx*a.r,cy=a.y+ny*a.r;
@@ -1374,7 +1384,7 @@ function drawMarble(m){
   const lw=Math.max(1.5,r*0.2),rr=r+lw;
   ctx.lineWidth=lw;ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.beginPath();ctx.arc(x,y,rr,0,TAU);ctx.stroke();
   if(isRace()){ctx.strokeStyle=m.stun>0?'#ff4d6d':m.boost>0?'#ffd166':'rgba(255,255,255,0.35)';ctx.beginPath();ctx.arc(x,y,rr,-Math.PI/2,-Math.PI/2+TAU*clamp(m.s/RACE.L,0,1));ctx.stroke()} // 레이스: 이번 바퀴 진행도 (정지 중 빨강, 부스트 노랑)
-  else if(isHole()){ctx.strokeStyle=m.stun>0?'#ff4d6d':'#b388ff';ctx.beginPath();ctx.arc(x,y,rr,-Math.PI/2,-Math.PI/2+TAU*clamp(m.dist/HOLE.R,0,1));ctx.stroke()} // 블랙홀: 중심에서 떨어진 정도
+  else if(isHole()){ctx.strokeStyle=(m.stun>0||m.dist<HOLE.R*HOLE.danger)?'#ff4d6d':'#b388ff';ctx.beginPath();ctx.arc(x,y,rr,-Math.PI/2,-Math.PI/2+TAU*clamp(m.dist/HOLE.R,0,1));ctx.stroke()} // 블랙홀: 중심에서 떨어진 정도
   else{ctx.strokeStyle=hpColor(m.hp/m.hpMax*100);ctx.beginPath();ctx.arc(x,y,rr,-Math.PI/2,-Math.PI/2+TAU*clamp(m.hp/m.hpMax,0,1));ctx.stroke()}
   if(m.shield){ // 철벽: 천천히 도는 육각 방벽
     const hr=rr+9,rot=S.time*0.9;poly(x,y,hr,6,rot);ctx.fillStyle='rgba(127,211,255,0.14)';ctx.fill();ctx.strokeStyle=SKILLS.shield.color;ctx.lineWidth=3;ctx.stroke();
@@ -1414,6 +1424,7 @@ function render(){
   }else if(isHole()){ // 블랙홀: 둥근 바닥, 안쪽으로 감기는 나선 팔, 가운데 블랙홀, 바깥 벽
     ctx.beginPath();ctx.arc(0,0,HOLE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
     ctx.lineWidth=2;for(let k=0;k<3;k++){ctx.strokeStyle=`rgba(190,140,255,${0.10+0.05*k})`;ctx.beginPath();for(let i=0;i<=60;i++){const u=i/60,rad=HOLE.r0+u*(HOLE.R-HOLE.r0),ang=k*TAU/3+u*4.5+S.time*0.8;const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}
+    ctx.beginPath();ctx.arc(0,0,HOLE.R*HOLE.danger,0,TAU);ctx.strokeStyle='rgba(255,77,109,0.28)';ctx.lineWidth=2;ctx.setLineDash([8,10]);ctx.lineDashOffset=S.time*20;ctx.stroke();ctx.setLineDash([]); // 여기 안쪽부터는 거의 못 빠져나옴
     ctx.beginPath();ctx.arc(0,0,HOLE.r0+12,0,TAU);ctx.fillStyle='rgba(160,80,255,0.22)';ctx.fill();
     ctx.beginPath();ctx.arc(0,0,HOLE.r0,0,TAU);ctx.fillStyle='#000';ctx.fill();ctx.lineWidth=3;ctx.strokeStyle='#b388ff';ctx.stroke();
     ctx.beginPath();ctx.arc(0,0,HOLE.R,0,TAU);ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=4;ctx.stroke();
