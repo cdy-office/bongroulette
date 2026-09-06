@@ -389,8 +389,8 @@ function enterFinal(alive){
 function enterDuel(alive){
   S.duel=true;S.duelT=0;S.duelists=alive.slice().sort((a,b)=>a.x-b.x);
   const [A,B]=S.duelists;
-  for(const m of S.duelists){m.hp=Math.max(m.hp,m.hpMax*0.5);m.hpTrail=m.hp;burst(m.x,m.y,14,m.color,160)} // 둘 다 최소 50%로 회복해 마지막 승부가 바로 끝나지 않게
-  S.banner={text:'⚔️ 1 : 1',sub:`${A.label}   vs   ${B.label}   ·   체력 회복`,age:0,life:2.4};
+  for(const m of S.duelists){m.hp=m.hpMax;m.hpTrail=m.hp;m.speedMul*=1.2;burst(m.x,m.y,14,m.color,160)} // 둘 다 체력 전부 회복 + 이동 속도 20% 증가
+  S.banner={text:'⚔️ 1 : 1',sub:`${A.label}   vs   ${B.label}   ·   체력 전부 회복 · 이동 속도 +20%`,age:0,life:2.4};
   addFeed(`⚔️ <b>마지막 1:1</b> · <b style="color:${A.color}">${esc(A.label)}</b> vs <b style="color:${B.color}">${esc(B.label)}</b>`,'gold');
 }
 function useSkill(m,alive){
