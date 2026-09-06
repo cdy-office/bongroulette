@@ -144,7 +144,7 @@ const OBST=[
 ];
 for(const o of OBST){let a=0;const n=o.pts.length;for(let i=0;i<n;i++){const [x1,y1]=o.pts[i],[x2,y2]=o.pts[(i+1)%n];a+=x1*y2-x2*y1}o.sign=a>=0?1:-1}
 // 낙하 룰렛 코스: 폭 DROP_W, 출발 구역 위쪽 한계 DROP_TOP, 바닥(탈락선) DROP_H. 중력은 결전에서 약해짐
-const DROP_W=560, DROP_TOP=-700, DROP_H=3400, DROP_G=900, DROP_FINAL_TOP=DROP_H-720; // 결전 구역: 바닥 문이 닫히면 중력이 사라지고 DROP_FINAL_TOP 아래에서 싸움
+const DROP_W=560, DROP_TOP=-700, DROP_H=4300, DROP_G=900; // 낙하는 끝까지 계속됨. 결전 인원이 남으면 스킬만 생기고 그대로 떨어짐
 let OB=OBST; // 현재 모드의 구조물 목록 (낙하 모드는 setup에서 생성)
 const isDrop=()=>opt.game==='drop';
 // 경기장 밖 판정 (투사체·순간이동 등 공통)
@@ -260,22 +260,31 @@ function obstClosest(o,x,y){
   return {px:bx,py:by,d:Math.sqrt(bd),inside};
 }
 const hitsObst=(x,y,pad)=>OB.some(o=>{const c=obstClosest(o,x,y);return c.inside||c.d<o.rc+pad});
-// 낙하 코스 생성 (시드 기반): 못 줄, 빗면 막대, 깔때기, 맨 아래 그릇(가운데 구멍). 결전 때 구멍을 막는 문은 S.dropGate
+// 낙하 코스 생성 (시드 기반): 못 줄, 회전 바람개비(spin), 범퍼(bump), 지그재그 빗면, 깔때기, 맨 아래 그릇(가운데 구멍)
 function buildDropCourse(){
-  const obs=[],hw=DROP_W/2;let y=120,row=0;
-  while(y<DROP_H-640){
-    if(row%5===4){const gap=rand(84,112),drop=90; // 깔때기
-      obs.push({pts:[[-hw,y],[-gap/2,y+drop]],rc:7,sign:1});obs.push({pts:[[hw,y],[gap/2,y+drop]],rc:7,sign:1});y+=drop+140}
-    else if(row%5===2&&row>0){const side=(row>>1)%2?1:-1; // 빗면 막대 (좌우 번갈아)
-      obs.push({pts:[[side*hw,y],[side*hw*0.12,y+70]],rc:7,sign:1});y+=150}
-    else{const n=7,sp=DROP_W/n,off=row%2?sp/2:0; // 못 줄
-      for(let i=0;i<=n;i++){const x=-hw+i*sp+off+rand(-6,6);if(Math.abs(x)>hw-26)continue;obs.push({pts:[[x,y],[x+0.5,y]],rc:9,sign:1,peg:true})}
-      y+=118}
-    row++;
-  }
-  const by=DROP_H-380; // 바닥 그릇: 양쪽 빗면, 가운데 구멍(폭 190)
+  const obs=[],hw=DROP_W/2;
+  const pegRow=(y,offset)=>{const n=7,sp=DROP_W/n;for(let i=0;i<=n;i++){const x=-hw+i*sp+(offset?sp/2:0)+rand(-6,6);if(Math.abs(x)>hw-26)continue;obs.push({pts:[[x,y],[x+0.5,y]],rc:9,sign:1,peg:true})}};
+  const funnel=(y,gap)=>{obs.push({pts:[[-hw,y],[-gap/2,y+90]],rc:7,sign:1});obs.push({pts:[[hw,y],[gap/2,y+90]],rc:7,sign:1})};
+  const ramp=(y,fromLeft)=>{const a=fromLeft?-hw:hw,b=fromLeft?hw-150:-hw+150;obs.push({pts:[[a,y],[b,y+110]],rc:7,sign:1})}; // 지그재그 빗면 (끝에 틈)
+  const spinner=(cx,cy,len,speed,cross)=>{const base={cx,cy,len,speed,angle:rand(0,TAU),spin:true,rc:6,sign:1};
+    obs.push({...base,pts:[[cx-len,cy],[cx+len,cy]],hub:true});if(cross)obs.push({...base,pts:[[cx,cy-len],[cx,cy+len]],angle:base.angle+Math.PI/2})};
+  const bumper=(x,y)=>obs.push({pts:[[x,y],[x+0.5,y]],rc:16,sign:1,bump:true,flash:0});
+  let y=120;
+  for(let k=0;k<4;k++){pegRow(y,k%2);y+=118}                         // 못 줄 ×4
+  spinner(0,y+90,110,1.7,true);pegRow(y+90,1);y+=300;                 // 회전 십자 바람개비
+  funnel(y,rand(90,115));y+=240;                                       // 깔때기
+  ramp(y,true);y+=170;ramp(y,false);y+=170;ramp(y,true);y+=200;        // 지그재그
+  bumper(-160,y);bumper(0,y+40);bumper(160,y);y+=190;                  // 범퍼 3개
+  for(let k=0;k<3;k++){pegRow(y,k%2);y+=118}                         // 못 줄 ×3
+  const dir=rng()<0.5?1:-1;spinner(-hw*0.5,y+80,95,2.2*dir,false);spinner(hw*0.5,y+80,95,-2.2*dir,false);y+=260; // 회전 막대 2개 (반대 방향)
+  funnel(y,rand(90,115));y+=240;                                       // 깔때기
+  bumper(-190,y);bumper(-60,y+70);bumper(70,y+70);bumper(200,y);y+=210; // 범퍼 4개
+  for(let k=0;k<3;k++){pegRow(y,k%2);y+=118}                         // 못 줄 ×3
+  spinner(0,y+90,120,-1.5,true);y+=300;                                // 회전 십자 바람개비
+  funnel(y,rand(84,100));y+=240;                                       // 좁은 깔때기
+  ramp(y,rng()<0.5);y+=200;                                            // 빗면 하나
+  const by=DROP_H-380; // 바닥 그릇: 양쪽 빗면, 가운데 구멍(폭 190). 여기로 떨어지면 탈락
   obs.push({pts:[[-hw,by],[-95,DROP_H-60]],rc:8,sign:1});obs.push({pts:[[hw,by],[95,DROP_H-60]],rc:8,sign:1});
-  S.dropGate={pts:[[-102,DROP_H-60],[102,DROP_H-60]],rc:8,sign:1,gate:true};
   return obs;
 }
 
@@ -286,7 +295,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.progY=-1e9;this.progT=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -334,7 +343,7 @@ function setup(){
     else if(pool.length)S.faceOf[nm]=pool[pi++%pool.length];
     else if(all.length)S.faceOf[nm]=all[(rng()*all.length)|0];
   }
-  OB=isDrop()?buildDropCourse():OBST;S.gateClosed=false;S.gateT=0;
+  OB=isDrop()?buildDropCourse():OBST;
   const placed=[],drop=isDrop(),hw=DROP_W/2;
   for(const m of S.marbles){
     let done=false;
@@ -413,8 +422,7 @@ function enterFinal(alive){
   });
   while(S.toasts.length>10)S.toasts.shift();
   S.lastDmgT=S.time;
-  if(isDrop()&&!S.gateClosed){OB.push(S.dropGate);S.gateClosed=true;S.gateT=1;burst(0,DROP_H-60,36,'#ffd166',280);addFeed('🕳️ <b>바닥이 닫혔습니다</b> · 남은 공들의 결전','gold')}
-  S.banner={text:`⚔️ FINAL ${alive.length}`,sub:isDrop()?'바닥 닫힘  ·  체력 회복  ·  스킬 획득':'체력 회복  ·  스킬 획득',age:0,life:2.6};
+  S.banner={text:`⚔️ FINAL ${alive.length}`,sub:isDrop()?'떨어지면서 결전  ·  체력 회복  ·  스킬 획득':'체력 회복  ·  스킬 획득',age:0,life:2.6};
   addFeed(`⚔️ <b>결전 시작</b> · 남은 ${alive.length}명 체력 회복, 스킬 획득`,'gold');
   for(const m of alive){const s=SKILLS[m.skill];addFeed(`<b style="color:${m.color}">${esc(m.label)}</b> ${s.icon} <b style="color:${s.color}">${s.name}</b> <span style="color:var(--muted)">${s.desc}</span>`)}
 }
@@ -586,6 +594,7 @@ function step(dt){
   if(S.duel)S.duelT+=dt;
   S.zoneHold=Math.max(0,S.zoneHold-dt);
   const zoneOn=opt.zone&&!isDrop(),drop=isDrop();
+  if(drop)for(const o of OB){if(o.spin){o.angle+=o.speed*dt;const c=Math.cos(o.angle)*o.len,sn=Math.sin(o.angle)*o.len;o.pts[0][0]=o.cx-c;o.pts[0][1]=o.cy-sn;o.pts[1][0]=o.cx+c;o.pts[1][1]=o.cy+sn}if(o.flash>0)o.flash-=dt} // 회전 바람개비·범퍼 반짝임
   if(zoneOn&&S.time>CFG.zoneGrace&&S.zoneHold<=0){const rate=na<=3?CFG.zoneRateFinal:CFG.zoneRate;S.zoneR=Math.max(CFG.zoneMinR,S.zoneR-rate*dt)}
   const zl=zoneL();
   S.bombs=S.bombs.filter(b=>{b.t-=dt;if(rng()<0.3)S.particles.push({x:b.x+rand(-3,3),y:b.y-10,vx:rand(-40,40),vy:rand(-90,-30),life:rand(0.15,0.35),color:'#ffe66d',r:rand(1,2)});if(b.t>0)return true;explodeBomb(b);return false});
@@ -710,6 +719,7 @@ function step(dt){
       const zx=clamp(m.x,-zl,zl),dz=Math.hypot(m.x-zx,m.y)||1e-6;
       if(zoneOn&&dz+m.r>S.zoneR-6){ax=-(m.x-zx)/dz*CFG.accel*1.5;ay=-m.y/dz*CFG.accel*1.5}
       else if(drop&&!S.final){m.vx+=rand(-1,1)*90*dt} // 낙하 중: 조종 없이 떨어짐 (걸림 방지용 미세 흔들림만)
+      if(drop){if(m.y>m.progY+12){m.progY=m.y;m.progT=0}else{m.progT+=dt;if(m.progT>5){m.progT=0;m.vx+=rand(-1,1)*340;m.vy-=260;spark(m.x,m.y,4)}}} // 5초 넘게 못 내려가면 살짝 튕겨서 걸림 해제
       else if(m.target){
         let dx=m.target.x-m.x,dy=m.target.y-m.y;const L=Math.hypot(dx,dy)||1e-6;dx/=L;dy/=L;
         m.wob+=rand(-1,1)*5*dt;const w=Math.sin(m.wob)*0.45;
@@ -727,8 +737,8 @@ function step(dt){
       if(!drop||S.final)for(const o of OB){const c=obstClosest(o,m.x,m.y);const lim=m.r+o.rc+45;if(!c.inside&&c.d<lim&&c.d>0.01){const k=1-(c.d-(m.r+o.rc))/45;ax+=(m.x-c.px)/c.d*CFG.accel*1.4*k;ay+=(m.y-c.py)/c.d*CFG.accel*1.4*k}}
     }
     m.vx+=ax*dt;m.vy+=ay*dt;
-    if(drop&&!S.final)m.vy+=DROP_G*dt; // 낙하: 중력 (결전에서는 없음 → 그릇 안이 경기장이 됨)
-    if(S.final&&S.time-S.lastDmgT>10){const cx0=0,cy0=drop?DROP_H-380:0;m.vx+=(cx0-m.x)*0.6*dt;m.vy+=(cy0-m.y)*0.6*dt} // 10초 넘게 아무도 안 맞으면 가운데로 모아 교착 방지
+    if(drop)m.vy+=DROP_G*dt; // 낙하: 중력은 결전 중에도 그대로
+    if(S.final&&!drop&&S.time-S.lastDmgT>10){const cx0=0,cy0=drop?DROP_H-380:0;m.vx+=(cx0-m.x)*0.6*dt;m.vy+=(cy0-m.y)*0.6*dt} // 10초 넘게 아무도 안 맞으면 가운데로 모아 교착 방지
     const damp=Math.max(0,1-(drop&&!S.final?0.35:CFG.damping)*dt);m.vx*=damp;m.vy*=damp;
     const msp=(m.fling>0?1500:(drop&&!S.final?720:CFG.maxSpeed*m.speedMul));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
     m.x+=m.vx*dt;m.y+=m.vy*dt;
@@ -773,7 +783,7 @@ function step(dt){
       let dx=b.x-a.x,dy=b.y-a.y;let dist=Math.hypot(dx,dy);const min=a.r+b.r;
       // 간격 유지: 닿기 전부터 서로 밀어냄. 한쪽이 상대를 향해 돌진 중이면 그 쌍은 밀지 않음 (돌진이 닿아야 하므로)
       const sepR=min*CFG.sepRange,charging=(a.dash>0&&a.target===b)||(b.dash>0&&b.target===a);
-      if(dist<sepR&&dist>1e-6&&!charging&&(!drop||S.final)){const k=(1-Math.min(1,dist/sepR))*CFG.sepForce*dt,ux=dx/dist,uy=dy/dist;a.vx-=ux*k;a.vy-=uy*k;b.vx+=ux*k;b.vy+=uy*k}
+      if(dist<sepR&&dist>1e-6&&!charging&&!drop){const k=(1-Math.min(1,dist/sepR))*CFG.sepForce*dt,ux=dx/dist,uy=dy/dist;a.vx-=ux*k;a.vy-=uy*k;b.vx+=ux*k;b.vy+=uy*k}
       if(dist>=min)continue;
       if(dist<1e-6){dx=1;dy=0;dist=1e-6}
       const nx=dx/dist,ny=dy/dist;
@@ -813,7 +823,6 @@ function step(dt){
     if(drop){const hw=DROP_W/2; // 낙하: 양쪽 벽, 바닥 아래로 떨어지면 탈락
       if(m.x<-hw+m.r){m.x=-hw+m.r;if(m.vx<0)m.vx=-m.vx*CFG.restitution}else if(m.x>hw-m.r){m.x=hw-m.r;if(m.vx>0)m.vx=-m.vx*CFG.restitution}
       if(m.y>DROP_H+40){die(m,null,'drop');continue}
-      if(S.final&&m.y<DROP_FINAL_TOP+m.r){m.y=DROP_FINAL_TOP+m.r;if(m.vy<0)m.vy=-m.vy*CFG.restitution} // 결전 구역 천장
     }else{
     const wx=clamp(m.x,-ARENA_L,ARENA_L);let dw=Math.hypot(m.x-wx,m.y);
     if(dw+m.r>ARENA_R){
@@ -829,6 +838,7 @@ function step(dt){
       if(c.inside){ux=-ux;uy=-uy}
       m.x=c.px+ux*R;m.y=c.py+uy*R;
       const vn=m.vx*ux+m.vy*uy;if(vn<0){m.vx-=(1+CFG.restitution)*vn*ux;m.vy-=(1+CFG.restitution)*vn*uy}
+      if(o.bump){const v2=m.vx*ux+m.vy*uy,want=460;if(v2<want){m.vx+=(want-v2)*ux;m.vy+=(want-v2)*uy}o.flash=0.3;spark(c.px+ux*o.rc,c.py+uy*o.rc,4)} // 범퍼: 세게 튕겨냄
     }
     const dz=segDist(m.x,m.y,zl);
     if(zoneOn&&dz+m.r>S.zoneR){m.burn=1;m.hp-=CFG.zoneDps*(1+S.time/60)*dt;if(m.hp<=0)die(m,null)}
@@ -983,6 +993,7 @@ function poly(x,y,r,n,rot){ctx.beginPath();for(let i=0;i<n;i++){const a=rot+i/n*
 // 경기장 외곽선 (beginPath 없이 경로만 추가)
 function stadiumPath(L,R){ctx.moveTo(-L,-R);ctx.lineTo(L,-R);ctx.arc(L,0,R,-Math.PI/2,Math.PI/2);ctx.lineTo(-L,R);ctx.arc(-L,0,R,Math.PI/2,Math.PI*1.5);ctx.closePath()}
 
+const spreadY=list=>{let a=Infinity,b=-Infinity;for(const m of list){if(m.y<a)a=m.y;if(m.y>b)b=m.y}return b-a};
 function updateCamera(dt){
   const {L,R,T,B}=region();
   const drop=isDrop();
@@ -999,7 +1010,7 @@ function updateCamera(dt){
   }
   else if(S.focus){tx=S.focus.m.x;ty=S.focus.m.y;tz=fit*2.6;speed=3}                                  // 스킬 연출: 그 공으로
   else if(S.showdown&&alive.length===2){frame2(alive,90,3.0);speed=3}                                  // 1:1 결정타 예감: 둘을 크게
-  else if(S.phase==='battle'&&alive.length>0&&alive.length<=opt.finalAt){ // 결전 인원부터 카메라가 따라감 (1:1은 가장 가까이)
+  else if(S.phase==='battle'&&alive.length>0&&alive.length<=opt.finalAt&&!(drop&&spreadY(alive)>600)){ // 결전 인원부터 카메라가 따라감 (1:1은 가장 가까이). 낙하에서 세로로 많이 퍼져 있으면 아래 따라가기
     frame2(alive,alive.length<=2?80:140,alive.length<=2?3.0:2.4)}
   else if(drop&&alive.length>0){ // 낙하 중: 남은 공들의 평균 높이를 따라 내려감 (약간 아래쪽을 보여 탈락 직전 공이 보이게)
     let sy=0,maxy=-Infinity;for(const m of alive){sy+=m.y;if(m.y>maxy)maxy=m.y}
@@ -1348,8 +1359,6 @@ function render(){
     ctx.strokeStyle='rgba(255,209,102,0.35)';ctx.lineWidth=2;ctx.setLineDash([12,10]);ctx.beginPath();ctx.moveTo(-hw,-120);ctx.lineTo(hw,-120);ctx.stroke(); // 출발선
     ctx.strokeStyle='rgba(255,77,109,0.7)';ctx.beginPath();ctx.moveTo(-hw,DROP_H+40);ctx.lineTo(hw,DROP_H+40);ctx.stroke();ctx.setLineDash([]); // 탈락선
     ctx.fillStyle='rgba(255,77,109,0.75)';ctx.font=`800 18px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('🕳️ 여기로 떨어지면 탈락',0,DROP_H+52);
-    if(S.gateClosed){S.gateT=Math.max(0,S.gateT-0.016);ctx.fillStyle=`rgba(255,209,102,${0.12+0.25*S.gateT})`;ctx.fillRect(-hw,DROP_H-62,DROP_W,8);
-      ctx.strokeStyle='rgba(255,209,102,0.35)';ctx.lineWidth=2;ctx.setLineDash([12,10]);ctx.beginPath();ctx.moveTo(-hw,DROP_FINAL_TOP);ctx.lineTo(hw,DROP_FINAL_TOP);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(255,209,102,0.5)';ctx.font=`800 14px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('⚔️ 결전 구역',0,DROP_FINAL_TOP-6)}
   }else{
   // 경기장 바닥
   ctx.beginPath();stadiumPath(ARENA_L,ARENA_R);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
@@ -1370,9 +1379,13 @@ function render(){
   // 구조물 (못은 밝은 점, 바닥 문은 금색)
   ctx.lineJoin='round';ctx.lineCap='round';
   for(const o of OB){
+    if(o.bump){const [bx,by]=o.pts[0];const f=Math.max(0,o.flash||0)/0.3; // 범퍼: 동그란 쿠션, 맞으면 밝게
+      ctx.beginPath();ctx.arc(bx,by,o.rc+2,0,TAU);ctx.fillStyle=f>0?`rgba(255,${Math.round(120+100*f)},170,0.9)`:'#3a2a4a';ctx.fill();ctx.lineWidth=3;ctx.strokeStyle='#ff5ca8';ctx.stroke();
+      ctx.beginPath();ctx.arc(bx,by,o.rc*0.45,0,TAU);ctx.fillStyle=f>0?'#fff':'#ff5ca8';ctx.fill();continue}
     ctx.beginPath();o.pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));if(o.pts.length>2)ctx.closePath();
-    ctx.lineWidth=o.rc*2+4;ctx.strokeStyle=o.gate?'#ffd166':o.peg?'#4a4a6a':S.final?'#5a2a3a':'#3d3d58';ctx.stroke();
-    ctx.lineWidth=o.rc*2;ctx.strokeStyle=o.gate?'#8a6a10':o.peg?'#2c2c40':'#22222f';ctx.stroke();if(o.pts.length>2){ctx.fillStyle='#22222f';ctx.fill()}
+    ctx.lineWidth=o.rc*2+4;ctx.strokeStyle=o.spin?'#5a4a2a':o.peg?'#4a4a6a':S.final?'#5a2a3a':'#3d3d58';ctx.stroke();
+    ctx.lineWidth=o.rc*2;ctx.strokeStyle=o.spin?'#c9a86a':o.peg?'#2c2c40':'#22222f';ctx.stroke();if(o.pts.length>2){ctx.fillStyle='#22222f';ctx.fill()}
+    if(o.hub){ctx.beginPath();ctx.arc(o.cx,o.cy,o.rc+6,0,TAU);ctx.fillStyle='#8a6a3a';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#ffd166';ctx.stroke()}
   }
   ctx.lineJoin='miter';ctx.lineCap='butt';
 
