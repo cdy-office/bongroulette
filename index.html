@@ -269,7 +269,7 @@ const isRace=()=>opt.game==='race';
 const isHole=()=>opt.game==='hole';
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
-const MAZE={R:430,pr:72,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520,wallSlow:0.55,pcd:2}; // pcd 포탈 재사용 대기 (축을 번갈아 써야 해서 짧아도 된다) // R 맵 반지름, pr 주머니 반지름, hold/flee 속도, wallSlow 벽에 긁힌 뒤 느려지는 시간
+const MAZE={R:430,pr:72,fuse:7,pass:0.5,spawn:1.0,hold:660,flee:520,wallSlow:0.55,pcd:2}; // pcd 포탈 재사용 대기 (축을 번갈아 써야 해서 짧아도 된다) // R 맵 반지름, pr 주머니 반지름, hold/flee 속도, wallSlow 벽에 긁힌 뒤 느려지는 시간
 // 상하좌우 반원 주머니 = 포탈. 들어가면 정반대 주머니에서 같은 방향으로 튀어나온다
 const PORTALS=[{a:Math.PI/4},{a:Math.PI*3/4},{a:-Math.PI*3/4},{a:-Math.PI/4}].map((q,i)=>({...q,x:Math.cos(q.a)*430,y:Math.sin(q.a)*430,axis:i%2,color:i%2?'#c8b6ff':'#4fd1c5'})); // 대각선 두 축. 마주 보는 같은 색끼리 통하고, 한 축을 쓰면 다음엔 반대 축만 쓸 수 있다
 const P_IX=430-72*72/(2*430), P_IY=Math.sqrt(Math.max(0,430*430-P_IX*P_IX));
@@ -306,8 +306,8 @@ function bombMove(m,dt){
     for(const o of S.marbles){if(!o.alive||o===m||o.bomb||!isFoe(m,o))continue;if(m.bomb.from===o&&n2>2)continue; // 방금 준 사람은 쫓지 않음
       const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
-    if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*3.2;ay=dy/L*acc*3.2;
-      m.dashCd-=dt;if(m.dashCd<=0&&L<260){m.dashCd=rand(0.8,1.4);m.vx+=dx/L*430;m.vy+=dy/L*430;m.dash=0.3}}
+    if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*2.4;ay=dy/L*acc*2.4;
+      m.dashCd-=dt;if(m.dashCd<=0&&L<260){m.dashCd=rand(1.0,1.7);m.vx+=dx/L*360;m.vy+=dy/L*360;m.dash=0.3}}
   }else{
     let t=null,bd=Infinity;for(const o of S.marbles){if(!o.alive||!o.bomb||!isFoe(m,o))continue;const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
@@ -1269,7 +1269,8 @@ const fFrac=f=>{if(f.out)return 0;
 // 모바일(폭 820px 이하): 패널이 아래 시트로 내려가므로 경기장은 가로 전체, 세로는 시트 위까지
 const isMobile=()=>W<=820;
 const viewBottom=()=>isMobile()?Math.round(H*0.54)-36:H;
-const region=()=>{const e=S.barsActive?(1-Math.cos(S.barsAnim*Math.PI))/2:0;const b=(BAR_H+BAR_Y+14)*e;const VB=viewBottom();return isMobile()?{L:8,R:W-8,T:10+b,B:VB-10-b}:{L:294,R:W-254,T:12+b,B:VB-12-b}};
+// 바는 경기장 위에 겹쳐 그린다. 예전엔 위아래로 72px씩 깎아서 바가 뜨는 순간 화면이 확 작아졌다
+const region=()=>{const e=S.barsActive?(1-Math.cos(S.barsAnim*Math.PI))/2:0;const b=(isMobile()?34:18)*e;const VB=viewBottom();return isMobile()?{L:8,R:W-8,T:10+b,B:VB-10-b}:{L:294,R:W-254,T:12+b,B:VB-12-b}};
 
 function barLayout(){
   const {L,R}=region();const rects=new Map();const off=(1-S.barsAnim)*80;
@@ -1302,8 +1303,9 @@ function updateCamera(dt){
   }
   else if(S.focus){tx=S.focus.m.x;ty=S.focus.m.y;tz=fit*2.6;speed=3}                                  // 스킬 연출: 그 공으로
   else if(S.showdown&&alive.length===2){frame2(alive,90,3.0);speed=3}                                  // 1:1 결정타 예감: 둘을 크게
-  else if(S.phase==='battle'&&alive.length>0&&((alive.length<=opt.finalAt&&!bombM)||race||(bombM&&alive.length<=4))){ // 결전 인원부터 카메라가 따라감 (1:1은 가장 가까이). 레이스는 항상 무리를 따라감
-    frame2(alive,alive.length<=2?80:140,alive.length<=2?3.0:2.4)}
+  else if(S.phase==='battle'&&alive.length>0&&(race||barsOn()||alive.length<=opt.finalAt)){ // 현황판이 뜨는 순간부터 남은 공들을 따라간다 (수가 줄수록 더 가까이)
+    const n=alive.length;
+    frame2(alive,n<=2?80:n<=opt.finalAt?140:200,n<=2?3.0:n<=opt.finalAt?2.4:1.8)}
   if(tz>fit&&!free){const limX=AW-((R-L)/2)/tz*0.9,limY=AH-((B-T)/2)/tz*0.9;
     tx=limX>0?clamp(tx,-limX,limX):0;ty=limY>0?clamp(ty,-limY,limY):0}
   const k=1-Math.exp(-speed*dt);
