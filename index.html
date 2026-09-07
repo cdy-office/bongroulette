@@ -1138,7 +1138,8 @@ function hurt(m,dmg,by,cx,cy){
   if(isRace()||isHole()||isBomb()){ // 레이스·블랙홀·폭탄: 체력 대신 잠깐 정지 + 뒤로(안쪽으로) 밀림 (피해량만큼). 흡혈은 대신 가속
     m.stun=Math.max(m.stun,Math.min(1.0,dmg*0.025));m.hit=1;S.hits++;S.dmgTotal+=dmg;S.lastDmgT=S.time;
     if(isHole()){const d=Math.hypot(m.x,m.y)||1;shove(m,-m.x/d*dmg*7,-m.y/d*dmg*7)}else if(isRace()&&m.tx!==undefined)shove(m,-m.tx*dmg*7,-m.ty*dmg*7);
-    if(S.final||isBomb())addText(cx+rand(-8,8),cy-10+rand(-6,6),(crit?'💥':isHole()?'🌀':'🐌')+' -'+dmg,crit?'#ffd166':'#fff',crit?24:17);
+    // 레이스는 체력이 없다. 피해 숫자는 뜻이 없는 데다 한 번에 수십 개가 떠서 프레임을 잡아먹었다
+    if((S.final||isBomb())&&!isRace())addText(cx+rand(-8,8),cy-10+rand(-6,6),(crit?'💥':isHole()?'🌀':'🐌')+' -'+dmg,crit?'#ffd166':'#fff',crit?24:17);
     if(by&&by.alive&&by.skill==='drain'){by.boost=Math.max(by.boost,1.2);SFX.play('drain');if(S.final)addText(by.x,by.y-by.r-8,'🩸 가속','#5be38b',16)}
     return}
   m.hp-=dmg;m.hit=1;S.hits++;S.dmgTotal+=dmg;
