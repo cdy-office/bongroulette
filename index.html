@@ -269,9 +269,9 @@ const isRace=()=>opt.game==='race';
 const isHole=()=>opt.game==='hole';
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
-const MAZE={R:430,pr:72,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520,wallSlow:0.55,pcd:6}; // pcd 포탈 재사용 대기 // R 맵 반지름, pr 주머니 반지름, hold/flee 속도, wallSlow 벽에 긁힌 뒤 느려지는 시간
+const MAZE={R:430,pr:72,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520,wallSlow:0.55,pcd:2}; // pcd 포탈 재사용 대기 (축을 번갈아 써야 해서 짧아도 된다) // R 맵 반지름, pr 주머니 반지름, hold/flee 속도, wallSlow 벽에 긁힌 뒤 느려지는 시간
 // 상하좌우 반원 주머니 = 포탈. 들어가면 정반대 주머니에서 같은 방향으로 튀어나온다
-const PORTALS=[{a:Math.PI/4},{a:Math.PI*3/4},{a:-Math.PI*3/4},{a:-Math.PI/4}].map((q,i)=>({...q,x:Math.cos(q.a)*430,y:Math.sin(q.a)*430,color:i%2?'#c8b6ff':'#4fd1c5'})); // 좌우의 위·아래 (대각선). 마주 보는 짝끼리 통한다
+const PORTALS=[{a:Math.PI/4},{a:Math.PI*3/4},{a:-Math.PI*3/4},{a:-Math.PI/4}].map((q,i)=>({...q,x:Math.cos(q.a)*430,y:Math.sin(q.a)*430,axis:i%2,color:i%2?'#c8b6ff':'#4fd1c5'})); // 대각선 두 축. 마주 보는 같은 색끼리 통하고, 한 축을 쓰면 다음엔 반대 축만 쓸 수 있다
 const P_IX=430-72*72/(2*430), P_IY=Math.sqrt(Math.max(0,430*430-P_IX*P_IX));
 const P_GAP=Math.atan2(P_IY,P_IX);      // 큰 원에서 주머니가 뚫려 있는 반각
 const P_HALF=Math.acos(72/(2*430));     // 주머니 원에서 바깥으로 드러난 호의 반각
@@ -291,7 +291,7 @@ function portalWarp(m,pt){ // 대각선 반대편 포탈에서 곧바로 튀어�
   m.x=ex;m.y=ey;m.px=ex;m.py=ey;
   const sp=Math.hypot(m.vx,m.vy)||1,ix=-ex/Math.hypot(ex,ey),iy=-ey/Math.hypot(ex,ey); // 안쪽을 향해 튀어나옴
   m.vx=ix*Math.max(sp,360);m.vy=iy*Math.max(sp,360);
-  m.portalT=0.35;m.portalCd=MAZE.pcd;m.wallT=0;
+  m.portalT=0.35;m.portalCd=MAZE.pcd;m.portalAxis=pt.axis;m.wallT=0; // 이 축을 썼으니 다음엔 반대 축만
   burst(m.x,m.y,20,pt.color,260);addText(m.x,m.y-m.r-26,'✦ 포탈',pt.color,16);SFX.play('warp');
 } // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
 function buildMaze(){return []} // 빈 원형 맵 (벽 없음)
@@ -313,8 +313,8 @@ function bombMove(m,dt){
     m.target=t;
     if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/320,0,1);
       let fx=dx/L,fy=dy/L;                                              // 폭탄 보유자의 정반대로 그냥 달린다
-      if(L<260&&m.portalCd<=0){                                          // 쫓기는 중이고 포탈을 쓸 수 있으면 입구로 뛴다
-        let bp=null,bd2=Infinity;for(const pt of PORTALS){const q=Math.hypot(m.x-pt.x,m.y-pt.y);if(q<bd2){bd2=q;bp=pt}}
+      if(L<260&&m.portalCd<=0&&!m.bomb){                                          // 쫓기는 중이고 포탈을 쓸 수 있으면 입구로 뛴다
+        let bp=null,bd2=Infinity;for(const pt of PORTALS){if(pt.axis===m.portalAxis)continue;const q=Math.hypot(m.x-pt.x,m.y-pt.y);if(q<bd2){bd2=q;bp=pt}}
         const pdx=bp.x-m.x,pdy=bp.y-m.y,pl=Math.hypot(pdx,pdy)||1;
         if(bd2<330&&(pdx/pl)*(-dx/L)+(pdy/pl)*(-dy/L)<0.3){              // 그 길목에 쫓는 공이 없을 때만
           const w=clamp(1-bd2/330,0,1)*0.9;fx=fx*(1-w)+pdx/pl*w;fy=fy*(1-w)+pdy/pl*w;
@@ -408,7 +408,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.toPortal=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.portalAxis=-1;this.toPortal=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -1080,7 +1080,7 @@ function step(dt){
     }else if(bombM){ // 원형 벽 + 상하좌우 주머니(포탈)
       m.wallT=Math.max(0,m.wallT-dt);m.portalT=Math.max(0,m.portalT-dt);m.portalCd=Math.max(0,m.portalCd-dt);
       const d=Math.hypot(m.x,m.y)||1,np=nearPortal(Math.atan2(m.y,m.x));
-      const open=np.da<P_GAP&&!m.bomb&&m.portalCd<=0&&m.portalT<=0;      // 폭탄을 든 공은 못 타고, 쿨타임 중에도 닫혀 있다
+      const open=np.da<P_GAP&&!m.bomb&&m.portalCd<=0&&m.portalT<=0&&np.pt.axis!==m.portalAxis; // 폭탄을 들었거나, 대기 중이거나, 직전과 같은 축이면 닫혀 있다
       if(open&&d+m.r>MAZE.R){portalWarp(m,np.pt)}                        // 입구에 닿는 즉시 통과
       else if(d+m.r>MAZE.R){const rx=m.x/d,ry=m.y/d;m.x=rx*(MAZE.R-m.r);m.y=ry*(MAZE.R-m.r);
         const vn=m.vx*rx+m.vy*ry;if(vn>0){m.vx-=(1+CFG.restitution)*vn*rx;m.vy-=(1+CFG.restitution)*vn*ry;wallScrape(m,m.x+rx*m.r,m.y+ry*m.r,vn)}}
