@@ -617,7 +617,8 @@ function slashArc(x,y,a,r,color,span,life){life=life||0.32;S.slashes.push({type:
 function flameSwing(m,ang){SFX.play('flame');m.swing=0.42;m.swingDur=0.42;m.swingA=ang;slashArc(m.x,m.y,ang,m.r*3.2,'#ff7a3d',3.0,0.45);
   for(let k=0;k<=12;k++){const a=ang-1.5+3.0*k/12,rr=m.r*2.9;S.particles.push({x:m.x+Math.cos(a)*rr,y:m.y+Math.sin(a)*rr,vx:Math.cos(a)*rand(60,160),vy:Math.sin(a)*rand(60,160),life:rand(0.3,0.55),color:k%2?'#ffd166':'#ff7a3d',r:rand(2.5,5)})}}
 function slashLine(x1,y1,x2,y2,color,w){S.slashes.push({type:'line',x1,y1,x2,y2,w:w||6,life:0.3,max:0.3,color})}
-function boom(m,mult){const n=Math.min(80,(8+m.r)*mult);const sm=Math.sqrt(mult);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(60,320)*sm;S.particles.push({x:m.x,y:m.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.5,1.1)*sm,color:m.color,r:rand(1.5,m.r*0.35+1.5)})}}
+// 파편은 한도(500개) 안에서만 만든다. 한꺼번에 수십 명이 터질 때 수천 개를 만들었다가 잘라 내면 그 한 프레임이 통째로 느려진다
+function boom(m,mult){const n=Math.min(80,Math.max(0,500-S.particles.length),(8+m.r)*mult);const sm=Math.sqrt(mult);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(60,320)*sm;S.particles.push({x:m.x,y:m.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.5,1.1)*sm,color:m.color,r:rand(1.5,m.r*0.35+1.5)})}}
 function spark(x,y,n){for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(40,220);S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.15,0.4),color:'#fff',r:rand(1,2.5)})}}
 function addText(x,y,text,color,size){S.texts.push({x,y,text,color,size,life:0.9})}
 function zap(m,t,dmg){
@@ -1120,7 +1121,7 @@ function step(dt){
     if(lead>S.raceLap){S.raceLap=lead;SFX.play('lap');const live=alive.filter(m=>m.alive),n=live.length,k=lead>=2?raceK(n):0; // 첫 바퀴는 자리 잡는 시간, 탈락 없음
       if(lead===1)S.banner={text:'🏁 LAP 1',sub:'첫 바퀴는 탈락 없음  ·  다음 바퀴부터 꼴찌 탈락',age:0,life:1.8};
       if(k>0){SFX.play('last');const sorted=live.slice().sort((a,b)=>a.prog-b.prog);
-        for(let i=0;i<k;i++){const m=sorted[i];boom(m,1.2);addText(m.x,m.y-m.r-14,'꼴찌!',m.color,20);die(m,null,'race')}
+        for(let i=0;i<k;i++){const m=sorted[i];boom(m,1.2);die(m,null,'race')}
         S.banner={text:`🏁 LAP ${lead}`,sub:`꼴찌 ${k}명 탈락  ·  남은 ${n-k}명`,age:0,life:1.6}}}}
   // 예약된 폭탄 태그 처리 (스킬 코드 실행이 모두 끝난 뒤라 안전)
   if(S.bombTag.length){
@@ -1225,7 +1226,8 @@ function updateRank(){
       +(dead.length>room?`<div class="row" style="color:var(--muted)">… 외 ${dead.length-room}명</div>`:'');
   }
 }
-function addFeed(html,cls){S.feed.push(`<div${cls?` class="${cls}"`:''}>${html}</div>`);if(S.feed.length>60)S.feed.shift();feedEl.innerHTML=S.feed.join('');feedEl.scrollTop=feedEl.scrollHeight}
+function addFeed(html,cls){S.feed.push(`<div${cls?` class="${cls}"`:''}>${html}</div>`);if(S.feed.length>60)S.feed.shift();S.feedDirty=true}
+function flushFeed(){if(!S.feedDirty)return;S.feedDirty=false;feedEl.innerHTML=S.feed.join('');feedEl.scrollTop=feedEl.scrollHeight}
 
 // ---------- 이펙트 갱신 ----------
 function shatterBar(f){
@@ -1241,6 +1243,7 @@ function confettiBurst(){
   for(let k=0;k<140;k++)S.confetti.push({x:Math.random()*W,y:-20-Math.random()*H*0.5,vx:(Math.random()-0.5)*80,vy:120+Math.random()*160,w:5+Math.random()*6,h:8+Math.random()*8,rot:Math.random()*TAU,vr:(Math.random()-0.5)*8,color:cols[k%cols.length],life:5+Math.random()*3});
 }
 function fx(dt){
+  flushFeed(); // 이번 프레임에 쌓인 기록을 한 번에 반영
   if(S.particles.length>500)S.particles.splice(0,S.particles.length-500);
   S.particles=S.particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.96;p.vy*=0.96;return p.life>0});
   S.texts=S.texts.filter(t=>{t.life-=dt;t.y-=40*dt;return t.life>0});
