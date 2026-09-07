@@ -205,7 +205,7 @@ const SKILLS={
   bees:{name:'벌떼',icon:'🐝',color:'#ffca28',desc:'양봉 모자. 7초마다 벌 5마리가 가까운 상대에게 붙어 3초 동안 따라다니며 0.3초마다 피해 3 (방패 무시)'},
   rocket:{name:'로켓 돌진',icon:'🚀',color:'#ff8a65',desc:'고글과 로켓 배낭. 6초마다 0.4초 점화 뒤 직선 폭주, 부딪히면 폭발 피해 34. 벽에 부딪히면 자기도 피해 3'},
 };
-const SKILL_KEYS=Object.keys(SKILLS);
+const SKILL_KEYS=Object.keys(SKILLS).filter(k=>k!=='shield'); // 철벽은 쓰지 않는다
 // 스킬 밸런스 숫자 (피해/쿨타임/배율). 1000판 단위 헤드리스 테스트로 조정
 const BAL={
   iaidoDmg:12,iaidoCd:6.5,
@@ -1212,14 +1212,45 @@ function checkEnd(){
   }
 }
 
+// 얼굴 그림은 CSS 클래스로 한 번만 등록한다 (순위 패널 줄마다 data URI를 다시 넣으면 매우 느리다)
+const FACE_CLS={};
+(()=>{const keys=Object.keys(FACE_IMAGES);if(!keys.length)return;
+  const st=document.createElement('style');
+  st.textContent=keys.map((k,i)=>{FACE_CLS[k]='fc'+i;return `.dot.fc${i}{background:url(${FACE_IMAGES[k]}) center/cover}`}).join('');
+  document.head.appendChild(st)})();
+const faceCls=m=>(opt.faces&&S.faceOf&&S.faceOf[m.name]&&FACE_CLS[S.faceOf[m.name]])?' '+FACE_CLS[S.faceOf[m.name]]:'';
+
 // ---------- 패널 ----------
-// 순위 패널: 살아있는 줄은 매번 갱신, 탈락한 줄은 탈락자가 바뀔 때만 다시 그림 (DOM 부담 감소)
+// 순위 패널: 살아있는 줄은 만들어 둔 것을 고쳐 쓰고, 탈락한 줄은 탈락자가 바뀔 때만 다시 그림
 let deadKey=-1;
+const rankRows=[];
+function rankRow(i){let r=rankRows[i];if(r)return r;
+  r=document.createElement('div');r.className='row';
+  r.innerHTML='<span class="rk"></span><span class="dot"></span><span class="nm"></span><span class="hp"><i></i></span>';
+  r.$rk=r.children[0];r.$dot=r.children[1];r.$nm=r.children[2];r.$hp=r.children[3].firstChild;
+  rankRows[i]=r;return r}
 function updateRank(){
   const race=isRace(),hole=isHole(),bombM=isBomb(),n=S.marbles.length,alive=aliveList().sort(bombM?(a,b)=>(a.bomb?a.bomb.t:99)-(b.bomb?b.bomb.t:99)===0?a.i-b.i:((b.bomb?b.bomb.t:99)-(a.bomb?a.bomb.t:99)):(race||hole)?(a,b)=>b.prog-a.prog||a.i-b.i:(a,b)=>b.hp-a.hp||a.i-b.i),na=alive.length,max=80; // 레이스는 진행도 순, 블랙홀은 바깥에 있을수록 앞
   rankHead.textContent=`생존 ${na} / ${n}`;
-  rankAlive.innerHTML=alive.slice(0,max).map((m,i)=>`<div class="row ${m.win?'win':''}"><span class="rk">${i+1}</span><span class="dot" style="background:${opt.faces&&S.faceOf&&S.faceOf[m.name]?`url(${FACE_IMAGES[S.faceOf[m.name]]}) center/cover`:m.color}"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${m.skill?SKILLS[m.skill].icon+' ':''}${esc(m.label)}</span><span class="hp"><i style="width:${bombM?(m.bomb?clamp(m.bomb.t/MAZE.fuse*100,0,100):100):race?clamp(m.s/RACE.L*100,0,100):hole?clamp(m.dist/HOLE.R*100,0,100):clamp(m.hp/m.hpMax*100,0,100)}%;background:${bombM?(m.bomb?'#ff4d6d':'#5be38b'):race?'#ffd166':hole?'#b388ff':hpColor(m.hp/m.hpMax*100)}"></i></span></div>`).join('');
+  {const show=alive.slice(0,max);
+   for(let i=0;i<show.length;i++){const m=show[i],r=rankRow(i);
+     const cls='row'+(m.win?' win':''); if(r.className!==cls)r.className=cls;
+     const rk=String(i+1); if(r.$rk.textContent!==rk)r.$rk.textContent=rk;
+     const fc='dot'+faceCls(m); if(r.$dot.className!==fc){r.$dot.className=fc;r.$dot.style.background=faceCls(m)?'':m.color}
+     const nm=(m.skill?SKILLS[m.skill].icon+' ':'')+m.label; if(r.$nmText!==nm){r.$nmText=nm;r.$nm.textContent=nm;r.$nm.title=m.label}
+     const col=m.win?'':m.color; if(r.$nmCol!==col){r.$nmCol=col;r.$nm.style.color=col}
+     const w=(bombM?(m.bomb?clamp(m.bomb.t/MAZE.fuse*100,0,100):100):race?clamp(m.s/RACE.L*100,0,100):hole?clamp(m.dist/HOLE.R*100,0,100):clamp(m.hp/m.hpMax*100,0,100)).toFixed(1)+'%';
+     if(r.$w!==w){r.$w=w;r.$hp.style.width=w}
+     const bg=bombM?(m.bomb?'#ff4d6d':'#5be38b'):race?'#ffd166':hole?'#b388ff':hpColor(m.hp/m.hpMax*100);
+     if(r.$bg!==bg){r.$bg=bg;r.$hp.style.background=bg}
+   }
+   // 순서가 바뀐 줄만 옮긴다 (통째로 다시 만들면 80줄 파싱에 7ms가 든다)
+   const kids=rankAlive.children;
+   for(let i=0;i<show.length;i++){const r=rankRow(i);if(kids[i]!==r)rankAlive.insertBefore(r,kids[i]||null)}
+   while(rankAlive.children.length>show.length)rankAlive.removeChild(rankAlive.lastChild);
+  }
   const key=S.eliminated.length*1000+Math.min(na,max)+(S.winners.length?500000:0);
+
   if(key!==deadKey){deadKey=key;
     const dead=[...S.eliminated].reverse(),room=Math.max(0,max-Math.min(na,max));
     rankDead.innerHTML=dead.slice(0,room).map((m,i)=>`<div class="row dead ${m.win?'win':''}"><span class="rk">${na+i+1}</span><span class="dot"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${esc(m.label)}</span><span class="rk">#${m.rank}</span></div>`).join('')
@@ -1970,7 +2001,7 @@ btnShuffle.addEventListener('click',()=>{seed=(Math.random()*1e9)>>>0;S.seedUsed
 let deb=0;namesEl.addEventListener('input',()=>{if(S.phase!=='idle')setup();clearTimeout(deb);deb=setTimeout(()=>setup(),200)});
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&document.activeElement!==namesEl){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
-window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,aliveList,ranking,factionRanking,render,updateCamera,fx,setSeed:v=>{seed=v>>>0}};
+window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,aliveList,ranking,factionRanking,render,updateCamera,fx,updateRank,setSeed:v=>{seed=v>>>0}};
 setup();
 requestAnimationFrame(frame);
 })();
