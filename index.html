@@ -24,6 +24,8 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 .seg{display:flex;background:#0d0d14;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{background:transparent;border:0;color:var(--muted);padding:5px 9px;cursor:pointer;font:inherit;font-size:12px;white-space:nowrap}
 .seg button.on{background:#232336;color:var(--text)}
+#gameSeg{display:grid;grid-template-columns:1fr 1fr}
+#gameSeg button{padding:6px 4px}
 .opt input[type=number]{width:60px;background:#0d0d14;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:4px 6px;font:inherit}
 .seedv{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
 .btns{display:flex;gap:6px}
@@ -267,13 +269,38 @@ const isRace=()=>opt.game==='race';
 const isHole=()=>opt.game==='hole';
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
-const MAZE={R:430,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520}; // R 원형 맵 반지름, hold/flee: 폭탄 보유자가 훨씬 빨라야 잡을 수 있다 // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
+const MAZE={R:430,pr:72,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520,wallSlow:0.55,pcd:6}; // pcd 포탈 재사용 대기 // R 맵 반지름, pr 주머니 반지름, hold/flee 속도, wallSlow 벽에 긁힌 뒤 느려지는 시간
+// 상하좌우 반원 주머니 = 포탈. 들어가면 정반대 주머니에서 같은 방향으로 튀어나온다
+const PORTALS=[{a:Math.PI/4},{a:Math.PI*3/4},{a:-Math.PI*3/4},{a:-Math.PI/4}].map((q,i)=>({...q,x:Math.cos(q.a)*430,y:Math.sin(q.a)*430,color:i%2?'#c8b6ff':'#4fd1c5'})); // 좌우의 위·아래 (대각선). 마주 보는 짝끼리 통한다
+const P_IX=430-72*72/(2*430), P_IY=Math.sqrt(Math.max(0,430*430-P_IX*P_IX));
+const P_GAP=Math.atan2(P_IY,P_IX);      // 큰 원에서 주머니가 뚫려 있는 반각
+const P_HALF=Math.acos(72/(2*430));     // 주머니 원에서 바깥으로 드러난 호의 반각
+const nearPortal=ang=>{let best=PORTALS[0],bd=Infinity;for(const pt of PORTALS){let da=ang-pt.a;da=Math.abs(Math.atan2(Math.sin(da),Math.cos(da)));if(da<bd){bd=da;best=pt}}return {pt:best,da:bd}};
+function wallScrape(m,px,py,vn){ // 벽에 부딪히는 순간에만 느려진다 (붙어 있는 동안 계속 깎으면 그 자리에 붙박이가 된다)
+  if(vn<70||m.wallT>0.2)return;
+  SFX.play('scrape');m.wallT=MAZE.wallSlow;m.vx*=0.78;m.vy*=0.78;
+  for(let k=0;k<4;k++)S.particles.push({x:px,y:py,vx:rand(-90,90),vy:rand(-90,90),life:rand(0.15,0.3),color:k?'#ff4d6d':'#fff',r:rand(1.5,3)});
+}
+function portalWarp(m,pt){ // 대각선 반대편 포탈에서 곧바로 튀어나온다 (속도 그대로, 경기장 안쪽으로)
+  const gx=m.x,gy=m.y,gd=Math.hypot(gx,gy)||1;
+  const ex=-gx/gd*(MAZE.R-m.r-16),ey=-gy/gd*(MAZE.R-m.r-16);            // 마주 보는 주머니 안쪽
+  const opp=PORTALS.find(q=>Math.hypot(q.x+pt.x,q.y+pt.y)<1)||pt;        // 대각선 반대편 주머니
+  for(let k=0;k<=5;k++)S.ghosts.push({x:lerp(gx,pt.x,k/5),y:lerp(gy,pt.y,k/5),r:m.r*(1-k/8),color:pt.color,life:0.2});   // 들어가는 모습
+  for(let k=0;k<=5;k++)S.ghosts.push({x:lerp(opp.x,ex,k/5),y:lerp(opp.y,ey,k/5),r:m.r*(0.5+k/10),color:pt.color,life:0.24}); // 나오는 모습
+  burst(pt.x,pt.y,16,pt.color,240);burst(opp.x,opp.y,16,pt.color,240);
+  m.x=ex;m.y=ey;m.px=ex;m.py=ey;
+  const sp=Math.hypot(m.vx,m.vy)||1,ix=-ex/Math.hypot(ex,ey),iy=-ey/Math.hypot(ex,ey); // 안쪽을 향해 튀어나옴
+  m.vx=ix*Math.max(sp,360);m.vy=iy*Math.max(sp,360);
+  m.portalT=0.35;m.portalCd=MAZE.pcd;m.wallT=0;
+  burst(m.x,m.y,20,pt.color,260);addText(m.x,m.y-m.r-26,'✦ 포탈',pt.color,16);SFX.play('warp');
+} // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
 function buildMaze(){return []} // 빈 원형 맵 (벽 없음)
 // 폭탄 보유자는 남에게 달려들고, 나머지는 가장 가까운 보유자에게서 도망친다
 function bombMove(m,dt){
   const acc=CFG.accel;let ax=0,ay=0;
   const dc=Math.hypot(m.x,m.y)||1,cx=m.x/dc,cy=m.y/dc;                 // 중심에서 바깥으로 향하는 방향
   const rim=clamp((dc-MAZE.R*0.45)/(MAZE.R*0.55),0,1);                  // 가장자리에 가까울수록 1
+
   if(m.bomb){
     const n2=aliveList().length;let t=null,bd=Infinity;
     for(const o of S.marbles){if(!o.alive||o===m||o.bomb||!isFoe(m,o))continue;if(m.bomb.from===o&&n2>2)continue; // 방금 준 사람은 쫓지 않음
@@ -281,24 +308,43 @@ function bombMove(m,dt){
     m.target=t;
     if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*3.2;ay=dy/L*acc*3.2;
       m.dashCd-=dt;if(m.dashCd<=0&&L<260){m.dashCd=rand(0.8,1.4);m.vx+=dx/L*430;m.vy+=dy/L*430;m.dash=0.3}}
-    ax-=cx*acc*1.4*rim;ay-=cy*acc*1.4*rim;                              // 쫓는 쪽도 가장자리에 붙지 않게
+    ax-=cx*acc*1.0*rim;ay-=cy*acc*1.0*rim; // 쫓는 쪽도 벽에 붙지 않게
   }else{
     let t=null,bd=Infinity;for(const o of S.marbles){if(!o.alive||!o.bomb||!isFoe(m,o))continue;const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
-    if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/420,0,1);
-      let fx=dx/L,fy=dy/L;const outw=fx*cx+fy*cy;                       // 도망 방향 중 바깥으로 향하는 성분
+    if(!m.fleeSide)m.fleeSide=rng()<0.5?-1:1;                          // 공마다 왼쪽/오른쪽으로 갈라져 도망친다
+    m.roamT-=dt;if(m.roamT<=0){m.roamT=rand(2,4);const ra=rng()*TAU,rr=Math.sqrt(rng())*MAZE.R*0.6;m.roamX=Math.cos(ra)*rr;m.roamY=Math.sin(ra)*rr}
+    if(t&&Math.hypot(m.x-t.x,m.y-t.y)>320){                             // 폭탄이 멀면 굳이 도망치지 않고 빈 곳을 돌아다닌다
+      const gx=m.roamX-m.x,gy=m.roamY-m.y,gl=Math.hypot(gx,gy)||1;ax=gx/gl*acc*0.85;ay=gy/gl*acc*0.85;t=null}
+    if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/320,0,1);
+      let fx=dx/L,fy=dy/L;
+      {const px2=-fy,py2=fx;fx+=px2*m.fleeSide*0.8;fy+=py2*m.fleeSide*0.8;const nn=Math.hypot(fx,fy)||1;fx/=nn;fy/=nn} // 정반대가 아니라 비스듬히 갈라져 달린다
+      const outw=fx*cx+fy*cy;                                           // 도망 방향 중 바깥으로 향하는 성분
       if(outw>0&&rim>0){fx-=cx*outw*(1+rim*1.6);fy-=cy*outw*(1+rim*1.6); // 벽 쪽으로 도망가려 하면 안쪽으로 꺾는다
         const n2=Math.hypot(fx,fy)||1;fx/=n2;fy/=n2}
-      if(rim>0.45){                                                     // 가장자리에 몰리면 반대편을 향해 가운데를 가로질러 달린다
+      if(rim>0.45){                                                     // 가장자리에 몰리면 살짝 안쪽으로 (억지로 가운데를 가로지르지는 않게)
         const gx=-cx*MAZE.R*0.55-m.x,gy=-cy*MAZE.R*0.55-m.y,gl=Math.hypot(gx,gy)||1;
-        if((gx/gl)*(-dx/L)+(gy/gl)*(-dy/L)<0.45){                        // 그 길에 쫓는 공이 없을 때만
-          const w=clamp((rim-0.45)/0.55,0,1)*0.85;
+        if((gx/gl)*(-dx/L)+(gy/gl)*(-dy/L)<0.45){
+          const w=clamp((rim-0.45)/0.55,0,1)*0.3;
           fx=fx*(1-w)+gx/gl*w;fy=fy*(1-w)+gy/gl*w;const n3=Math.hypot(fx,fy)||1;fx/=n3;fy/=n3}}
-      ax=fx*acc*(0.9+1.8*k);ay=fy*acc*(0.9+1.8*k)}
-    ax-=cx*acc*1.1*rim;ay-=cy*acc*1.1*rim;                              // 가장자리에서 안쪽으로 밀어 주는 힘
+      if(L<260&&m.portalCd<=0){                                          // 쫓기는 중이고 포탈을 쓸 수 있으면 입구로 뛴다
+        let bp=null,bd2=Infinity;for(const pt of PORTALS){const q=Math.hypot(m.x-pt.x,m.y-pt.y);if(q<bd2){bd2=q;bp=pt}}
+        const pdx=bp.x-m.x,pdy=bp.y-m.y,pl=Math.hypot(pdx,pdy)||1;
+        if(bd2<330&&(pdx/pl)*(-dx/L)+(pdy/pl)*(-dy/L)<0.3){              // 그 길목에 쫓는 공이 없을 때만
+          const w=clamp(1-bd2/330,0,1)*0.9;fx=fx*(1-w)+pdx/pl*w;fy=fy*(1-w)+pdy/pl*w;
+          const n4=Math.hypot(fx,fy)||1;fx/=n4;fy/=n4;m.toPortal=1}}
+      ax=fx*acc*(0.5+2.2*k);ay=fy*acc*(0.5+2.2*k)}
+    ax-=cx*acc*1.0*rim;ay-=cy*acc*1.0*rim; // 벽 쪽은 피한다 (포탈 안은 위에서 따로 처리)
     m.wob+=rand(-1,1)*3*dt;ax+=Math.cos(m.wob)*acc*0.4;ay+=Math.sin(m.wob)*acc*0.4; // 한곳에 멈춰 있지 않게
   }
-  m.vx+=ax*dt;m.vy+=ay*dt;
+  if(!m.toPortal){ // 포탈로 달려가는 중이 아니면 벽 쪽으로는 가속하지 않고, 벽에 붙은 속도도 깎는다
+    const outA=ax*cx+ay*cy;if(outA>0&&rim>0){ax-=cx*outA*rim;ay-=cy*outA*rim}
+    m.vx+=ax*dt;m.vy+=ay*dt;
+    const vout=m.vx*cx+m.vy*cy;
+    if(vout>0&&rim>0.2){const kk=rim*0.85;m.vx-=cx*vout*kk;m.vy-=cy*vout*kk}
+    if(rim>0.2){m.vx-=cx*220*rim*dt;m.vy-=cy*220*rim*dt}
+  }else{m.vx+=ax*dt;m.vy+=ay*dt}
+  m.toPortal=0;
 }
 // 폭탄 넘기기: 새 주인은 무작위 스킬을 얻고, 이전 주인은 스킬을 잃는다
 const BOMB_SKILLS=SKILL_KEYS.filter(k=>k!=='giant');
@@ -352,7 +398,7 @@ function shove(o,vx,vy){
   if(isHole()){const d=Math.hypot(o.x,o.y)||1,rx=o.x/d,ry=o.y/d;let rad=vx*rx+vy*ry;const lx=vx-rad*rx,ly=vy-rad*ry;rad=-Math.abs(rad);const g=o.skill==='giant'?0.3:1;o.vx+=(rad*rx+lx*0.5)*g;o.vy+=(rad*ry+ly*0.5)*g} // 블랙홀: 항상 안쪽으로
   else if(isRace()&&o.tx!==undefined){let along=vx*o.tx+vy*o.ty;const lx=vx-along*o.tx,ly=vy-along*o.ty;along=-Math.abs(along);const g=o.skill==='giant'?0.3:1;o.vx+=(along*o.tx+lx*0.4)*g;o.vy+=(along*o.ty+ly*0.4)*g}
   else{o.vx+=vx;o.vy+=vy}}
-const outOfArena=(x,y,pad)=>{if(isRace()){const tp=trackPos(x,y);return Math.abs(tp.lat)>halfWAt(tp.s)-pad}if(isHole())return Math.hypot(x,y)>HOLE.R-pad;if(isBomb())return Math.hypot(x,y)>MAZE.R-pad;return segDist(x,y,ARENA_L)>ARENA_R-pad};
+const outOfArena=(x,y,pad)=>{if(isRace()){const tp=trackPos(x,y);return Math.abs(tp.lat)>halfWAt(tp.s)-pad}if(isHole())return Math.hypot(x,y)>HOLE.R-pad;if(isBomb()){const d2=Math.hypot(x,y);if(d2<=MAZE.R-pad)return false;const np2=nearPortal(Math.atan2(y,x));return !(np2.da<P_GAP&&Math.hypot(x-np2.pt.x,y-np2.pt.y)<=MAZE.pr-pad)}return segDist(x,y,ARENA_L)>ARENA_R-pad};
 // 레이스 주행: 접선 방향으로 달리고, 차선을 바꿔 가며, 부스터·정지·감속 반영. 진행도(prog)로 순위
 function raceMove(m,dt){
   const tp=trackPos(m.x,m.y);m.s=tp.s;m.lat=tp.lat;m.tx=tp.tx;m.ty=tp.ty;
@@ -379,7 +425,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.toPortal=0;this.fleeSide=0;this.roamT=0;this.roamX=0;this.roamY=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -521,6 +567,8 @@ const SFX=(()=>{
   def('win',0,()=>{[523,659,784,1046].forEach((f,i)=>{tone({f,dur:0.5,g:0.2,at:i*0.13,type:'triangle'});tone({f:f*2,dur:0.4,g:0.07,at:i*0.13})});noise({f:5000,dur:1.2,g:0.07,ft:'highpass',at:0.5})},99);
   def('lap',0,()=>{tone({f:1568,dur:0.35,g:0.22,type:'triangle'});tone({f:2093,dur:0.5,g:0.18,at:0.12,type:'triangle'})},99);
   def('last',0,()=>{tone({f:392,f2:330,dur:0.25,g:0.22,type:'sawtooth'});tone({f:330,f2:262,dur:0.35,g:0.22,at:0.25,type:'sawtooth'});tone({f:262,f2:180,dur:0.6,g:0.22,at:0.55,type:'sawtooth'})},99);
+  def('warp',60,()=>{tone({f:300,f2:1400,dur:0.22,g:0.26,type:'triangle'});tone({f:1400,f2:400,dur:0.2,g:0.14,at:0.18,type:'sine'});noise({f:1200,f2:4000,dur:0.18,g:0.1,ft:'bandpass'})},99);
+  def('scrape',200,()=>{noise({f:1800,f2:500,dur:0.18,g:0.16,ft:'bandpass',q:1.4})});
   def('pass',90,()=>{tone({f:900,f2:1500,dur:0.12,g:0.25,type:'square'});noise({f:2500,dur:0.1,g:0.12,ft:'highpass'})},99);
   def('bump',120,()=>{tone({f:150,f2:70,dur:0.12,g:0.25,type:'triangle'});noise({f:900,f2:200,dur:0.1,g:0.12})});
   def('suck',80,()=>{tone({f:900,f2:60,dur:0.7,g:0.3,lfo:14,lfoAmt:40});noise({f:2000,f2:150,dur:0.6,g:0.22,ft:'bandpass'})},99);
@@ -945,7 +993,7 @@ function step(dt){
     m.vx+=ax*dt;m.vy+=ay*dt;
     const damp=Math.max(0,1-(race?0.2:hole?0.9:CFG.damping)*dt);m.vx*=damp;m.vy*=damp;
     if(bombM){m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);m.boost=Math.max(0,m.boost-dt);if(m.stun>0){m.vx*=0.82;m.vy*=0.82}}
-    const msp=(m.fling>0?1500:(race?620:hole?420:bombM?(m.bomb?MAZE.hold:MAZE.flee)*(m.boost>0?1.25:1):CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
+    const msp=(m.fling>0?1500:(race?620:hole?420:bombM?(m.bomb?MAZE.hold:MAZE.flee)*(m.boost>0?1.25:1)*(m.wallT>0?0.55:1):CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
     m.x+=m.vx*dt;m.y+=m.vy*dt;
     m.hit=Math.max(0,m.hit-dt*4);m.dash=Math.max(0,m.dash-dt);m.inv=Math.max(0,m.inv-dt);m.shieldFx=Math.max(0,m.shieldFx-dt);
     if(S.final||bombM){ // 폭탄 모드는 결전 없이도 스킬이 돈다
@@ -1041,10 +1089,13 @@ function step(dt){
       const tp=trackPos(m.x,m.y);const hw=halfWAt(tp.s)-m.r;
       if(Math.abs(tp.lat)>hw){const sg=Math.sign(tp.lat),nx=-tp.ty,ny=tp.tx,over=(Math.abs(tp.lat)-hw)*sg;m.x-=nx*over;m.y-=ny*over;
         const vn=m.vx*nx+m.vy*ny;if(vn*sg>0){m.vx-=vn*nx*1.6;m.vy-=vn*ny*1.6;if(Math.abs(vn)>220){m.stun=Math.max(m.stun,0.25);SFX.play('bump');spark(m.x+nx*m.r*sg,m.y+ny*m.r*sg,6)}}}
-    }else if(bombM){ // 원형 바깥 벽
-      const d=Math.hypot(m.x,m.y)||1;
-      if(d+m.r>MAZE.R){const rx=m.x/d,ry=m.y/d;m.x=rx*(MAZE.R-m.r);m.y=ry*(MAZE.R-m.r);
-        const vn=m.vx*rx+m.vy*ry;if(vn>0){m.vx-=(1+CFG.restitution)*vn*rx;m.vy-=(1+CFG.restitution)*vn*ry}}
+    }else if(bombM){ // 원형 벽 + 상하좌우 주머니(포탈)
+      m.wallT=Math.max(0,m.wallT-dt);m.portalT=Math.max(0,m.portalT-dt);m.portalCd=Math.max(0,m.portalCd-dt);
+      const d=Math.hypot(m.x,m.y)||1,np=nearPortal(Math.atan2(m.y,m.x));
+      const open=np.da<P_GAP&&m.portalCd<=0&&m.portalT<=0;              // 쿨타임 중이면 그 공에게는 닫혀 있다
+      if(open&&d+m.r>MAZE.R){portalWarp(m,np.pt)}                        // 입구에 닿는 즉시 통과
+      else if(d+m.r>MAZE.R){const rx=m.x/d,ry=m.y/d;m.x=rx*(MAZE.R-m.r);m.y=ry*(MAZE.R-m.r);
+        const vn=m.vx*rx+m.vy*ry;if(vn>0){m.vx-=(1+CFG.restitution)*vn*rx;m.vy-=(1+CFG.restitution)*vn*ry;wallScrape(m,m.x+rx*m.r,m.y+ry*m.r,vn)}}
     }else{
     const wx=clamp(m.x,-ARENA_L,ARENA_L);let dw=Math.hypot(m.x-wx,m.y);
     if(dw+m.r>ARENA_R){
@@ -1244,7 +1295,7 @@ function stadiumPath(L,R){ctx.moveTo(-L,-R);ctx.lineTo(L,-R);ctx.arc(L,0,R,-Math
 
 function updateCamera(dt){
   const {L,R,T,B}=region();
-  const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+20:ARENA_R;
+  const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_R;
   const fit=Math.max(0.08,Math.min((R-L)/(AW*2+40),(B-T)/(AH*2+40))); // 화면이 아주 작아져도(모바일 키보드 등) 0 이하로 내려가지 않게
   let tx=0,ty=0,tz=fit,speed=2.5;
   const alive=aliveList();
@@ -1594,6 +1645,8 @@ function drawMarble(m){
     ctx.beginPath();for(let i=0;i<12;i++){const a=-Math.PI/2+i*Math.PI/6,q=i%2?r*0.75:r+8;const px=x+Math.cos(a)*q,py=y+Math.sin(a)*q;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.closePath();
     ctx.fillStyle='rgba(159,232,255,0.4)';ctx.fill();ctx.strokeStyle='#dff7ff';ctx.lineWidth=2;ctx.stroke()}
   if(m.win){ctx.strokeStyle='#ffd166';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.arc(x,y,rr+5,0,TAU);ctx.stroke();ctx.setLineDash([])}
+  if(m.wallT>0){ctx.strokeStyle=`rgba(255,77,109,${0.35+0.45*(m.wallT/MAZE.wallSlow)})`;ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,r+4,0,TAU);ctx.stroke();
+    if(rng()<0.4)S.particles.push({x:x+rand(-r,r),y:y+rand(-r,r),vx:rand(-40,40),vy:rand(-40,40),life:0.2,color:'#ff4d6d',r:1.5})} // 벽에 긁혀 느려진 상태
   if(m.bomb){ // 폭탄 보유: 붉은 고리 + 머리 위 폭탄과 초읽기
     const u=clamp(m.bomb.t/MAZE.fuse,0,1),pl=0.5+0.5*Math.sin(S.time*(u<0.35?18:8));
     ctx.strokeStyle=`rgba(255,77,109,${0.45+0.5*pl})`;ctx.lineWidth=3+2*(1-u);ctx.beginPath();ctx.arc(x,y,r+7+3*(1-u),0,TAU);ctx.stroke();
@@ -1629,9 +1682,22 @@ function render(){
     // 트랙 안쪽 문구
     ctx.fillStyle='rgba(255,255,255,0.22)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 40px ${FONT}`;ctx.fillText('SOOP 촌장 고봉 방송',0,-18);ctx.font=`700 24px ${FONT}`;ctx.fillText('많은 시청 부탁드립니다.',0,22);
     ctx.lineJoin='miter';ctx.lineCap='butt';
-  }else if(isBomb()){ // 폭탄: 원형 바닥 (벽은 아래 구조물 루프에서 그림)
-    ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
-    ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=6;ctx.stroke();
+  }else if(isBomb()){ // 폭탄: 원형 바닥 + 상하좌우 반원 주머니(포탈)
+    ctx.fillStyle=S.final?'#0e0b14':'#12121b';
+    ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.fill();
+    for(const pt of PORTALS){ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,0,TAU);ctx.fill()}
+    for(const pt of PORTALS){ // 주머니 안쪽: 짝 색으로 은은하게 + 소용돌이 (마주 보는 짝끼리 같은 색)
+      ctx.save();ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,0,TAU);ctx.clip();
+      ctx.globalAlpha=0.16;ctx.fillStyle=pt.color;ctx.fillRect(pt.x-MAZE.pr,pt.y-MAZE.pr,MAZE.pr*2,MAZE.pr*2);ctx.globalAlpha=1;
+      ctx.strokeStyle=pt.color;ctx.lineWidth=2.5;ctx.globalAlpha=0.75;
+      for(let k=0;k<2;k++){ctx.beginPath();for(let i=0;i<=22;i++){const u=i/22,rad=8+u*(MAZE.pr-14),an=k*Math.PI+u*3.4+S.time*1.6;
+        const px=pt.x+Math.cos(an)*rad,py=pt.y+Math.sin(an)*rad;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}
+      ctx.globalAlpha=1;ctx.restore();
+      ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,pt.a-P_HALF,pt.a+P_HALF);ctx.strokeStyle=pt.color;ctx.lineWidth=5;ctx.stroke(); // 주머니 바깥 테두리 (짝끼리 같은 색)
+    }
+    ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=6; // 큰 원 테두리는 주머니 입구만 비워 둠
+    for(let k=0;k<4;k++){const a0=PORTALS[k].a+P_GAP,a1=PORTALS[(k+1)%4].a-P_GAP;
+      ctx.beginPath();ctx.arc(0,0,MAZE.R,a0,a1<a0?a1+TAU:a1);ctx.stroke()}
   }else if(isHole()){ // 블랙홀: 둥근 바닥, 안쪽으로 감기는 나선 팔, 가운데 블랙홀, 바깥 벽
     ctx.beginPath();ctx.arc(0,0,HOLE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
     ctx.lineWidth=2;for(let k=0;k<3;k++){ctx.strokeStyle=`rgba(190,140,255,${0.10+0.05*k})`;ctx.beginPath();for(let i=0;i<=60;i++){const u=i/60,rad=HOLE.r0+u*(HOLE.R-HOLE.r0),ang=k*TAU/3+u*4.5+S.time*0.8;const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}
@@ -1840,7 +1906,7 @@ btnShuffle.addEventListener('click',()=>{seed=(Math.random()*1e9)>>>0;S.seedUsed
 let deb=0;namesEl.addEventListener('input',()=>{if(S.phase!=='idle')setup();clearTimeout(deb);deb=setTimeout(()=>setup(),200)});
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&document.activeElement!==namesEl){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
-window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,SFX,trackPos,step,setup,start,aliveList,ranking,factionRanking,render,updateCamera,fx,setSeed:v=>{seed=v>>>0}};
+window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,aliveList,ranking,factionRanking,render,updateCamera,fx,setSeed:v=>{seed=v>>>0}};
 setup();
 requestAnimationFrame(frame);
 })();
