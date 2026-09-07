@@ -1266,7 +1266,7 @@ function fx(dt){
   for(const f of S.factions){
     if(f.outAnim>0)f.outAnim=Math.max(0,f.outAnim-dt);
     // 체력바가 깎일 때 흰색 잔상이 천천히 따라오도록
-    const fr=f.out?0:clamp(fhp(f)/(f.total*CFG.hpMax),0,1);
+    const fr=fFrac(f);
     f.trail=(f.trail===undefined||f.trail<fr)?fr:Math.max(fr,f.trail-dt*0.35);
   }
 }
@@ -1275,7 +1275,13 @@ function fx(dt){
 let W=0,H=0,DPR=1;const vigCache={key:null,c:null};
 function resize(){DPR=Math.min(1.5,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;canvas.width=W*DPR;canvas.height=H*DPR;canvas.style.width=W+'px';canvas.style.height=H+'px'}
 window.addEventListener('resize',resize);resize();
-const barsOn=()=>S.barsActive&&S.barsAnim>0&&!isBomb();
+const barsOn=()=>S.barsActive&&S.barsAnim>0;
+// 팀 바 채움: 콜로세움은 체력 합, 폭탄은 심지(들고 있으면), 그 외에는 남은 인원
+const bombHolderOf=f=>{for(const m of f.members)if(m.alive&&m.bomb)return m;return null};
+const fFrac=f=>{if(f.out)return 0;
+  if(isBomb()){const b=bombHolderOf(f);return b?clamp(b.bomb.t/MAZE.fuse,0,1):clamp(f.alive/f.total,0,1)}
+  if(isRace()||isHole())return clamp(f.alive/f.total,0,1);
+  return clamp(fhp(f)/(f.total*CFG.hpMax),0,1)};
 // 모바일(폭 820px 이하): 패널이 아래 시트로 내려가므로 경기장은 가로 전체, 세로는 시트 위까지
 const isMobile=()=>W<=820;
 const viewBottom=()=>isMobile()?Math.round(H*0.54)-36:H;
@@ -1321,7 +1327,7 @@ function updateCamera(dt){
 }
 
 function drawBar(f,r){
-  const {x,y,w,h}=r;const t=f.outAnim;
+  const {x,y,w,h}=r;const t=f.outAnim;const holding=isBomb()?bombHolderOf(f):null; // 폭탄을 들고 있는 팀은 붉게 + 남은 심지 표시
   ctx.save();ctx.globalAlpha=S.barsAnim;
   rrect(x,y,w,h,8);
   ctx.fillStyle=f.out?'rgba(44,18,26,0.92)':'rgba(18,18,26,0.92)';ctx.fill();
@@ -1332,13 +1338,13 @@ function drawBar(f,r){
   ctx.font=`800 ${mob?11:13}px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=f.out?'#8b8d9c':f.color;
   const maxW=w-(mob?px*2:70);let nm=f.name;while(ctx.measureText(nm).width>maxW&&nm.length>1)nm=nm.slice(0,-1);if(nm!==f.name)nm+='…';
   ctx.fillText(nm,x+px,y+7);
-  if(!mob){ctx.textAlign='right';ctx.fillStyle=f.out?'#ff4d6d':f.color;ctx.font=`800 13px ${FONT}`;ctx.fillText(`${f.alive} / ${f.total}`,x+w-10,y+7)}
+  if(!mob){ctx.textAlign='right';ctx.fillStyle=f.out?'#ff4d6d':holding?'#ff4d6d':f.color;ctx.font=`800 13px ${FONT}`;ctx.fillText(holding?`💣 ${holding.bomb.t.toFixed(1)}`:`${f.alive} / ${f.total}`,x+w-10,y+7)}
   // 통합 체력바: 남은 공들의 HP 합 / 전체 최대 HP
   const sy=y+27,sh=11,inner=w-px*2;
-  const frac=f.out?0:clamp(fhp(f)/(f.total*CFG.hpMax),0,1),trail=f.trail===undefined?frac:f.trail;
+  const frac=fFrac(f),trail=f.trail===undefined?frac:f.trail;
   ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(x+px,sy,inner,sh);
   if(trail>frac){ctx.fillStyle='rgba(255,255,255,0.45)';ctx.fillRect(x+px,sy,inner*trail,sh)}
-  if(frac>0){const fw=Math.max(2,inner*frac);ctx.fillStyle=f.color;ctx.fillRect(x+px,sy,fw,sh);ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(x+px,sy,fw,3)}
+  if(frac>0){const fw=Math.max(2,inner*frac);ctx.fillStyle=holding?'#ff4d6d':f.color;ctx.fillRect(x+px,sy,fw,sh);ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(x+px,sy,fw,3)}
   if(f.out){const p=clamp((1.1-t)/0.25,0,1);
     if(p>0){ctx.save();ctx.translate(x+w/2,y+h/2);ctx.rotate(-0.12);const s=(1+(1-p)*1.4)*Math.min(1,w/90);ctx.scale(s,s);ctx.globalAlpha=p*S.barsAnim;
       ctx.font=`900 17px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';
