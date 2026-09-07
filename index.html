@@ -308,13 +308,9 @@ function bombMove(m,dt){
     m.target=t;
     if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*3.2;ay=dy/L*acc*3.2;
       m.dashCd-=dt;if(m.dashCd<=0&&L<260){m.dashCd=rand(0.8,1.4);m.vx+=dx/L*430;m.vy+=dy/L*430;m.dash=0.3}}
-    ax-=cx*acc*1.0*rim;ay-=cy*acc*1.0*rim; // 쫓는 쪽도 벽에 붙지 않게
   }else{
     let t=null,bd=Infinity;for(const o of S.marbles){if(!o.alive||!o.bomb||!isFoe(m,o))continue;const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
-    m.roamT-=dt;if(m.roamT<=0){m.roamT=rand(2,4);const ra=rng()*TAU,rr=Math.sqrt(rng())*MAZE.R*0.6;m.roamX=Math.cos(ra)*rr;m.roamY=Math.sin(ra)*rr}
-    if(t&&Math.hypot(m.x-t.x,m.y-t.y)>320){                             // 폭탄이 멀면 굳이 도망치지 않고 빈 곳을 돌아다닌다
-      const gx=m.roamX-m.x,gy=m.roamY-m.y,gl=Math.hypot(gx,gy)||1;ax=gx/gl*acc*0.85;ay=gy/gl*acc*0.85;t=null}
     if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/320,0,1);
       let fx=dx/L,fy=dy/L;                                              // 폭탄 보유자의 정반대로 그냥 달린다
       if(L<260&&m.portalCd<=0){                                          // 쫓기는 중이고 포탈을 쓸 수 있으면 입구로 뛴다
@@ -324,8 +320,11 @@ function bombMove(m,dt){
           const w=clamp(1-bd2/330,0,1)*0.9;fx=fx*(1-w)+pdx/pl*w;fy=fy*(1-w)+pdy/pl*w;
           const n4=Math.hypot(fx,fy)||1;fx/=n4;fy/=n4;m.toPortal=1}}
       ax=fx*acc*(0.5+2.2*k);ay=fy*acc*(0.5+2.2*k)}
-    ax-=cx*acc*1.0*rim;ay-=cy*acc*1.0*rim; // 벽 쪽은 피한다 (포탈 안은 위에서 따로 처리)
     m.wob+=rand(-1,1)*3*dt;ax+=Math.cos(m.wob)*acc*0.4;ay+=Math.sin(m.wob)*acc*0.4; // 한곳에 멈춰 있지 않게
+  }
+  if(dc+m.r>MAZE.R-4&&!m.toPortal){ // 벽에 막히면 벽을 따라 달린다 (벽을 밀어 봐야 소용없으니)
+    const outA=ax*cx+ay*cy;
+    if(outA>0){const mag=Math.hypot(ax,ay)||1,tx=-cy,ty=cx,sg=(ax*tx+ay*ty)>=0?1:-1;ax=tx*sg*mag;ay=ty*sg*mag}
   }
   m.vx+=ax*dt;m.vy+=ay*dt;
   m.toPortal=0;
@@ -409,7 +408,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.toPortal=0;this.roamT=0;this.roamX=0;this.roamY=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.toPortal=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -1081,7 +1080,7 @@ function step(dt){
     }else if(bombM){ // 원형 벽 + 상하좌우 주머니(포탈)
       m.wallT=Math.max(0,m.wallT-dt);m.portalT=Math.max(0,m.portalT-dt);m.portalCd=Math.max(0,m.portalCd-dt);
       const d=Math.hypot(m.x,m.y)||1,np=nearPortal(Math.atan2(m.y,m.x));
-      const open=np.da<P_GAP&&m.portalCd<=0&&m.portalT<=0;              // 쿨타임 중이면 그 공에게는 닫혀 있다
+      const open=np.da<P_GAP&&!m.bomb&&m.portalCd<=0&&m.portalT<=0;      // 폭탄을 든 공은 못 타고, 쿨타임 중에도 닫혀 있다
       if(open&&d+m.r>MAZE.R){portalWarp(m,np.pt)}                        // 입구에 닿는 즉시 통과
       else if(d+m.r>MAZE.R){const rx=m.x/d,ry=m.y/d;m.x=rx*(MAZE.R-m.r);m.y=ry*(MAZE.R-m.r);
         const vn=m.vx*rx+m.vy*ry;if(vn>0){m.vx-=(1+CFG.restitution)*vn*rx;m.vy-=(1+CFG.restitution)*vn*ry;wallScrape(m,m.x+rx*m.r,m.y+ry*m.r,vn)}}
