@@ -268,14 +268,13 @@ const isHole=()=>opt.game==='hole';
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
 const MAZE={R:430,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520}; // R 원형 맵 반지름, hold/flee: 폭탄 보유자가 훨씬 빨라야 잡을 수 있다 // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
-function buildMaze(){ // 원형 맵 안에 얇은 벽만 세운 미로. 벽은 두 겹의 끊긴 고리와 짧은 살
+function buildMaze(){ // 원형 맵 안에 얇은 벽 몇 개만. 대부분이 빈 공간이라 마음껏 돌아다닐 수 있다
   const obs=[],wall=(x1,y1,x2,y2)=>obs.push({pts:[[x1,y1],[x2,y2]],rc:7,sign:1});
   const arc=(rad,a0,a1,segs)=>{for(let i=0;i<segs;i++){const b0=a0+(a1-a0)*i/segs,b1=a0+(a1-a0)*(i+1)/segs;
     wall(Math.cos(b0)*rad,Math.sin(b0)*rad,Math.cos(b1)*rad,Math.sin(b1)*rad)}};
   const D=Math.PI/180;
-  for(let k=0;k<3;k++){const a=k*120*D;arc(165,a,a+95*D,3)}          // 안쪽 고리: 95도 벽 3개, 25도 틈
-  for(let k=0;k<4;k++){const a=45*D+k*90*D;arc(305,a,a+68*D,3)}      // 바깥 고리: 68도 벽 4개, 22도 틈 (안쪽과 어긋남)
-  for(let k=0;k<4;k++){const a=(20+k*90)*D;wall(Math.cos(a)*195,Math.sin(a)*195,Math.cos(a)*275,Math.sin(a)*275)} // 살 4개
+  for(let k=0;k<3;k++){const a=k*120*D;arc(175,a,a+48*D,2)}        // 안쪽: 짧은 벽 3개 (72도 틈)
+  for(let k=0;k<3;k++){const a=(60+k*120)*D;arc(320,a,a+46*D,2)}   // 바깥: 짧은 벽 3개, 안쪽과 어긋나게
   return obs;
 }
 // 폭탄 보유자는 남에게 달려들고, 나머지는 가장 가까운 보유자에게서 도망친다
@@ -1628,7 +1627,7 @@ function render(){
   }else if(isBomb()){ // 폭탄: 원형 바닥 (벽은 아래 구조물 루프에서 그림)
     ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
     ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;
-    for(const rr2 of [165,305]){ctx.beginPath();ctx.arc(0,0,rr2,0,TAU);ctx.stroke()}
+    for(const rr2 of [175,320]){ctx.beginPath();ctx.arc(0,0,rr2,0,TAU);ctx.stroke()}
     ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=6;ctx.stroke();
   }else if(isHole()){ // 블랙홀: 둥근 바닥, 안쪽으로 감기는 나선 팔, 가운데 블랙홀, 바깥 벽
     ctx.beginPath();ctx.arc(0,0,HOLE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
