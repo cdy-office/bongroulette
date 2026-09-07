@@ -59,6 +59,22 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 .row .rk{color:var(--muted);font-variant-numeric:tabular-nums;width:26px;text-align:right;font-size:12px;flex:none}
 .row.dead{color:#5f6170}.row.dead .nm{text-decoration:line-through;opacity:.55}.row.dead .dot{background:#3a3a48!important}
 .row.win .nm{color:var(--gold)}
+#btnStop{display:none}
+/* 경기 중에는 왼쪽 아래에 조작줄만 남기고, 순위는 반투명 창으로 경기장 위에 띄운다 */
+@media (min-width:821px){
+  body[data-run="1"] #ctrl{top:auto;bottom:12px;left:12px;width:auto;min-width:196px;height:auto;padding:10px;gap:8px;background:rgba(18,18,26,0.72);overflow:visible}
+  body[data-run="1"] #ctrl>.head,body[data-run="1"] #ctrl>#gameSeg,body[data-run="1"] #ctrl>.feedwrap{display:none}
+  body[data-run="1"] #nameBox>label,body[data-run="1"] #nameBox>textarea,body[data-run="1"] #nameBox>.hint{display:none}
+  body[data-run="1"] #nameBox{flex:none}
+  body[data-run="1"] #nameBox>.opt{margin-bottom:0!important}
+  body[data-run="1"] .opts>.opt{display:none}
+  body[data-run="1"] .opts>#speedRow{display:flex}
+  body[data-run="1"] #btnShuffle,body[data-run="1"] #btnStart{display:none}
+  body[data-run="1"] #btnStop{display:block}
+  body[data-run="1"] #ctrl>.btns{position:static;background:transparent;padding:0}
+  body[data-run="1"] #rank{background:rgba(18,18,26,0.55);border-color:rgba(255,255,255,0.10)}
+  body[data-run="1"] #rank .row .hp{background:rgba(35,35,47,0.6)}
+}
 #mtabs{display:none}
 /* 모바일: 위쪽은 경기장, 아래 46%는 설정/순위 시트 (탭으로 전환) */
 @media (max-width:820px){
@@ -100,7 +116,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
       <div class="seg" id="modeSeg"><button data-v="first" class="on">최후 생존</button><button data-v="last">첫 탈락</button><button data-v="multi">여러명</button></div>
     </div>
     <div class="opt" id="multiRow" hidden><span class="k">👥 인원</span><input type="number" id="multiN" min="1" value="2"></div>
-    <div class="opt"><span class="k">⏩ 속도</span>
+    <div class="opt" id="speedRow"><span class="k">⏩ 속도</span>
       <div class="seg" id="speedSeg"><button data-v="1" class="on">1x</button><button data-v="2">2x</button><button data-v="4">4x</button></div>
     </div>
     <div class="opt" id="zoneRow"><span class="k">🌀 자기장</span>
@@ -115,6 +131,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
   <div class="btns">
     <button class="btn" id="btnShuffle">🔀 섞기</button>
     <button class="btn primary" id="btnStart">▶ 시작</button>
+    <button class="btn" id="btnStop">⏹ 중지</button>
   </div>
   <div class="feedwrap"><h3>전투 기록</h3><div id="feed"></div></div>
 </div>
@@ -1287,6 +1304,7 @@ function confettiBurst(){
 }
 function fx(dt){
   flushFeed(); // 이번 프레임에 쌓인 기록을 한 번에 반영
+  {const t=running()?1:0;if(S.uiAnim===undefined)S.uiAnim=t;else S.uiAnim+=(t-S.uiAnim)*Math.min(1,dt*7)} // 경기장 폭 전환
   if(S.particles.length>500)S.particles.splice(0,S.particles.length-500);
   S.particles=S.particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.96;p.vy*=0.96;return p.life>0});
   S.texts=S.texts.filter(t=>{t.life-=dt;t.y-=40*dt;return t.life>0});
@@ -1327,7 +1345,11 @@ const fFrac=f=>{if(f.out)return 0;
 const isMobile=()=>W<=820;
 const viewBottom=()=>isMobile()?Math.round(H*0.54)-36:H;
 // 바는 경기장 위에 겹쳐 그린다. 예전엔 위아래로 72px씩 깎아서 바가 뜨는 순간 화면이 확 작아졌다
-const region=()=>{const e=S.barsActive?(1-Math.cos(S.barsAnim*Math.PI))/2:0;const b=(isMobile()?34:18)*e;const VB=viewBottom();return isMobile()?{L:8,R:W-8,T:10+b,B:VB-10-b}:{L:294,R:W-254,T:12+b,B:VB-12-b}};
+const running=()=>S.phase==='countdown'||S.phase==='battle';
+const region=()=>{const e=S.barsActive?(1-Math.cos(S.barsAnim*Math.PI))/2:0;const b=(isMobile()?34:18)*e;const VB=viewBottom();
+  if(isMobile())return {L:8,R:W-8,T:10+b,B:VB-10-b};
+  const u=S.uiAnim===undefined?(running()?1:0):S.uiAnim; // 경기 중이면 좌우 패널 자리까지 경기장이 쓴다
+  return {L:lerp(294,12,u),R:lerp(W-254,W-12,u),T:12+b,B:VB-12-b}};
 
 function barLayout(){
   const {L,R}=region();const rects=new Map();const off=(1-S.barsAnim)*80;
@@ -1989,6 +2011,7 @@ function frame(now){
   updateCamera(real);
   render();
   if(sim)for(const m of S.marbles){if(m.sx!==undefined){m.x=m.sx;m.y=m.sy;m.sx=undefined}}
+  const rn=running()?'1':'0';if(document.body.dataset.run!==rn)document.body.dataset.run=rn; // 경기 중 UI 전환
   rankTimer-=real;if(rankTimer<=0&&S.phase!=='idle'){rankTimer=0.3;updateRank()}
   requestAnimationFrame(frame);
 }
@@ -2008,6 +2031,7 @@ finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN
 finalN.addEventListener('change',()=>{opt.finalAt=clamp(parseInt(finalN.value,10)||FINAL_AT,2,10);finalN.value=opt.finalAt});
 btnStart.addEventListener('click',start);
 btnShuffle.addEventListener('click',()=>{seed=(Math.random()*1e9)>>>0;S.seedUsed=false;setup()});
+$('#btnStop').addEventListener('click',()=>setup());
 // 입력을 고치기 시작하면 진행 중이던 전투는 즉시 리셋
 let deb=0;namesEl.addEventListener('input',()=>{if(S.phase!=='idle')setup();clearTimeout(deb);deb=setTimeout(()=>setup(),200)});
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&document.activeElement!==namesEl){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
