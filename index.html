@@ -348,7 +348,7 @@ function bombMove(m,dt){
 const BOMB_SKILLS=SKILL_KEYS.filter(k=>k!=='giant');
 function giveBomb(m,fuse,from){
   m.bomb={t:fuse!==undefined?fuse:MAZE.fuse+rand(0,2),from:from||null};m.bombCd=MAZE.pass;
-  m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];m.skillCd=rand(0.3,1.2);m.shield=false;m.trail=[];
+  m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];m.skillCd=MAZE.pass+rand(0,0.6);m.shield=false;m.trail=[]; // 받은 직후 0.5초는 스킬도 못 씀
   const sk=SKILLS[m.skill];burst(m.x,m.y,16,sk.color,220);addText(m.x,m.y-m.r-26,`${sk.icon} ${sk.name}`,sk.color,17);SFX.play(m.skill);
 }
 function clearBomb(m){m.bomb=null;m.skill=null;m.skillCd=0;m.shield=false;m.aim=null;m.iai=null;m.magnetT=0;m.tornadoT=0;m.hammerT=0;m.quakeT=0;m.rocketT=0;m.rocketCharge=0;m.breathT=0}
@@ -1647,7 +1647,8 @@ function drawMarble(m){
     if(rng()<0.4)S.particles.push({x:x+rand(-r,r),y:y+rand(-r,r),vx:rand(-40,40),vy:rand(-40,40),life:0.2,color:'#ff4d6d',r:1.5})} // 벽에 긁혀 느려진 상태
   if(m.bomb){ // 폭탄 보유: 붉은 고리 + 머리 위 폭탄과 초읽기
     const u=clamp(m.bomb.t/MAZE.fuse,0,1),pl=0.5+0.5*Math.sin(S.time*(u<0.35?18:8));
-    ctx.strokeStyle=`rgba(255,77,109,${0.45+0.5*pl})`;ctx.lineWidth=3+2*(1-u);ctx.beginPath();ctx.arc(x,y,r+7+3*(1-u),0,TAU);ctx.stroke();
+    const lock=m.bombCd>0;                                              // 받은 직후에는 넘기지도 쓰지도 못한다
+    ctx.strokeStyle=lock?'rgba(160,160,180,0.5)':`rgba(255,77,109,${0.45+0.5*pl})`;ctx.lineWidth=lock?2:3+2*(1-u);ctx.beginPath();ctx.arc(x,y,r+7+3*(1-u),0,TAU);ctx.stroke();
     const bx=x,by=y-r-16;ctx.fillStyle='#1a1a22';ctx.beginPath();ctx.arc(bx,by,9,0,TAU);ctx.fill();ctx.strokeStyle='#ffb347';ctx.lineWidth=2;ctx.stroke();
     ctx.strokeStyle='#c9a86a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(bx,by-9);ctx.quadraticCurveTo(bx+5,by-15,bx+2,by-19);ctx.stroke();
     ctx.fillStyle='#ffe66d';ctx.beginPath();ctx.arc(bx+2,by-19,2+Math.random()*2,0,TAU);ctx.fill();
