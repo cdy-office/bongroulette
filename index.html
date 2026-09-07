@@ -316,15 +316,7 @@ function bombMove(m,dt){
     if(t&&Math.hypot(m.x-t.x,m.y-t.y)>320){                             // 폭탄이 멀면 굳이 도망치지 않고 빈 곳을 돌아다닌다
       const gx=m.roamX-m.x,gy=m.roamY-m.y,gl=Math.hypot(gx,gy)||1;ax=gx/gl*acc*0.85;ay=gy/gl*acc*0.85;t=null}
     if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/320,0,1);
-      let fx=dx/L,fy=dy/L;
-      const outw=fx*cx+fy*cy;                                           // 도망 방향 중 바깥으로 향하는 성분
-      if(outw>0&&rim>0){fx-=cx*outw*(1+rim*1.6);fy-=cy*outw*(1+rim*1.6); // 벽 쪽으로 도망가려 하면 안쪽으로 꺾는다
-        const n2=Math.hypot(fx,fy)||1;fx/=n2;fy/=n2}
-      if(rim>0.45){                                                     // 가장자리에 몰리면 살짝 안쪽으로 (억지로 가운데를 가로지르지는 않게)
-        const gx=-cx*MAZE.R*0.55-m.x,gy=-cy*MAZE.R*0.55-m.y,gl=Math.hypot(gx,gy)||1;
-        if((gx/gl)*(-dx/L)+(gy/gl)*(-dy/L)<0.45){
-          const w=clamp((rim-0.45)/0.55,0,1)*0.3;
-          fx=fx*(1-w)+gx/gl*w;fy=fy*(1-w)+gy/gl*w;const n3=Math.hypot(fx,fy)||1;fx/=n3;fy/=n3}}
+      let fx=dx/L,fy=dy/L;                                              // 폭탄 보유자의 정반대로 그냥 달린다
       if(L<260&&m.portalCd<=0){                                          // 쫓기는 중이고 포탈을 쓸 수 있으면 입구로 뛴다
         let bp=null,bd2=Infinity;for(const pt of PORTALS){const q=Math.hypot(m.x-pt.x,m.y-pt.y);if(q<bd2){bd2=q;bp=pt}}
         const pdx=bp.x-m.x,pdy=bp.y-m.y,pl=Math.hypot(pdx,pdy)||1;
@@ -335,13 +327,7 @@ function bombMove(m,dt){
     ax-=cx*acc*1.0*rim;ay-=cy*acc*1.0*rim; // 벽 쪽은 피한다 (포탈 안은 위에서 따로 처리)
     m.wob+=rand(-1,1)*3*dt;ax+=Math.cos(m.wob)*acc*0.4;ay+=Math.sin(m.wob)*acc*0.4; // 한곳에 멈춰 있지 않게
   }
-  if(!m.toPortal){ // 포탈로 달려가는 중이 아니면 벽 쪽으로는 가속하지 않고, 벽에 붙은 속도도 깎는다
-    const outA=ax*cx+ay*cy;if(outA>0&&rim>0){ax-=cx*outA*rim;ay-=cy*outA*rim}
-    m.vx+=ax*dt;m.vy+=ay*dt;
-    const vout=m.vx*cx+m.vy*cy;
-    if(vout>0&&rim>0.2){const kk=rim*0.85;m.vx-=cx*vout*kk;m.vy-=cy*vout*kk}
-    if(rim>0.2){m.vx-=cx*220*rim*dt;m.vy-=cy*220*rim*dt}
-  }else{m.vx+=ax*dt;m.vy+=ay*dt}
+  m.vx+=ax*dt;m.vy+=ay*dt;
   m.toPortal=0;
 }
 // 폭탄 넘기기: 새 주인은 무작위 스킬을 얻고, 이전 주인은 스킬을 잃는다
