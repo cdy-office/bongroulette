@@ -1294,7 +1294,9 @@ function updateCamera(dt){
   let tx=0,ty=0,tz=fit,speed=2.5;
   const alive=aliveList();
   const frame2=(list,pad,zmax)=>{let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
-    for(const m of list){minx=Math.min(minx,m.x-m.r);maxx=Math.max(maxx,m.x+m.r);miny=Math.min(miny,m.y-m.r);maxy=Math.max(maxy,m.y+m.r)}
+    let src=list;
+    if(bombM){const q=list.filter(m=>m.portalT<=0);if(q.length)src=q}   // 방금 포탈을 탄 공은 잠깐 제외 (화면이 확 쓸려가지 않게)
+    for(const m of src){minx=Math.min(minx,m.x-m.r);maxx=Math.max(maxx,m.x+m.r);miny=Math.min(miny,m.y-m.r);maxy=Math.max(maxy,m.y+m.r)}
     const bw=maxx-minx+pad*2,bh=maxy-miny+pad*2;tz=clamp(Math.min((R-L)/bw,(B-T)/bh),fit,fit*zmax);tx=(minx+maxx)/2;ty=(miny+maxy)/2};
   let free=false; // true면 경기장 범위 제한 없이 대상을 정확히 화면 중앙에
   if(S.finish||S.phase==='finished'){ // 결정타/종료: 마지막 공을 화면 중앙에 (승리 박스 자리만큼 살짝 위)
@@ -1304,9 +1306,9 @@ function updateCamera(dt){
   else if(S.focus){tx=S.focus.m.x;ty=S.focus.m.y;tz=fit*2.6;speed=3}                                  // 스킬 연출: 그 공으로
   else if(S.showdown&&alive.length===2){frame2(alive,90,3.0);speed=3}                                  // 1:1 결정타 예감: 둘을 크게
   else if(S.phase==='battle'&&alive.length>0&&(race||barsOn()||alive.length<=opt.finalAt)){ // 현황판이 뜨는 순간부터 남은 공들을 따라간다 (수가 줄수록 더 가까이)
-    const n=alive.length;
-    frame2(alive,n<=2?80:n<=opt.finalAt?140:200,n<=2?3.0:n<=opt.finalAt?2.4:1.8)}
-  if(tz>fit&&!free){const limX=AW-((R-L)/2)/tz*0.9,limY=AH-((B-T)/2)/tz*0.9;
+    const n=alive.length,near=race||n<=opt.finalAt;
+    frame2(alive,n<=2?80:near?140:120,n<=2?3.0:near?2.4:2.0)}
+  if(!free){const limX=AW-((R-L)/2)/tz*0.9,limY=AH-((B-T)/2)/tz*0.9;
     tx=limX>0?clamp(tx,-limX,limX):0;ty=limY>0?clamp(ty,-limY,limY):0}
   const k=1-Math.exp(-speed*dt);
   S.cam.x=lerp(S.cam.x,tx,k);S.cam.y=lerp(S.cam.y,ty,k);S.cam.zoom=lerp(S.cam.zoom,tz,k);
