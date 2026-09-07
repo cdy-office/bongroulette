@@ -1276,12 +1276,11 @@ let W=0,H=0,DPR=1;const vigCache={key:null,c:null};
 function resize(){DPR=Math.min(1.5,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;canvas.width=W*DPR;canvas.height=H*DPR;canvas.style.width=W+'px';canvas.style.height=H+'px'}
 window.addEventListener('resize',resize);resize();
 const barsOn=()=>S.barsActive&&S.barsAnim>0;
-// 팀 바 채움: 콜로세움은 체력 합, 폭탄은 심지(들고 있으면), 그 외에는 남은 인원
+// 팀 바 채움: 언제나 남은 인원 비율 (폭탄을 들고 있을 때만 남은 심지를 붉게 보여 준다)
 const bombHolderOf=f=>{for(const m of f.members)if(m.alive&&m.bomb)return m;return null};
 const fFrac=f=>{if(f.out)return 0;
-  if(isBomb()){const b=bombHolderOf(f);return b?clamp(b.bomb.t/MAZE.fuse,0,1):clamp(f.alive/f.total,0,1)}
-  if(isRace()||isHole())return clamp(f.alive/f.total,0,1);
-  return clamp(fhp(f)/(f.total*CFG.hpMax),0,1)};
+  if(isBomb()){const b=bombHolderOf(f);if(b)return clamp(b.bomb.t/MAZE.fuse,0,1)}
+  return clamp(f.alive/f.total,0,1)};
 // 모바일(폭 820px 이하): 패널이 아래 시트로 내려가므로 경기장은 가로 전체, 세로는 시트 위까지
 const isMobile=()=>W<=820;
 const viewBottom=()=>isMobile()?Math.round(H*0.54)-36:H;
