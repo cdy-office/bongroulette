@@ -1410,14 +1410,13 @@ function drawBar(f,r){
 // 오른쪽 아래 알림 (최근 것이 맨 아래, 위로 쌓임. 화면 높이만큼 표시)
 function drawDuelHud(L,R,T,B,cx){
   const [A,Bm]=S.duelists;const p=clamp(S.duelT/0.35,0,1);const slide=(1-p)*60;
-  const w=Math.min(360,(R-L-64)/2),h=DUEL_H,y=12;
+  const h=DUEL_H,y=12,gap=32; // gap: 가운데 VS 자리
+  const rankL=isMobile()?R:W-262; // 순위표 왼쪽 끝. 좁은 창에서 겹치지 않게
+  const w=Math.max(150,Math.min(300,(R-L)/2-70,rankL-10-(cx+gap)));
   const draw=(m,x,right,off)=>{
     const hp=Math.max(0,m.hp),frac=clamp(hp/m.hpMax,0,1),trail=clamp((m.hpTrail===undefined?hp:m.hpTrail)/m.hpMax,0,1);
     const low=frac<0.3&&m.alive,pulse=low?0.5+0.5*Math.sin(S.duelT*9):0;
     ctx.save();ctx.translate(right?off:-off,0);ctx.globalAlpha=p;
-    rrect(x,y,w,h,10);ctx.fillStyle='rgba(18,18,26,0.92)';ctx.fill();
-    ctx.strokeStyle=low?`rgba(255,77,109,${0.6+0.4*pulse})`:m.color;ctx.lineWidth=low?2.5:1.5;ctx.stroke();
-    ctx.globalAlpha=p*0.16;ctx.fillStyle=m.color;rrect(x,y,w,h,10);ctx.fill();ctx.globalAlpha=p;
     // 얼굴
     const fr=20,fx=right?x+w-12-fr:x+12+fr,fy=y+h/2;
     const face=opt.faces&&S.faceOf&&S.faceOf[m.name]?faceImgs[S.faceOf[m.name]]:null;
@@ -1430,18 +1429,20 @@ function drawDuelHud(L,R,T,B,cx){
     ctx.textBaseline='top';ctx.font=`800 14px ${FONT}`;const numS=`${Math.ceil(hp)} / ${m.hpMax}`,numW=ctx.measureText(numS).width;
     ctx.font=`800 15px ${FONT}`;ctx.textAlign=right?'right':'left';ctx.fillStyle=m.color;
     const showNum=inner>=150,nameMax=showNum?inner-numW-10:inner;let nm=m.label;while(ctx.measureText(nm).width>nameMax&&nm.length>1)nm=nm.slice(0,-1);if(nm!==m.label)nm+='…';
-    ctx.fillText(nm,right?tx1:tx0,y+7);
-    if(showNum){ctx.textAlign=right?'left':'right';ctx.fillStyle=low?'#ff4d6d':m.color;ctx.font=`800 14px ${FONT}`;ctx.fillText(numS,right?tx0:tx1,y+8)}
+    const shadowed=(t,tx,ty)=>{const c=ctx.fillStyle;ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillText(t,tx+1.5,ty+1.5);ctx.fillStyle=c;ctx.fillText(t,tx,ty)};
+    shadowed(nm,right?tx1:tx0,y+7);
+    if(showNum){ctx.textAlign=right?'left':'right';ctx.fillStyle=low?'#ff4d6d':m.color;ctx.font=`800 14px ${FONT}`;shadowed(numS,right?tx0:tx1,y+8)}
     // 체력바 (왼쪽은 왼쪽 고정, 오른쪽은 오른쪽 고정으로 가운데 쪽부터 줄어듦)
     const sy=y+28,sh=14;
-    ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(tx0,sy,inner,sh);
+    ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(tx0,sy,inner,sh);
+    ctx.strokeStyle=low?`rgba(255,77,109,${0.6+0.4*pulse})`:'rgba(255,255,255,0.18)';ctx.lineWidth=low?2:1;ctx.strokeRect(tx0+0.5,sy+0.5,inner-1,sh-1);
     const bar=(fw,c)=>{if(fw<=0)return;ctx.fillStyle=c;ctx.fillRect(right?tx1-fw:tx0,sy,fw,sh)};
     if(trail>frac)bar(inner*trail,'rgba(255,255,255,0.5)');
     if(frac>0){const fw=Math.max(2,inner*frac);bar(fw,low?`rgb(255,${Math.round(77+60*pulse)},109)`:m.color);ctx.fillStyle='rgba(255,255,255,0.25)';ctx.fillRect(right?tx1-fw:tx0,sy,fw,4)}
-    if(m.skill){const s=SKILLS[m.skill];ctx.font=`700 11px ${FONT}`;ctx.textAlign=right?'right':'left';ctx.fillStyle=s.color;ctx.textBaseline='bottom';ctx.fillText(`${s.icon} ${s.name}`,right?tx1:tx0,y+h-3)}
+    if(m.skill){const s=SKILLS[m.skill];ctx.font=`700 11px ${FONT}`;ctx.textAlign=right?'right':'left';ctx.textBaseline='bottom';ctx.fillStyle=s.color;shadowed(`${s.icon} ${s.name}`,right?tx1:tx0,y+h-3)}
     ctx.restore();
   };
-  draw(A,L,false,slide);draw(Bm,R-w,true,slide);
+  draw(A,cx-gap-w,false,slide);draw(Bm,cx+gap,true,slide);
   // 가운데 VS
   ctx.save();ctx.globalAlpha=p;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 ${Math.round(22+4*(1-p))}px ${FONT}`;ctx.lineJoin='round';
   ctx.lineWidth=6;ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.strokeText('VS',cx,y+h/2);ctx.fillStyle='#ffd166';ctx.fillText('VS',cx,y+h/2);ctx.restore();
