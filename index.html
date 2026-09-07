@@ -174,7 +174,7 @@ const OBST=[
   {pts:[[420,-60],[420,60]],rc:7},      // 오른쪽 끝 세로 벽
 ];
 for(const o of OBST){let a=0;const n=o.pts.length;for(let i=0;i<n;i++){const [x1,y1]=o.pts[i],[x2,y2]=o.pts[(i+1)%n];a+=x1*y2-x2*y1}o.sign=a>=0?1:-1}
-const BAR_H=46, BAR_Y=12;   // 이름별 체력바 높이/상단 여백
+const BAR_H=34, BAR_Y=10;   // 이름별 체력바 높이/상단 여백
 const DUEL_H=60;            // 마지막 1:1 패널 높이
 const BARS_AT=12;           // 남은 이름이 이 수 이하가 되면 체력바 표시
 const FINAL_AT=5;           // 결전 인원 기본값 (옵션 ⚔️ 결전, 2~10). 남은 공이 이 수 이하가 되면 결전 단계 (카메라도 이때부터)
@@ -1255,8 +1255,8 @@ let deadKey=-1;
 const rankRows=[];
 function rankRow(i){let r=rankRows[i];if(r)return r;
   r=document.createElement('div');r.className='row';
-  r.innerHTML='<span class="rk"></span><span class="dot"></span><span class="nm"></span><span class="hp"><i></i></span>';
-  r.$rk=r.children[0];r.$dot=r.children[1];r.$nm=r.children[2];r.$hp=r.children[3].firstChild;
+  r.innerHTML='<span class="rk"></span><span class="dot"></span><span class="nm"></span>';
+  r.$rk=r.children[0];r.$dot=r.children[1];r.$nm=r.children[2];
   rankRows[i]=r;return r}
 function updateRank(){
   const race=isRace(),hole=isHole(),bombM=isBomb(),n=S.marbles.length,alive=aliveList().sort(bombM?(a,b)=>(a.bomb?a.bomb.t:99)-(b.bomb?b.bomb.t:99)===0?a.i-b.i:((b.bomb?b.bomb.t:99)-(a.bomb?a.bomb.t:99)):(race||hole)?(a,b)=>b.prog-a.prog||a.i-b.i:(a,b)=>b.hp-a.hp||a.i-b.i),na=alive.length,max=80; // 레이스는 진행도 순, 블랙홀은 바깥에 있을수록 앞
@@ -1268,10 +1268,6 @@ function updateRank(){
      const fc='dot'+faceCls(m); if(r.$dot.className!==fc){r.$dot.className=fc;r.$dot.style.background=faceCls(m)?'':m.color}
      const nm=(m.skill?SKILLS[m.skill].icon+' ':'')+m.label; if(r.$nmText!==nm){r.$nmText=nm;r.$nm.textContent=nm;r.$nm.title=m.label}
      const col=m.win?'':m.color; if(r.$nmCol!==col){r.$nmCol=col;r.$nm.style.color=col}
-     const w=(bombM?(m.bomb?clamp(m.bomb.t/MAZE.fuse*100,0,100):100):race?clamp(m.s/RACE.L*100,0,100):hole?clamp(m.dist/HOLE.R*100,0,100):clamp(m.hp/m.hpMax*100,0,100)).toFixed(1)+'%';
-     if(r.$w!==w){r.$w=w;r.$hp.style.width=w}
-     const bg=bombM?(m.bomb?'#ff4d6d':'#5be38b'):race?'#ffd166':hole?'#b388ff':hpColor(m.hp/m.hpMax*100);
-     if(r.$bg!==bg){r.$bg=bg;r.$hp.style.background=bg}
    }
    // 순서가 바뀐 줄만 옮긴다 (통째로 다시 만들면 80줄 파싱에 7ms가 든다)
    const kids=rankAlive.children;
@@ -1355,7 +1351,7 @@ function barLayout(){
   const {L,R}=region();const rects=new Map();const off=(1-S.barsAnim)*80;
   for(const side of ['top','bottom']){
     const list=S.factions.filter(f=>f.barred&&f.side===side);const n=list.length;if(!n)continue;
-    const gap=isMobile()?4:10,w=Math.min(320,(R-L-gap*(n-1))/n),total=w*n+gap*(n-1),x0=(L+R)/2-total/2;
+    const gap=isMobile()?4:8,w=Math.min(250,(R-L-gap*(n-1))/n),total=w*n+gap*(n-1),x0=(L+R)/2-total/2;
     const y=side==='top'?BAR_Y-off:viewBottom()-BAR_Y-BAR_H+off;
     list.forEach((f,i)=>rects.set(f,{x:x0+i*(w+gap),y,w,h:BAR_H}));
   }
@@ -1396,18 +1392,18 @@ function updateCamera(dt){
 function drawBar(f,r){
   const {x,y,w,h}=r;const t=f.outAnim;const holding=isBomb()?bombHolderOf(f):null; // 폭탄을 들고 있는 팀은 붉게 + 남은 심지 표시
   ctx.save();ctx.globalAlpha=S.barsAnim;
-  rrect(x,y,w,h,8);
+  rrect(x,y,w,h,6);
   ctx.fillStyle=f.out?'rgba(44,18,26,0.92)':'rgba(18,18,26,0.92)';ctx.fill();
   ctx.strokeStyle=f.out?'rgba(255,77,109,0.55)':f.color;ctx.lineWidth=f.out?1:1.5;ctx.stroke();
-  if(!f.out){ctx.globalAlpha=0.18*S.barsAnim;ctx.fillStyle=f.color;rrect(x,y,w,h,8);ctx.fill();ctx.globalAlpha=S.barsAnim}
+  if(!f.out){ctx.globalAlpha=0.18*S.barsAnim;ctx.fillStyle=f.color;rrect(x,y,w,h,6);ctx.fill();ctx.globalAlpha=S.barsAnim}
   ctx.textBaseline='top';
   const mob=isMobile(),px=mob?6:10; // 모바일: 바가 좁으므로 이름만 작게, 인원 수 생략
-  ctx.font=`800 ${mob?11:13}px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=f.out?'#8b8d9c':f.color;
-  const maxW=w-(mob?px*2:70);let nm=f.name;while(ctx.measureText(nm).width>maxW&&nm.length>1)nm=nm.slice(0,-1);if(nm!==f.name)nm+='…';
-  ctx.fillText(nm,x+px,y+7);
-  if(!mob){ctx.textAlign='right';ctx.fillStyle=f.out?'#ff4d6d':holding?'#ff4d6d':f.color;ctx.font=`800 13px ${FONT}`;ctx.fillText(holding?`💣 ${holding.bomb.t.toFixed(1)}`:`${f.alive} / ${f.total}`,x+w-10,y+7)}
+  ctx.font=`800 ${mob?10:12}px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=f.out?'#8b8d9c':f.color;
+  const maxW=w-(mob?px*2:62);let nm=f.name;while(ctx.measureText(nm).width>maxW&&nm.length>1)nm=nm.slice(0,-1);if(nm!==f.name)nm+='…';
+  ctx.fillText(nm,x+px,y+5);
+  if(!mob){ctx.textAlign='right';ctx.fillStyle=f.out?'#ff4d6d':holding?'#ff4d6d':f.color;ctx.font=`800 12px ${FONT}`;ctx.fillText(holding?`💣 ${holding.bomb.t.toFixed(1)}`:`${f.alive} / ${f.total}`,x+w-9,y+5)}
   // 통합 체력바: 남은 공들의 HP 합 / 전체 최대 HP
-  const sy=y+27,sh=11,inner=w-px*2;
+  const sy=y+20,sh=9,inner=w-px*2;
   const frac=fFrac(f),trail=f.trail===undefined?frac:f.trail;
   ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(x+px,sy,inner,sh);
   if(trail>frac){ctx.fillStyle='rgba(255,255,255,0.45)';ctx.fillRect(x+px,sy,inner*trail,sh)}
