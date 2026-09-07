@@ -234,7 +234,7 @@ const FACE_IMAGES={'드응으루마루헤이요':'data:image/jpeg;base64,/9j/4AA
 const faceImgs={};for(const k in FACE_IMAGES){const img=new Image();const rec={img,ok:false};img.onload=()=>{rec.ok=true};img.src=FACE_IMAGES[k];faceImgs[k]=rec}
 
 const S={phase:'idle',marbles:[],factions:[],factionsOut:[],eliminated:[],particles:[],texts:[],shards:[],rings:[],bolts:[],ghosts:[],bombs:[],arrows:[],confetti:[],feed:[],
-  slashes:[],lasers:[],fires:[],spears:[],boomerangs:[],swarms:[],cracks:[], // 검 궤적, 레이저, 불길, 얼음 창, 부메랑, 벌떼, 지진 금
+  slashes:[],lasers:[],fires:[],spears:[],boomerangs:[],swarms:[],cracks:[],bombTag:[], // 검 궤적, 레이저, 불길, 얼음 창, 부메랑, 벌떼, 지진 금
   toasts:[],banner:null,bannerDelay:0,bannerNext:null,single:false,
   barsActive:false,barsAnim:0,final:false,finalT:0,zoneHold:0,
   focus:null,focusCd:0,showdown:null,showdownCd:0,finish:null,letterbox:0, // 결전 연출 상태
@@ -267,13 +267,15 @@ const isRace=()=>opt.game==='race';
 const isHole=()=>opt.game==='hole';
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
-const MAZE={W:1300,H:900,fuse:7,pass:0.5,spawn:1.0,hold:600,flee:470}; // hold/flee: 폭탄 보유자가 더 빨라야 제3자를 잡을 수 있다 // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
-function buildMaze(){ // 넓은 미로: 위아래 4칸, 가운데 3칸으로 어긋나게. 통로 105~200, 막다른 길 없음
-  const obs=[],add=(cx,cy,hw,hh)=>{const pts=[[cx-hw,cy-hh],[cx+hw,cy-hh],[cx+hw,cy+hh],[cx-hw,cy+hh]];
-    let a=0;for(let i=0;i<4;i++){const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%4];a+=x1*y2-x2*y1}
-    obs.push({pts,rc:8,sign:a>=0?1:-1,block:true})};
-  for(const cy of [-270,270])for(const cx of [-450,-150,150,450])add(cx,cy,95,65);
-  add(-330,0,120,55);add(0,0,100,55);add(330,0,120,55);
+const MAZE={R:430,fuse:7,pass:0.5,spawn:1.0,hold:820,flee:520}; // R 원형 맵 반지름, hold/flee: 폭탄 보유자가 훨씬 빨라야 잡을 수 있다 // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
+function buildMaze(){ // 원형 맵 안에 얇은 벽만 세운 미로. 벽은 두 겹의 끊긴 고리와 짧은 살
+  const obs=[],wall=(x1,y1,x2,y2)=>obs.push({pts:[[x1,y1],[x2,y2]],rc:7,sign:1});
+  const arc=(rad,a0,a1,segs)=>{for(let i=0;i<segs;i++){const b0=a0+(a1-a0)*i/segs,b1=a0+(a1-a0)*(i+1)/segs;
+    wall(Math.cos(b0)*rad,Math.sin(b0)*rad,Math.cos(b1)*rad,Math.sin(b1)*rad)}};
+  const D=Math.PI/180;
+  for(let k=0;k<3;k++){const a=k*120*D;arc(165,a,a+95*D,3)}          // 안쪽 고리: 95도 벽 3개, 25도 틈
+  for(let k=0;k<4;k++){const a=45*D+k*90*D;arc(305,a,a+68*D,3)}      // 바깥 고리: 68도 벽 4개, 22도 틈 (안쪽과 어긋남)
+  for(let k=0;k<4;k++){const a=(20+k*90)*D;wall(Math.cos(a)*195,Math.sin(a)*195,Math.cos(a)*275,Math.sin(a)*275)} // 살 4개
   return obs;
 }
 // 폭탄 보유자는 남에게 달려들고, 나머지는 가장 가까운 보유자에게서 도망친다
@@ -284,12 +286,12 @@ function bombMove(m,dt){
     for(const o of S.marbles){if(!o.alive||o===m||o.bomb||!isFoe(m,o))continue;if(m.bomb.from===o&&n2>2)continue; // 방금 준 사람은 쫓지 않음
       const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
-    if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*1.7;ay=dy/L*acc*1.7;
-      m.dashCd-=dt;if(m.dashCd<=0&&L<240){m.dashCd=rand(0.9,1.6);m.vx+=dx/L*400;m.vy+=dy/L*400;m.dash=0.3}}
+    if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*3.2;ay=dy/L*acc*3.2;
+      m.dashCd-=dt;if(m.dashCd<=0&&L<260){m.dashCd=rand(0.8,1.4);m.vx+=dx/L*430;m.vy+=dy/L*430;m.dash=0.3}}
   }else{
     let t=null,bd=Infinity;for(const o of S.marbles){if(!o.alive||!o.bomb||!isFoe(m,o))continue;const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
-    if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/460,0,1);ax=dx/L*acc*(0.7+1.5*k);ay=dy/L*acc*(0.7+1.5*k)}
+    if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/420,0,1);ax=dx/L*acc*(0.9+1.8*k);ay=dy/L*acc*(0.9+1.8*k)}
     m.wob+=rand(-1,1)*3*dt;ax+=Math.cos(m.wob)*acc*0.4;ay+=Math.sin(m.wob)*acc*0.4; // 한곳에 멈춰 있지 않게
   }
   m.vx+=ax*dt;m.vy+=ay*dt;
@@ -346,7 +348,7 @@ function shove(o,vx,vy){
   if(isHole()){const d=Math.hypot(o.x,o.y)||1,rx=o.x/d,ry=o.y/d;let rad=vx*rx+vy*ry;const lx=vx-rad*rx,ly=vy-rad*ry;rad=-Math.abs(rad);const g=o.skill==='giant'?0.3:1;o.vx+=(rad*rx+lx*0.5)*g;o.vy+=(rad*ry+ly*0.5)*g} // 블랙홀: 항상 안쪽으로
   else if(isRace()&&o.tx!==undefined){let along=vx*o.tx+vy*o.ty;const lx=vx-along*o.tx,ly=vy-along*o.ty;along=-Math.abs(along);const g=o.skill==='giant'?0.3:1;o.vx+=(along*o.tx+lx*0.4)*g;o.vy+=(along*o.ty+ly*0.4)*g}
   else{o.vx+=vx;o.vy+=vy}}
-const outOfArena=(x,y,pad)=>{if(isRace()){const tp=trackPos(x,y);return Math.abs(tp.lat)>halfWAt(tp.s)-pad}if(isHole())return Math.hypot(x,y)>HOLE.R-pad;return segDist(x,y,ARENA_L)>ARENA_R-pad};
+const outOfArena=(x,y,pad)=>{if(isRace()){const tp=trackPos(x,y);return Math.abs(tp.lat)>halfWAt(tp.s)-pad}if(isHole())return Math.hypot(x,y)>HOLE.R-pad;if(isBomb())return Math.hypot(x,y)>MAZE.R-pad;return segDist(x,y,ARENA_L)>ARENA_R-pad};
 // 레이스 주행: 접선 방향으로 달리고, 차선을 바꿔 가며, 부스터·정지·감속 반영. 진행도(prog)로 순위
 function raceMove(m,dt){
   const tp=trackPos(m.x,m.y);m.s=tp.s;m.lat=tp.lat;m.tx=tp.tx;m.ty=tp.ty;
@@ -428,12 +430,12 @@ function setup(){
     const order=S.marbles.slice();for(let i=order.length-1;i>0;i--){const j=(rng()*(i+1))|0;[order[i],order[j]]=[order[j],order[i]]} // 입력 순서와 무관하게 자리 섞기
     order.forEach((m,i)=>{const row=Math.floor(i/perRow),col=i%perRow;const sPos=RACE.L-50-row*(r*2+8),lat=-RACE.halfW+8+r+col*(r*2+6);const q=trackPoint(sPos);m.x=q.x-q.ty*lat;m.y=q.y+q.tx*lat;m.lap=-1;m.lastS=undefined;m.lane=lat;m.laneT=rand(0.5,2);m.tx=q.tx;m.ty=q.ty});
   }
-  else if(isBomb()){ // 미로 안 빈 곳에 흩어 놓기
+  else if(isBomb()){ // 원형 미로 안 빈 곳에 흩어 놓기
     for(const m of S.marbles){let done=false;
-      for(let t=0;t<200&&!done;t++){const x=rand(-MAZE.W/2+r+10,MAZE.W/2-r-10),y=rand(-MAZE.H/2+r+10,MAZE.H/2-r-10);
+      for(let t=0;t<200&&!done;t++){const a=rng()*TAU,rad=Math.sqrt(rng())*(MAZE.R-r-14),x=Math.cos(a)*rad,y=Math.sin(a)*rad;
         if(hitsObst(x,y,r+8))continue;
         if(placed.every(q=>(q.x-x)**2+(q.y-y)**2>(r*2+10)**2)||t>170){m.x=x;m.y=y;placed.push(m);done=true}}
-      if(!done){m.x=rand(-MAZE.W/2+r+10,MAZE.W/2-r-10);m.y=rand(-MAZE.H/2+r+10,MAZE.H/2-r-10);placed.push(m)}
+      if(!done){const a=rng()*TAU,rad=Math.sqrt(rng())*(MAZE.R-r-14);m.x=Math.cos(a)*rad;m.y=Math.sin(a)*rad;placed.push(m)}
       m.bomb=null;m.bombCd=0}
   }
   else if(isHole()){ // 바깥 벽을 따라 고리 모양으로 (안쪽 고리로 이어감)
@@ -451,7 +453,7 @@ function setup(){
     }
     if(!done){m.x=rand(-ARENA_L,ARENA_L);m.y=rand(-100,100);placed.push(m)}
   }
-  S.factionsOut=[];S.eliminated=[];S.particles=[];S.texts=[];S.shards=[];S.rings=[];S.bolts=[];S.ghosts=[];S.bombs=[];S.arrows=[];S.confetti=[];S.slashes=[];S.lasers=[];S.fires=[];S.spears=[];S.boomerangs=[];S.swarms=[];S.cracks=[];S.feed=[];feedEl.innerHTML='';
+  S.factionsOut=[];S.eliminated=[];S.particles=[];S.texts=[];S.shards=[];S.rings=[];S.bolts=[];S.ghosts=[];S.bombs=[];S.arrows=[];S.confetti=[];S.slashes=[];S.lasers=[];S.fires=[];S.spears=[];S.boomerangs=[];S.swarms=[];S.cracks=[];S.bombTag=[];S.feed=[];feedEl.innerHTML='';
   S.toasts=[];S.banner=null;S.bannerDelay=0;S.bannerNext=null;
   S.barsActive=false;S.barsAnim=0;S.final=false;S.finalT=0;S.zoneHold=0;
   S.focus=null;S.focusCd=0;S.showdown=null;S.showdownCd=0;S.finish=null;S.letterbox=0;S.duel=false;S.duelists=null;S.duelT=0;
@@ -1035,10 +1037,10 @@ function step(dt){
       const tp=trackPos(m.x,m.y);const hw=halfWAt(tp.s)-m.r;
       if(Math.abs(tp.lat)>hw){const sg=Math.sign(tp.lat),nx=-tp.ty,ny=tp.tx,over=(Math.abs(tp.lat)-hw)*sg;m.x-=nx*over;m.y-=ny*over;
         const vn=m.vx*nx+m.vy*ny;if(vn*sg>0){m.vx-=vn*nx*1.6;m.vy-=vn*ny*1.6;if(Math.abs(vn)>220){m.stun=Math.max(m.stun,0.25);SFX.play('bump');spark(m.x+nx*m.r*sg,m.y+ny*m.r*sg,6)}}}
-    }else if(bombM){ // 미로 바깥 사각 벽
-      const hw=MAZE.W/2-m.r,hh=MAZE.H/2-m.r;
-      if(m.x<-hw){m.x=-hw;if(m.vx<0)m.vx=-m.vx*CFG.restitution}else if(m.x>hw){m.x=hw;if(m.vx>0)m.vx=-m.vx*CFG.restitution}
-      if(m.y<-hh){m.y=-hh;if(m.vy<0)m.vy=-m.vy*CFG.restitution}else if(m.y>hh){m.y=hh;if(m.vy>0)m.vy=-m.vy*CFG.restitution}
+    }else if(bombM){ // 원형 바깥 벽
+      const d=Math.hypot(m.x,m.y)||1;
+      if(d+m.r>MAZE.R){const rx=m.x/d,ry=m.y/d;m.x=rx*(MAZE.R-m.r);m.y=ry*(MAZE.R-m.r);
+        const vn=m.vx*rx+m.vy*ry;if(vn>0){m.vx-=(1+CFG.restitution)*vn*rx;m.vy-=(1+CFG.restitution)*vn*ry}}
     }else{
     const wx=clamp(m.x,-ARENA_L,ARENA_L);let dw=Math.hypot(m.x-wx,m.y);
     if(dw+m.r>ARENA_R){
@@ -1066,6 +1068,16 @@ function step(dt){
       if(k>0){SFX.play('last');const sorted=live.slice().sort((a,b)=>a.prog-b.prog);
         for(let i=0;i<k;i++){const m=sorted[i];boom(m,1.2);addText(m.x,m.y-m.r-14,'꼴찌!',m.color,20);die(m,null,'race')}
         S.banner={text:`🏁 LAP ${lead}`,sub:`꼴찌 ${k}명 탈락  ·  남은 ${n-k}명`,age:0,life:1.6}}}}
+  // 예약된 폭탄 태그 처리 (스킬 코드 실행이 모두 끝난 뒤라 안전)
+  if(S.bombTag.length){
+    for(const [h,o] of S.bombTag){
+      if(!h.alive||!o.alive||!h.bomb||o.bomb||h.bombCd>0||o.bombCd>0)continue;
+      if(o===h.bomb.from&&aliveList().length>2)continue;
+      const ft=h.bomb.t;clearBomb(h);h.bombCd=MAZE.pass;giveBomb(o,ft,h);SFX.play('pass');
+      burst(o.x,o.y,16,'#ffb347',240);addText(o.x,o.y-o.r-40,'💣 넘어감!','#ffb347',17);o.stun=Math.max(o.stun,0.2);
+    }
+    S.bombTag.length=0;
+  }
   checkEnd();
 }
 
@@ -1078,6 +1090,7 @@ function hurt(m,dmg,by,cx,cy){
   dmg=Math.round(dmg);if(dmg<=0)return;
   SFX.play('hit',{dmg});
   if(isRace()&&by&&RACE_MUL[by.skill])dmg=Math.round(dmg*RACE_MUL[by.skill]); // 레이스에서 약한 근접·설치형 스킬 보정
+  if(isBomb()&&by&&by.bomb&&!m.bomb&&by.bombCd<=0&&m.bombCd<=0&&(m!==by.bomb.from||aliveList().length<=2))S.bombTag.push([by,m]); // 스킬로 맞히면 폭탄이 넘어감 (스텝 끝에서 처리)
   if(isRace()||isHole()||isBomb()){ // 레이스·블랙홀·폭탄: 체력 대신 잠깐 정지 + 뒤로(안쪽으로) 밀림 (피해량만큼). 흡혈은 대신 가속
     m.stun=Math.max(m.stun,Math.min(1.0,dmg*0.025));m.hit=1;S.hits++;S.dmgTotal+=dmg;S.lastDmgT=S.time;
     if(isHole()){const d=Math.hypot(m.x,m.y)||1;shove(m,-m.x/d*dmg*7,-m.y/d*dmg*7)}else if(isRace()&&m.tx!==undefined)shove(m,-m.tx*dmg*7,-m.ty*dmg*7);
@@ -1227,7 +1240,7 @@ function stadiumPath(L,R){ctx.moveTo(-L,-R);ctx.lineTo(L,-R);ctx.arc(L,0,R,-Math
 
 function updateCamera(dt){
   const {L,R,T,B}=region();
-  const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.W/2+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.H/2+20:ARENA_R;
+  const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+20:ARENA_R;
   const fit=Math.max(0.08,Math.min((R-L)/(AW*2+40),(B-T)/(AH*2+40))); // 화면이 아주 작아져도(모바일 키보드 등) 0 이하로 내려가지 않게
   let tx=0,ty=0,tz=fit,speed=2.5;
   const alive=aliveList();
@@ -1612,12 +1625,11 @@ function render(){
     // 트랙 안쪽 문구
     ctx.fillStyle='rgba(255,255,255,0.22)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 40px ${FONT}`;ctx.fillText('SOOP 촌장 고봉 방송',0,-18);ctx.font=`700 24px ${FONT}`;ctx.fillText('많은 시청 부탁드립니다.',0,22);
     ctx.lineJoin='miter';ctx.lineCap='butt';
-  }else if(isBomb()){ // 폭탄: 미로 바닥 (블록은 아래 구조물 루프에서 그림)
-    ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fillRect(-MAZE.W/2,-MAZE.H/2,MAZE.W,MAZE.H);
-    ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=1;ctx.beginPath();
-    for(let gx=-MAZE.W/2;gx<=MAZE.W/2;gx+=100){ctx.moveTo(gx,-MAZE.H/2);ctx.lineTo(gx,MAZE.H/2)}
-    for(let gy=-MAZE.H/2;gy<=MAZE.H/2;gy+=100){ctx.moveTo(-MAZE.W/2,gy);ctx.lineTo(MAZE.W/2,gy)}ctx.stroke();
-    ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=6;ctx.strokeRect(-MAZE.W/2,-MAZE.H/2,MAZE.W,MAZE.H);
+  }else if(isBomb()){ // 폭탄: 원형 바닥 (벽은 아래 구조물 루프에서 그림)
+    ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;
+    for(const rr2 of [165,305]){ctx.beginPath();ctx.arc(0,0,rr2,0,TAU);ctx.stroke()}
+    ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=6;ctx.stroke();
   }else if(isHole()){ // 블랙홀: 둥근 바닥, 안쪽으로 감기는 나선 팔, 가운데 블랙홀, 바깥 벽
     ctx.beginPath();ctx.arc(0,0,HOLE.R,0,TAU);ctx.fillStyle=S.final?'#0e0b14':'#12121b';ctx.fill();
     ctx.lineWidth=2;for(let k=0;k<3;k++){ctx.strokeStyle=`rgba(190,140,255,${0.10+0.05*k})`;ctx.beginPath();for(let i=0;i<=60;i++){const u=i/60,rad=HOLE.r0+u*(HOLE.R-HOLE.r0),ang=k*TAU/3+u*4.5+S.time*0.8;const px=Math.cos(ang)*rad,py=Math.sin(ang)*rad;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}
