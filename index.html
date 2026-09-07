@@ -369,10 +369,6 @@ function buildTrack(){
   RACE.L=s0;
 }
 buildTrack();
-// 가속 발판: 네 직선의 한가운데, 바깥 차선에만. 코너 바깥은 중심선 기준 진행이 2.5배 느려서 발판을 둬도 함정이 된다
-const PAD={len:96,lat0:-176,lat1:-96,dur:0.8}; // dur: 밟았을 때 부스트 지속 시간(초)
-const PADS=(()=>{const SL=RACE.W-RACE.R*2,SS=RACE.H-RACE.R*2,CR=Math.PI/2*RACE.R; // 긴 직선, 짧은 직선, 코너 호 길이
-  return [SL+CR+SS/2, SL*2+CR*2+SS+CR+SS/2].map(s=>({s}))})(); // 좌우 직선 한가운데 두 개 (위아래 것은 뺐다)
 const halfWAt=s=>RACE.halfW;
 // 트랙 위 위치: 진행 거리 s, 중심선에서의 옆 거리 lat(+는 진행 방향 기준 왼쪽 법선), 접선 tx/ty
 function trackPos(x,y){let best=Infinity,bs=0,bl=0,bt=null;
@@ -394,13 +390,7 @@ function raceMove(m,dt){
   const hw=halfWAt(m.s);
   m.laneT-=dt;if(m.laneT<=0){m.laneT=rand(1.2,3);m.lane=rand(-hw+m.r+8,hw-m.r-8)}
   m.spdT-=dt;if(m.spdT<=0){m.spdT=rand(1.5,3);m.spdTarget=rand(0.9,1.1)}m.spd+=(m.spdTarget-m.spd)*Math.min(1,dt*1.5);
-  m.boost=Math.max(0,m.boost-dt);m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);m.padT=Math.max(0,m.padT-dt);
-  if(m.lat>PAD.lat0&&m.lat<PAD.lat1&&m.stun<=0){ // 바깥 차선의 발판을 밟았나
-    for(const pd of PADS){let ds=m.s-pd.s;if(ds>RACE.L/2)ds-=RACE.L;else if(ds<-RACE.L/2)ds+=RACE.L;
-      if(Math.abs(ds)<PAD.len/2){
-        if(m.padT<=0){SFX.play('boost');if(aliveList().length<=20)addText(m.x,m.y-m.r-22,'≫ 가속','#ffd166',15)}
-        m.boost=Math.max(m.boost,PAD.dur);m.padT=0.5;break}}
-  }
+  m.boost=Math.max(0,m.boost-dt);m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);
   const gapF=clamp((S.raceLead-m.prog)/800,0,1),alone=m.prog>=S.raceLead-1&&S.raceGap2>150; // 선두와의 거리 비율, 선두가 2등을 150 이상 벌렸는지
   let sp=RACE.base*m.spd*m.speedMul*(1+0.25*gapF)*(alone?0.9:1)*(m.boost>0?1.45:1)*(m.slow>0?0.65:1);if(m.stun>0||m.frozen>0)sp=0;
   const nx=-m.ty,ny=m.tx,lane=clamp(m.lane,-hw+m.r+4,hw-m.r-4),latErr=lane-m.lat;
@@ -418,7 +408,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.portalAxis=-1;this.toPortal=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.padT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.portalAxis=-1;this.toPortal=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
@@ -558,7 +548,6 @@ const SFX=(()=>{
   def('duel',0,()=>{tone({f:80,f2:40,dur:0.5,g:0.55,type:'triangle'});noise({f:800,f2:100,dur:0.4,g:0.35});tone({f:440,dur:0.6,g:0.12,at:0.25,type:'square'});tone({f:660,dur:0.7,g:0.12,at:0.45,type:'square'})},99);
   def('finish',0,()=>{tone({f:70,f2:30,dur:1.2,g:0.6});noise({f:600,f2:80,dur:1.0,g:0.45})},99);
   def('win',0,()=>{[523,659,784,1046].forEach((f,i)=>{tone({f,dur:0.5,g:0.2,at:i*0.13,type:'triangle'});tone({f:f*2,dur:0.4,g:0.07,at:i*0.13})});noise({f:5000,dur:1.2,g:0.07,ft:'highpass',at:0.5})},99);
-  def('boost',70,()=>{tone({f:420,f2:1600,dur:0.18,g:0.24,type:'sawtooth'});noise({f:1500,f2:4500,dur:0.16,g:0.1,ft:'bandpass'})},99);
   def('lap',0,()=>{tone({f:1568,dur:0.35,g:0.22,type:'triangle'});tone({f:2093,dur:0.5,g:0.18,at:0.12,type:'triangle'})},99);
   def('last',0,()=>{tone({f:392,f2:330,dur:0.25,g:0.22,type:'sawtooth'});tone({f:330,f2:262,dur:0.35,g:0.22,at:0.25,type:'sawtooth'});tone({f:262,f2:180,dur:0.6,g:0.22,at:0.55,type:'sawtooth'})},99);
   def('warp',60,()=>{tone({f:300,f2:1400,dur:0.22,g:0.26,type:'triangle'});tone({f:1400,f2:400,dur:0.2,g:0.14,at:0.18,type:'sine'});noise({f:1200,f2:4000,dur:0.18,g:0.1,ft:'bandpass'})},99);
@@ -1745,24 +1734,13 @@ function render(){
   ctx.save();
   ctx.translate(cx,cy);ctx.scale(S.cam.zoom,S.cam.zoom);ctx.translate(-S.cam.x,-S.cam.y);
 
-  if(isRace()){ // 트랙: 둥근 사각형 도로, 좁은 구간, 중앙 점선, 부스터 패드, 출발선
+  if(isRace()){ // 트랙: 둥근 사각형 도로, 중앙 점선, 출발선
     const path=()=>{ctx.beginPath();RACE.pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath()};
     ctx.lineJoin='round';ctx.lineCap='round';
     path();ctx.lineWidth=RACE.halfW*2+14;ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.stroke();
     path();ctx.lineWidth=RACE.halfW*2;ctx.strokeStyle=S.final?'#141019':'#1a1a26';ctx.stroke();
     path();ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.setLineDash([18,18]);ctx.stroke();ctx.setLineDash([]);
     ctx.globalAlpha=1;
-    for(const pd of PADS){ // 가속 발판: 바깥 차선에 붙은 노란 판 + 진행 방향으로 흘러가는 화살
-      const q=trackPoint(pd.s),hw2=PAD.len/2,y0=PAD.lat0,y1=PAD.lat1,ym=(y0+y1)/2;
-      ctx.save();ctx.translate(q.x,q.y);ctx.rotate(Math.atan2(q.ty,q.tx));
-      ctx.fillStyle='rgba(255,209,102,0.14)';ctx.fillRect(-hw2,y0,PAD.len,y1-y0);
-      ctx.strokeStyle='rgba(255,209,102,0.55)';ctx.lineWidth=2.5;ctx.strokeRect(-hw2,y0,PAD.len,y1-y0);
-      ctx.fillStyle='#ffd166';
-      for(let i=0;i<3;i++){const t=(S.time*1.1+i/3)%1,cx2=-hw2+t*PAD.len;
-        ctx.globalAlpha=Math.sin(t*Math.PI)*0.9;
-        ctx.beginPath();ctx.moveTo(cx2-15,y0+8);ctx.lineTo(cx2+15,ym);ctx.lineTo(cx2-15,y1-8);ctx.lineTo(cx2-4,ym);ctx.closePath();ctx.fill()}
-      ctx.globalAlpha=1;ctx.restore();
-    }
     {const q=trackPoint(0);ctx.save();ctx.translate(q.x,q.y);ctx.rotate(Math.atan2(q.ty,q.tx));const n=10,cell=RACE.halfW*2/n;for(let i=0;i<n;i++)for(let j=0;j<2;j++){ctx.fillStyle=(i+j)%2?'#fff':'#222';ctx.fillRect(-14+j*14,-RACE.halfW+i*cell,14,cell)}ctx.restore()}
     // 트랙 안쪽 문구
     ctx.fillStyle='rgba(255,255,255,0.22)';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 40px ${FONT}`;ctx.fillText('SOOP 촌장 고봉 방송',0,-18);ctx.font=`700 24px ${FONT}`;ctx.fillText('많은 시청 부탁드립니다.',0,22);
