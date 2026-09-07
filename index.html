@@ -55,12 +55,11 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 #rank{top:12px;right:12px;width:250px;max-height:calc(100% - 24px);overflow:auto;padding:10px 12px;font-size:13px;background:transparent;border:0;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 7px rgba(0,0,0,.8)}
 #rank h3{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;display:flex;justify-content:flex-end;gap:10px}
 .row{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:3px 0;line-height:1.2}
-.row .dot{width:10px;height:10px;border-radius:50%;flex:none}
 .row .nm{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;text-align:right}
 .row .hp{width:54px;height:6px;background:#23232f;border-radius:3px;overflow:hidden;flex:none}
 .row .hp i{display:block;height:100%}
 .row .rk{color:var(--muted);font-variant-numeric:tabular-nums;width:26px;text-align:right;font-size:12px;flex:none}
-.row.dead{color:#5f6170}.row.dead .nm{text-decoration:line-through;opacity:.55}.row.dead .dot{background:#3a3a48!important}
+.row.dead{color:#5f6170}.row.dead .nm{text-decoration:line-through;opacity:.55}
 .row.win .nm{color:var(--gold)}
 #btnStop{display:none}
 /* 경기 중에는 왼쪽 아래에 조작줄만 남기고, 순위는 반투명 창으로 경기장 위에 띄운다 */
@@ -1243,22 +1242,14 @@ function checkEnd(){
   }
 }
 
-// 얼굴 그림은 CSS 클래스로 한 번만 등록한다 (순위 패널 줄마다 data URI를 다시 넣으면 매우 느리다)
-const FACE_CLS={};
-(()=>{const keys=Object.keys(FACE_IMAGES);if(!keys.length)return;
-  const st=document.createElement('style');
-  st.textContent=keys.map((k,i)=>{FACE_CLS[k]='fc'+i;return `.dot.fc${i}{background:url(${FACE_IMAGES[k]}) center/cover}`}).join('');
-  document.head.appendChild(st)})();
-const faceCls=m=>(opt.faces&&S.faceOf&&S.faceOf[m.name]&&FACE_CLS[S.faceOf[m.name]])?' '+FACE_CLS[S.faceOf[m.name]]:'';
-
 // ---------- 패널 ----------
 // 순위 패널: 살아있는 줄은 만들어 둔 것을 고쳐 쓰고, 탈락한 줄은 탈락자가 바뀔 때만 다시 그림
 let deadKey=-1;
 const rankRows=[];
 function rankRow(i){let r=rankRows[i];if(r)return r;
   r=document.createElement('div');r.className='row';
-  r.innerHTML='<span class="dot"></span><span class="nm"></span><span class="rk"></span>';
-  r.$dot=r.children[0];r.$nm=r.children[1];r.$rk=r.children[2];
+  r.innerHTML='<span class="nm"></span><span class="rk"></span>';
+  r.$nm=r.children[0];r.$rk=r.children[1];
   rankRows[i]=r;return r}
 function updateRank(){
   const race=isRace(),hole=isHole(),bombM=isBomb(),n=S.marbles.length,alive=aliveList().sort(bombM?(a,b)=>(a.bomb?a.bomb.t:99)-(b.bomb?b.bomb.t:99)===0?a.i-b.i:((b.bomb?b.bomb.t:99)-(a.bomb?a.bomb.t:99)):(race||hole)?(a,b)=>b.prog-a.prog||a.i-b.i:(a,b)=>b.hp-a.hp||a.i-b.i),na=alive.length,max=80; // 레이스는 진행도 순, 블랙홀은 바깥에 있을수록 앞
@@ -1267,7 +1258,6 @@ function updateRank(){
    for(let i=0;i<show.length;i++){const m=show[i],r=rankRow(i);
      const cls='row'+(m.win?' win':''); if(r.className!==cls)r.className=cls;
      const rk=String(i+1); if(r.$rk.textContent!==rk)r.$rk.textContent=rk;
-     const fc='dot'+faceCls(m); if(r.$dot.className!==fc){r.$dot.className=fc;r.$dot.style.background=faceCls(m)?'':m.color}
      const nm=(m.skill?SKILLS[m.skill].icon+' ':'')+m.label; if(r.$nmText!==nm){r.$nmText=nm;r.$nm.textContent=nm;r.$nm.title=m.label}
      const col=m.win?'':m.color; if(r.$nmCol!==col){r.$nmCol=col;r.$nm.style.color=col}
    }
@@ -1280,7 +1270,7 @@ function updateRank(){
 
   if(key!==deadKey){deadKey=key;
     const dead=[...S.eliminated].reverse(),room=Math.max(0,max-Math.min(na,max));
-    rankDead.innerHTML=dead.slice(0,room).map(m=>`<div class="row dead ${m.win?'win':''}"><span class="dot"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${esc(m.label)}</span><span class="rk">${m.rank}</span></div>`).join('')
+    rankDead.innerHTML=dead.slice(0,room).map(m=>`<div class="row dead ${m.win?'win':''}"><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${esc(m.label)}</span><span class="rk">${m.rank}</span></div>`).join('')
       +(dead.length>room?`<div class="row" style="color:var(--muted)">… 외 ${dead.length-room}명</div>`:'');
   }
 }
