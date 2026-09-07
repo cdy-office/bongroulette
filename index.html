@@ -267,21 +267,22 @@ const isRace=()=>opt.game==='race';
 const isHole=()=>opt.game==='hole';
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
-const MAZE={W:900,H:620,fuse:7,pass:0.55,spawn:1.0}; // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
-function buildMaze(){ // 넓은 통로의 블록 6개 (막다른 길 없이 빙 돌 수 있게)
-  const obs=[];
-  for(const cx of [-260,0,260])for(const cy of [-130,130]){
-    const hw=80,hh=60;const pts=[[cx-hw,cy-hh],[cx+hw,cy-hh],[cx+hw,cy+hh],[cx-hw,cy+hh]];
+const MAZE={W:1300,H:900,fuse:7,pass:0.5,spawn:1.0,hold:600,flee:470}; // hold/flee: 폭탄 보유자가 더 빨라야 제3자를 잡을 수 있다 // fuse 심지(초), pass 전달 후 잠금, spawn 다음 폭탄까지
+function buildMaze(){ // 넓은 미로: 위아래 4칸, 가운데 3칸으로 어긋나게. 통로 105~200, 막다른 길 없음
+  const obs=[],add=(cx,cy,hw,hh)=>{const pts=[[cx-hw,cy-hh],[cx+hw,cy-hh],[cx+hw,cy+hh],[cx-hw,cy+hh]];
     let a=0;for(let i=0;i<4;i++){const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%4];a+=x1*y2-x2*y1}
-    obs.push({pts,rc:8,sign:a>=0?1:-1,block:true});
-  }
+    obs.push({pts,rc:8,sign:a>=0?1:-1,block:true})};
+  for(const cy of [-270,270])for(const cx of [-450,-150,150,450])add(cx,cy,95,65);
+  add(-330,0,120,55);add(0,0,100,55);add(330,0,120,55);
   return obs;
 }
 // 폭탄 보유자는 남에게 달려들고, 나머지는 가장 가까운 보유자에게서 도망친다
 function bombMove(m,dt){
   const acc=CFG.accel;let ax=0,ay=0;
   if(m.bomb){
-    let t=null,bd=Infinity;for(const o of S.marbles){if(!o.alive||o===m||o.bomb||!isFoe(m,o))continue;const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
+    const n2=aliveList().length;let t=null,bd=Infinity;
+    for(const o of S.marbles){if(!o.alive||o===m||o.bomb||!isFoe(m,o))continue;if(m.bomb.from===o&&n2>2)continue; // 방금 준 사람은 쫓지 않음
+      const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
     if(t){const dx=t.x-m.x,dy=t.y-m.y,L=Math.hypot(dx,dy)||1;ax=dx/L*acc*1.7;ay=dy/L*acc*1.7;
       m.dashCd-=dt;if(m.dashCd<=0&&L<240){m.dashCd=rand(0.9,1.6);m.vx+=dx/L*400;m.vy+=dy/L*400;m.dash=0.3}}
@@ -295,8 +296,8 @@ function bombMove(m,dt){
 }
 // 폭탄 넘기기: 새 주인은 무작위 스킬을 얻고, 이전 주인은 스킬을 잃는다
 const BOMB_SKILLS=SKILL_KEYS.filter(k=>k!=='giant');
-function giveBomb(m,fuse){
-  m.bomb={t:fuse!==undefined?fuse:MAZE.fuse+rand(0,2)};m.bombCd=MAZE.pass;
+function giveBomb(m,fuse,from){
+  m.bomb={t:fuse!==undefined?fuse:MAZE.fuse+rand(0,2),from:from||null};m.bombCd=MAZE.pass;
   m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];m.skillCd=rand(0.3,1.2);m.shield=false;m.trail=[];
   const sk=SKILLS[m.skill];burst(m.x,m.y,16,sk.color,220);addText(m.x,m.y-m.r-26,`${sk.icon} ${sk.name}`,sk.color,17);SFX.play(m.skill);
 }
@@ -938,7 +939,7 @@ function step(dt){
     m.vx+=ax*dt;m.vy+=ay*dt;
     const damp=Math.max(0,1-(race?0.2:hole?0.9:CFG.damping)*dt);m.vx*=damp;m.vy*=damp;
     if(bombM){m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);m.boost=Math.max(0,m.boost-dt);if(m.stun>0){m.vx*=0.82;m.vy*=0.82}}
-    const msp=(m.fling>0?1500:(race?620:hole?420:CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
+    const msp=(m.fling>0?1500:(race?620:hole?420:bombM?(m.bomb?MAZE.hold:MAZE.flee)*(m.boost>0?1.25:1):CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
     m.x+=m.vx*dt;m.y+=m.vy*dt;
     m.hit=Math.max(0,m.hit-dt*4);m.dash=Math.max(0,m.dash-dt);m.inv=Math.max(0,m.inv-dt);m.shieldFx=Math.max(0,m.shieldFx-dt);
     if(S.final||bombM){ // 폭탄 모드는 결전 없이도 스킬이 돈다
@@ -983,8 +984,8 @@ function step(dt){
       const sepR=min*CFG.sepRange,charging=(a.dash>0&&a.target===b)||(b.dash>0&&b.target===a);
       if(dist<sepR&&dist>1e-6&&!charging){const k=(1-Math.min(1,dist/sepR))*CFG.sepForce*dt,ux=dx/dist,uy=dy/dist;a.vx-=ux*k;a.vy-=uy*k;b.vx+=ux*k;b.vy+=uy*k}
       if(bombM&&dist<min+6&&(opt.teamFire||a.faction!==b.faction)){ // 폭탄 넘기기
-        for(const [h,o] of [[a,b],[b,a]])if(h.bomb&&!o.bomb&&h.bombCd<=0&&o.bombCd<=0&&o.alive){
-          const t=h.bomb.t;clearBomb(h);h.bombCd=MAZE.pass;giveBomb(o,t);SFX.play('pass');
+        for(const [h,o] of [[a,b],[b,a]])if(h.bomb&&!o.bomb&&h.bombCd<=0&&o.bombCd<=0&&o.alive&&(o!==h.bomb.from||na<=2)){ // 방금 넘겨준 사람에게는 되돌려 주지 못함
+          const t=h.bomb.t;clearBomb(h);h.bombCd=MAZE.pass;giveBomb(o,t,h);SFX.play('pass');
           burst((a.x+b.x)/2,(a.y+b.y)/2,14,'#ffb347',220);addText(o.x,o.y-o.r-40,'💣 넘어감!','#ffb347',16);break}}
       if(dist<min+8&&S.final&&(race||hole)&&(opt.teamFire||a.faction!==b.faction)){ // 레이스·블랙홀: 흡혈은 스치기만 해도 물어서 피해+가속 (같은 방향으로 달려 충돌 세기가 약하므로)
         for(const [d1,d2] of [[a,b],[b,a]])if(d1.skill==='drain'&&d1.biteCd<=0&&d2.alive){d1.biteCd=1.2;SFX.play('drain');burst(d2.x,d2.y,10,'#c8102e',180);hurt(d2,14,d1,d2.x,d2.y)}}
