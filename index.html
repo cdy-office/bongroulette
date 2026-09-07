@@ -15,12 +15,15 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 #ctrl::-webkit-scrollbar{width:6px}
 #ctrl::-webkit-scrollbar-thumb{background:#3a3a4a;border-radius:3px}
 #ctrl::-webkit-scrollbar-track{background:transparent}
-/* 창이 짧아도 눌려 사라지지 않게. 줄어드는 건 이름 입력칸과 기록칸뿐 */
-#ctrl>.head,#ctrl>#gameSeg,#ctrl>.opts,#ctrl>.btns{flex-shrink:0}
-#nameBox{display:flex;flex-direction:column;flex:0 1 auto;min-height:0}
-#nameBox textarea{flex:1 1 auto;min-height:64px}
-#ctrl>.feedwrap{flex:1 1 0;min-height:0}
-#ctrl>.btns{position:sticky;bottom:0;z-index:2;background:#12121a;padding:6px 0}
+/* 어느 화면에서도 눌려 사라지지 않게. 모바일은 이 상태로 시트가 스크롤된다 */
+#ctrl>*{flex-shrink:0}
+/* 데스크톱에서만, 이름 입력칸과 기록칸이 줄어들어 스크롤 없이 다 들어가게 한다 */
+@media (min-width:821px){
+  #ctrl>#nameBox{display:flex;flex-direction:column;flex:0 1 auto;min-height:0;overflow:hidden}
+  #ctrl>#nameBox textarea{flex:1 1 auto;min-height:64px}
+  #ctrl>.feedwrap{flex:1 1 0;min-height:0}
+  #ctrl>.btns{position:sticky;bottom:0;z-index:2;background:#12121a;padding:6px 0}
+}
 #ctrl .head{font-weight:800;font-size:15px;letter-spacing:.3px}
 #ctrl .head small{display:block;color:var(--muted);font-weight:500;font-size:11px;margin-top:2px}
 #ctrl label.t{display:block;font-weight:700;margin-bottom:5px;font-size:12px}
