@@ -185,7 +185,7 @@ const SKILLS={
   bolt:{name:'번개',icon:'⚡',color:'#ffe66d',desc:'마법사 모자와 지팡이. 4.5초마다 가까운 상대에게 번개 19'},
   blink:{name:'순간이동',icon:'💨',color:'#c8b6ff',desc:'닌자 두건과 쿠나이. 4.5초마다 상대 옆으로 순간이동해 쿠나이로 20, 이어서 돌진'},
   wave:{name:'충격파',icon:'💥',color:'#ff5ca8',desc:'뿔 투구와 전쟁 망치. 6초마다 반경 280을 밀쳐내고 가까운(190) 상대에게 피해 20'},
-  drain:{name:'흡혈',icon:'🩸',color:'#ff4d6d',desc:'망토와 실크햇. 입힌 피해의 60%만큼 회복'},
+  drain:{name:'흡혈',icon:'🩸',color:'#ff4d6d',desc:'망토와 실크햇. 입힌 피해의 60%만큼 회복하고 1.2초 동안 빨라짐'},
   frost:{name:'빙결',icon:'❄️',color:'#9fe8ff',desc:'얼음 왕관과 지팡이. 5초마다 얼음 창을 날려 궤적의 상대에게 9를 주고 1.2초 얼림, 언 상대는 피해 1.4배'},
   magnet:{name:'자석',icon:'🧲',color:'#ff9de2',desc:'안전모와 U자 자석. 6초마다 2초 동안 물결 원(반경 170) 안의 상대를 끌어당김, 당기는 동안 부딪히면 피해 1.7배'},
   arrow:{name:'화살',icon:'🏹',color:'#e0c080',desc:'깃털 모자와 활. 3초마다 가까운 상대에게 화살 18'},
@@ -320,7 +320,7 @@ function raceMove(m,dt){
   m.spdT-=dt;if(m.spdT<=0){m.spdT=rand(1.5,3);m.spdTarget=rand(0.9,1.1)}m.spd+=(m.spdTarget-m.spd)*Math.min(1,dt*1.5);
   m.boost=Math.max(0,m.boost-dt);m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);
   const gapF=clamp((S.raceLead-m.prog)/800,0,1),alone=m.prog>=S.raceLead-1&&S.raceGap2>150; // 선두와의 거리 비율, 선두가 2등을 150 이상 벌렸는지
-  let sp=RACE.base*m.spd*m.speedMul*(1+0.25*gapF)*(alone?0.9:1)*(m.boost>0?1.7:1)*(m.slow>0?0.65:1);if(m.stun>0||m.frozen>0)sp=0;
+  let sp=RACE.base*m.spd*m.speedMul*(1+0.25*gapF)*(alone?0.9:1)*(m.boost>0?1.45:1)*(m.slow>0?0.65:1);if(m.stun>0||m.frozen>0)sp=0;
   const nx=-m.ty,ny=m.tx,lane=clamp(m.lane,-hw+m.r+4,hw-m.r-4),latErr=lane-m.lat;
   const wx=m.tx*sp+nx*latErr*2.2,wy=m.ty*sp+ny*latErr*2.2;
   const k=Math.min(1,dt*(m.stun>0?8:4));m.vx+=(wx-m.vx)*k;m.vy+=(wy-m.vy)*k;
@@ -764,6 +764,8 @@ function step(dt){
     if(!m.alive)continue;
     m.px=m.x;m.py=m.y; // 이전 위치 (렌더 보간용)
     m.fling=Math.max(0,m.fling-dt);m.fireCd=Math.max(0,m.fireCd-dt);m.swing=Math.max(0,m.swing-dt);
+    if(!race&&!hole)m.boost=Math.max(0,m.boost-dt);
+    if(m.boost>0&&m.skill==='drain'&&rng()<0.5){const sp2=Math.hypot(m.vx,m.vy)||1;S.particles.push({x:m.x-m.vx/sp2*m.r,y:m.y-m.vy/sp2*m.r,vx:-m.vx*0.3+rand(-40,40),vy:-m.vy*0.3+rand(-40,40),life:rand(0.2,0.4),color:rng()<0.5?'#ff4d6d':'#c8102e',r:rand(2,4)})} // 흡혈 가속 잔광
     if(m.fireDmg>0){m.fireTextT-=dt;if(m.fireTextT<=0){if(S.final)addText(m.x+rand(-6,6),m.y-10,'🔥 -'+m.fireDmg,'#ff7a3d',16);m.fireDmg=0;m.fireTextT=0.6}}
     // 발도술: 0.2초 간격으로 가까운 상대에게 일직선 베기 (상대 뒤로 순간 이동)
     if(m.iai){m.iai.timer-=dt;
@@ -855,7 +857,7 @@ function step(dt){
       else if(m.target){
         let dx=m.target.x-m.x,dy=m.target.y-m.y;const L=Math.hypot(dx,dy)||1e-6;dx/=L;dy/=L;
         m.wob+=rand(-1,1)*5*dt;const w=Math.sin(m.wob)*0.45;
-        const acc=(L>140?CFG.accel*1.4:CFG.accel)*m.speedMul;
+        const acc=(L>140?CFG.accel*1.4:CFG.accel)*m.speedMul*(m.boost>0?1.6:1); // 흡혈 가속 중엔 더 빠르게
         const pref=m.r+m.target.r+CFG.prefGap; // 이 거리에서 간을 보다가 돌진으로만 붙음
         if(m.recoil>0)m.recoil-=dt; // 맞부딪힌 직후: 추적하지 않고 튕겨 나감
         else if(m.dash>0||L>pref+25){ax=(dx-dy*w)*acc;ay=(dy+dx*w)*acc} // 멀면 접근 (돌진 중엔 끝까지)
@@ -870,7 +872,7 @@ function step(dt){
     }
     m.vx+=ax*dt;m.vy+=ay*dt;
     const damp=Math.max(0,1-(race?0.2:hole?0.9:CFG.damping)*dt);m.vx*=damp;m.vy*=damp;
-    const msp=(m.fling>0?1500:(race?620:hole?420:CFG.maxSpeed*m.speedMul));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
+    const msp=(m.fling>0?1500:(race?620:hole?420:CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
     m.x+=m.vx*dt;m.y+=m.vy*dt;
     m.hit=Math.max(0,m.hit-dt*4);m.dash=Math.max(0,m.dash-dt);m.inv=Math.max(0,m.inv-dt);m.shieldFx=Math.max(0,m.shieldFx-dt);
     if(S.final){
@@ -1003,11 +1005,11 @@ function hurt(m,dmg,by,cx,cy){
     m.stun=Math.max(m.stun,Math.min(1.0,dmg*0.025));m.hit=1;S.hits++;S.dmgTotal+=dmg;S.lastDmgT=S.time;
     if(isHole()){const d=Math.hypot(m.x,m.y)||1;shove(m,-m.x/d*dmg*7,-m.y/d*dmg*7)}else if(m.tx!==undefined)shove(m,-m.tx*dmg*7,-m.ty*dmg*7);
     if(S.final)addText(cx+rand(-8,8),cy-10+rand(-6,6),(crit?'💥':isHole()?'🌀':'🐌')+' -'+dmg,crit?'#ffd166':'#fff',crit?24:17);
-    if(by&&by.alive&&by.skill==='drain'){by.boost=Math.max(by.boost,0.8);SFX.play('drain');if(S.final)addText(by.x,by.y-by.r-8,'🩸 가속','#5be38b',16)}
+    if(by&&by.alive&&by.skill==='drain'){by.boost=Math.max(by.boost,1.2);SFX.play('drain');if(S.final)addText(by.x,by.y-by.r-8,'🩸 가속','#5be38b',16)}
     return}
   m.hp-=dmg;m.hit=1;S.hits++;S.dmgTotal+=dmg;
   if(S.final)addText(cx+rand(-8,8),cy-10+rand(-6,6),(crit?'💥':'')+'-'+dmg,crit?'#ffd166':'#fff',crit?24:17);
-  if(by&&by.alive&&by.skill==='drain'){const heal=Math.round(dmg*BAL.drainHeal);if(heal>0&&by.hp<by.hpMax){by.hp=Math.min(by.hpMax,by.hp+heal);SFX.play('drain');
+  if(by&&by.alive&&by.skill==='drain'){const heal=Math.round(dmg*BAL.drainHeal);if(heal>0&&by.hp<by.hpMax){by.hp=Math.min(by.hpMax,by.hp+heal);by.boost=Math.max(by.boost,1.2);SFX.play('drain');
     const dx=by.x-m.x,dy=by.y-m.y,d=Math.hypot(dx,dy)||1;for(let k=0;k<8;k++)S.particles.push({x:m.x+rand(-6,6),y:m.y+rand(-6,6),vx:dx/d*rand(200,380),vy:dy/d*rand(200,380),life:rand(0.25,0.45),color:'#ff4d6d',r:rand(1.5,3)});
     for(let k=0;k<9;k++){const a=rand(-2.6,-0.5);S.particles.push({x:cx,y:cy,vx:Math.cos(a)*rand(60,220),vy:Math.sin(a)*rand(60,220)+120,life:rand(0.35,0.6),color:k%2?'#c8102e':'#ff2d55',r:rand(2,4)})} // 피 튀김
     burst(by.x,by.y,12,'#5be38b',120);if(S.final)addText(by.x,by.y-by.r-8,'🩸 +'+heal,'#5be38b',16)}}
@@ -1315,7 +1317,7 @@ function drawMarble(m){
   if(m.burn>0){ctx.fillStyle=`rgba(255,60,80,${0.55*m.burn})`;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill()}
   if(!face){ctx.fillStyle='rgba(255,255,255,0.28)';ctx.beginPath();ctx.arc(x-r*0.3,y-r*0.3,r*0.33,0,TAU);ctx.fill()}
   // ---- 얼굴 장식 ----
-  if(m.skill==='drain'){ctx.fillStyle='#fff';for(const k of [-1,1]){const fx=x+k*r*0.3;ctx.beginPath();ctx.moveTo(fx-r*0.14,y+r*0.2);ctx.lineTo(fx+r*0.14,y+r*0.2);ctx.lineTo(fx,y+r*0.62);ctx.closePath();ctx.fill()}}
+  if(m.skill==='drain'){ctx.fillStyle='#fff';for(const k of [-1,1]){const fx=x+k*r*0.32;ctx.beginPath();ctx.moveTo(fx-r*0.13,y+r*0.92);ctx.lineTo(fx+r*0.13,y+r*0.92);ctx.lineTo(fx,y+r*1.3);ctx.closePath();ctx.fill()}} // 송곳니: 공 아래에 매달림
   if(m.skill==='blink'){
     ctx.fillStyle='#4b2a8a';ctx.fillRect(x-r*0.95,y-r*0.55,r*1.9,r*0.32);
     ctx.strokeStyle='#4b2a8a';ctx.lineWidth=Math.max(2,r*0.16);ctx.beginPath();ctx.moveTo(x-r*0.9,y-r*0.4);ctx.quadraticCurveTo(x-r*1.6,y-r*0.2,x-r*1.9,y-r*0.7);ctx.moveTo(x-r*0.9,y-r*0.4);ctx.quadraticCurveTo(x-r*1.7,y-r*0.6,x-r*1.8,y-r*1.1);ctx.stroke();
