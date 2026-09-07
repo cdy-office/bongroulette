@@ -1387,7 +1387,7 @@ function drawDuelHud(L,R,T,B,cx){
   };
   draw(A,L,false,slide);draw(Bm,R-w,true,slide);
   // 가운데 VS
-  ctx.save();ctx.globalAlpha=p;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 ${22+4*(1-p)}px ${FONT}`;ctx.lineJoin='round';
+  ctx.save();ctx.globalAlpha=p;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 ${Math.round(22+4*(1-p))}px ${FONT}`;ctx.lineJoin='round';
   ctx.lineWidth=6;ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.strokeText('VS',cx,y+h/2);ctx.fillStyle='#ffd166';ctx.fillText('VS',cx,y+h/2);ctx.restore();
   // 누군가 체력이 30% 아래면 화면 가장자리가 은은하게 붉게 고동침 (눈이 피로하지 않게 약하게)
   const lowAny=S.duelists.some(m=>m.alive&&m.hp/m.hpMax<0.3);
@@ -1438,6 +1438,20 @@ function drawBolt(b){
 }
 // 공 그리기 (결전에서는 스킬에 맞는 무기와 모자를 든다. 몸통 = 히트박스는 그대로)
 function star(x,y,r){ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;ctx.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}ctx.closePath();ctx.fill()}
+const LBL_PX=26, LBL_SS=2, labelCache={};   // LBL_PX 기준 크기, LBL_SS 저장 배율(확대해도 덜 흐리게)
+function skillLabel(key){
+  let c=labelCache[key];if(c)return c;
+  const sk=SKILLS[key],txt=`${sk.icon} ${sk.name}`;
+  const t=document.createElement('canvas'),g=t.getContext('2d');
+  g.font=`700 ${LBL_PX}px ${FONT}`;
+  const w=Math.ceil(g.measureText(txt).width)+10,h=Math.ceil(LBL_PX*1.5);
+  t.width=Math.max(1,w*LBL_SS);t.height=Math.max(1,h*LBL_SS);
+  g.setTransform(LBL_SS,0,0,LBL_SS,0,0);
+  g.font=`700 ${LBL_PX}px ${FONT}`;g.textAlign='center';g.textBaseline='top';
+  g.fillStyle='rgba(0,0,0,0.7)';g.fillText(txt,w/2+1,3+1);
+  g.fillStyle=sk.color;g.fillText(txt,w/2,3);
+  c={cv:t,w,h};labelCache[key]=c;return c;
+}
 function drawMarble(m){
   const s=m.skill?SKILLS[m.skill]:null,r=m.r,x=m.x,y=m.y;
   // ---- 몸 뒤: 잔상, 망토, 방패 ----
@@ -1662,14 +1676,31 @@ function drawMarble(m){
     const bx=x,by=y-r-16;ctx.fillStyle='#1a1a22';ctx.beginPath();ctx.arc(bx,by,9,0,TAU);ctx.fill();ctx.strokeStyle='#ffb347';ctx.lineWidth=2;ctx.stroke();
     ctx.strokeStyle='#c9a86a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(bx,by-9);ctx.quadraticCurveTo(bx+5,by-15,bx+2,by-19);ctx.stroke();
     ctx.fillStyle='#ffe66d';ctx.beginPath();ctx.arc(bx+2,by-19,2+Math.random()*2,0,TAU);ctx.fill();
-    ctx.font=`900 ${Math.max(13,13/S.cam.zoom)}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(m.bomb.t.toFixed(1),bx+20,by);
+    ctx.font=`900 ${Math.max(13,Math.round(Math.max(13,13/S.cam.zoom)/4)*4)}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText(m.bomb.t.toFixed(1),bx+20,by);
   }
-  const fs=Math.max(clamp(r*0.95,7,14),12/S.cam.zoom); // 공이 작아져도 이름은 화면에서 최소 12px
+  const fs=Math.max(12,Math.round(Math.max(clamp(r*0.95,7,14),12/S.cam.zoom)/4)*4); // 화면에서 최소 12px. 크기를 4px 단위로 묶어야 글꼴을 새로 만들지 않는다
   ctx.font=`700 ${fs}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='top';
   ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillText(m.name,x+1,y+rr+3+1);ctx.fillText(m.name,x-1,y+rr+3+1);
   ctx.fillStyle=m.color;ctx.fillText(m.name,x,y+rr+3); // 이름은 공 색으로
-  if(s){ctx.font=`700 ${Math.max(11/S.cam.zoom,fs*0.85)}px ${FONT}`;ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillText(`${s.icon} ${s.name}`,x+1,y+rr+4+fs+1);ctx.fillStyle=s.color;ctx.fillText(`${s.icon} ${s.name}`,x,y+rr+4+fs)}
+  if(s){const c=skillLabel(m.skill),sc=Math.max(11/S.cam.zoom,fs*0.85)/LBL_PX; // 저장해 둔 이름표를 필요한 크기로 늘려 그린다
+    ctx.drawImage(c.cv,x-c.w*sc/2,y+rr+2+fs,c.w*sc,c.h*sc)}
 }
+
+// 이모지는 색깔 그림 글리프라 처음 그리는 순간 브라우저가 이모지 글꼴을 통째로 불러온다 (한 번에 1~2초씩 멈춘다).
+// 결전에 들어가면 스킬 이모지가 한꺼번에 처음 등장해서 그 멈춤이 몰린다. 시작할 때 미리 한 번씩 그려 캐시에 올려 둔다.
+const WARM_EMOJI='⚔⚙⚡⚾✦❄🌀🌪🎯🎲🏁🏆🏹🐉🐌🐝👣👥💣💥💨💫🔀🔊🔥🔨🔴🖼🗿🚀🛡🧲🩸🪃';
+function warmGlyphs(){
+  try{
+    const t=document.createElement('canvas');t.width=t.height=72;const g=t.getContext('2d');
+    g.textBaseline='top';
+    for(const px of [11,12,13,14,15,16,17,18,20,22,24,26,32,40,54]){
+      g.font=`800 ${px}px ${FONT}`;
+      for(const c of WARM_EMOJI)g.fillText(c,0,0);
+    }
+    for(const k of SKILL_KEYS)skillLabel(k); // 스킬 이름표 그림도 미리 만들어 둔다
+  }catch(e){}
+}
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(warmGlyphs);else setTimeout(warmGlyphs,0);
 
 function render(){
   if(W<2||H<2)return; // 창이 아직 크기를 못 받았거나 숨겨진 상태
@@ -1827,7 +1858,17 @@ function render(){
       ctx.globalAlpha=a;ctx.strokeStyle='#fff';ctx.lineWidth=3.5;ctx.beginPath();ctx.arc(o.x,o.y,o.r,a0,a1);ctx.stroke()}
     else{ctx.globalAlpha=a*0.4;ctx.strokeStyle=o.color;ctx.lineWidth=o.w*2.4;ctx.beginPath();ctx.moveTo(o.x1,o.y1);ctx.lineTo(o.x2,o.y2);ctx.stroke();ctx.globalAlpha=a;ctx.lineWidth=o.w;ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=o.w*0.35;ctx.stroke()}}
   ctx.globalAlpha=1;
-  for(const t of S.texts){ctx.globalAlpha=clamp(t.life/0.4,0,1);ctx.font=`800 ${t.size}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillText(t.text,t.x+1.5,t.y+1.5);ctx.fillStyle=t.color;ctx.fillText(t.text,t.x,t.y)}
+  // 떠오르는 글자는 화면 좌표에 정수 크기로 그린다. 월드 배율에 실어 그리면 결전에서 카메라가 계속 확대되는 동안
+  // 글자 크기가 끊임없이 달라져, 브라우저가 글자(특히 이모지)를 매 프레임 새로 만드느라 한 프레임이 몇 초씩 걸린다
+  ctx.save();ctx.setTransform(DPR,0,0,DPR,0,0);ctx.textAlign='center';ctx.textBaseline='middle';
+  {const z=Math.round(clamp(S.cam.zoom,0.8,1.6)*2)/2; // 배율도 단계로 묶는다
+   for(const t of S.texts){
+    const sx=(t.x-S.cam.x)*S.cam.zoom+cx,sy=(t.y-S.cam.y)*S.cam.zoom+cy;
+    if(sx<-100||sx>W+100||sy<-60||sy>H+60)continue;                    // 화면 밖은 건너뛴다
+    ctx.globalAlpha=clamp(t.life/0.4,0,1);ctx.font=`800 ${Math.max(12,Math.round(t.size*z/2)*2)}px ${FONT}`;
+    ctx.fillStyle='rgba(0,0,0,.8)';ctx.fillText(t.text,sx+1.5,sy+1.5);
+    ctx.fillStyle=t.color;ctx.fillText(t.text,sx,sy)}}
+  ctx.globalAlpha=1;ctx.restore();
   ctx.globalAlpha=1;
   ctx.restore();
 
@@ -1869,12 +1910,12 @@ function render(){
   }
   if(S.phase==='countdown'){
     const n=Math.ceil(S.countdown),f=S.countdown-Math.floor(S.countdown);
-    ctx.textBaseline='middle';ctx.font=`900 ${80+40*f}px ${FONT}`;ctx.fillStyle=`rgba(255,255,255,${0.35+0.65*f})`;
-    ctx.fillText(n,cx,cy);
+    ctx.textBaseline='middle';ctx.font=`900 80px ${FONT}`;ctx.fillStyle=`rgba(255,255,255,${0.35+0.65*f})`;
+    ctx.save();ctx.translate(cx,cy);ctx.scale(1+0.5*f,1+0.5*f);ctx.fillText(n,0,0);ctx.restore();
   }
   if(S.fight>0){
-    const f=S.fight;ctx.textBaseline='middle';ctx.font=`900 ${70+(1-f)*40}px ${FONT}`;ctx.fillStyle=`rgba(255,209,102,${clamp(f*1.5,0,1)})`;
-    ctx.fillText('FIGHT!',cx,cy);
+    const f=S.fight;ctx.textBaseline='middle';ctx.font=`900 70px ${FONT}`;ctx.fillStyle=`rgba(255,209,102,${clamp(f*1.5,0,1)})`;
+    ctx.save();ctx.translate(cx,cy);const kf=1+(1-f)*4/7;ctx.scale(kf,kf);ctx.fillText('FIGHT!',0,0);ctx.restore();
   }
   drawToasts(R,T,B);
   drawBanner(cx,cy,B);
