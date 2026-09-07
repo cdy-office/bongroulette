@@ -52,11 +52,11 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
 #feed div.big{background:#2a1520;border:1px solid rgba(255,77,109,.5)}
 #feed div.gold{background:#2a2410;border:1px solid rgba(255,209,102,.5)}
 #feed b{font-weight:700}
-#rank{top:12px;right:12px;width:230px;max-height:calc(100% - 24px);overflow:auto;padding:10px 12px;font-size:13px}
-#rank h3{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between}
-.row{display:flex;align-items:center;gap:8px;padding:3px 0;line-height:1.2}
+#rank{top:12px;right:12px;width:250px;max-height:calc(100% - 24px);overflow:auto;padding:10px 12px;font-size:13px;background:transparent;border:0;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 7px rgba(0,0,0,.8)}
+#rank h3{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;display:flex;justify-content:flex-end;gap:10px}
+.row{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:3px 0;line-height:1.2}
 .row .dot{width:10px;height:10px;border-radius:50%;flex:none}
-.row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.row .nm{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;text-align:right}
 .row .hp{width:54px;height:6px;background:#23232f;border-radius:3px;overflow:hidden;flex:none}
 .row .hp i{display:block;height:100%}
 .row .rk{color:var(--muted);font-variant-numeric:tabular-nums;width:26px;text-align:right;font-size:12px;flex:none}
@@ -75,8 +75,6 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
   body[data-run="1"] #btnShuffle,body[data-run="1"] #btnStart{display:none}
   body[data-run="1"] #btnStop{display:block}
   body[data-run="1"] #ctrl>.btns{position:static;background:transparent;padding:0}
-  body[data-run="1"] #rank{background:rgba(18,18,26,0.55);border-color:rgba(255,255,255,0.10)}
-  body[data-run="1"] #rank .row .hp{background:rgba(35,35,47,0.6)}
 }
 #mtabs{display:none}
 /* 모바일: 위쪽은 경기장, 아래 46%는 설정/순위 시트 (탭으로 전환) */
@@ -86,6 +84,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
   #mtabs button{flex:1;background:transparent;border:0;color:var(--muted);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
   #mtabs button.on{color:var(--text);background:#232336}
   #ctrl,#rank{left:0;right:0;top:auto;bottom:0;width:auto;height:46vh;max-height:46vh;border-radius:0;border-left:0;border-right:0;border-bottom:0;overflow:auto;padding:10px 12px}
+  #rank{background:#12121a;border-top:1px solid var(--line);text-shadow:none} /* 모바일은 아래 시트라 배경을 남긴다 */
   #ctrl{display:flex;gap:8px}
   #ctrl .head{display:none}
   #ctrl textarea{height:96px}
@@ -1258,8 +1257,8 @@ let deadKey=-1;
 const rankRows=[];
 function rankRow(i){let r=rankRows[i];if(r)return r;
   r=document.createElement('div');r.className='row';
-  r.innerHTML='<span class="rk"></span><span class="dot"></span><span class="nm"></span>';
-  r.$rk=r.children[0];r.$dot=r.children[1];r.$nm=r.children[2];
+  r.innerHTML='<span class="dot"></span><span class="nm"></span><span class="rk"></span>';
+  r.$dot=r.children[0];r.$nm=r.children[1];r.$rk=r.children[2];
   rankRows[i]=r;return r}
 function updateRank(){
   const race=isRace(),hole=isHole(),bombM=isBomb(),n=S.marbles.length,alive=aliveList().sort(bombM?(a,b)=>(a.bomb?a.bomb.t:99)-(b.bomb?b.bomb.t:99)===0?a.i-b.i:((b.bomb?b.bomb.t:99)-(a.bomb?a.bomb.t:99)):(race||hole)?(a,b)=>b.prog-a.prog||a.i-b.i:(a,b)=>b.hp-a.hp||a.i-b.i),na=alive.length,max=80; // 레이스는 진행도 순, 블랙홀은 바깥에 있을수록 앞
@@ -1281,7 +1280,7 @@ function updateRank(){
 
   if(key!==deadKey){deadKey=key;
     const dead=[...S.eliminated].reverse(),room=Math.max(0,max-Math.min(na,max));
-    rankDead.innerHTML=dead.slice(0,room).map((m,i)=>`<div class="row dead ${m.win?'win':''}"><span class="rk">${na+i+1}</span><span class="dot"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${esc(m.label)}</span><span class="rk">#${m.rank}</span></div>`).join('')
+    rankDead.innerHTML=dead.slice(0,room).map(m=>`<div class="row dead ${m.win?'win':''}"><span class="dot"></span><span class="nm" title="${esc(m.label)}"${m.win?'':` style="color:${m.color}"`}>${esc(m.label)}</span><span class="rk">${m.rank}</span></div>`).join('')
       +(dead.length>room?`<div class="row" style="color:var(--muted)">… 외 ${dead.length-room}명</div>`:'');
   }
 }
