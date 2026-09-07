@@ -372,7 +372,7 @@ buildTrack();
 // 가속 발판: 네 직선의 한가운데, 바깥 차선에만. 코너 바깥은 중심선 기준 진행이 2.5배 느려서 발판을 둬도 함정이 된다
 const PAD={len:96,lat0:-176,lat1:-96,dur:0.8}; // dur: 밟았을 때 부스트 지속 시간(초)
 const PADS=(()=>{const SL=RACE.W-RACE.R*2,SS=RACE.H-RACE.R*2,CR=Math.PI/2*RACE.R; // 긴 직선, 짧은 직선, 코너 호 길이
-  return [SL/2, SL+CR+SS/2, SL+CR+SS+CR+SL/2, SL*2+CR*2+SS+CR+SS/2].map(s=>({s}))})();
+  return [SL+CR+SS/2, SL*2+CR*2+SS+CR+SS/2].map(s=>({s}))})(); // 좌우 직선 한가운데 두 개 (위아래 것은 뺐다)
 const halfWAt=s=>RACE.halfW;
 // 트랙 위 위치: 진행 거리 s, 중심선에서의 옆 거리 lat(+는 진행 방향 기준 왼쪽 법선), 접선 tx/ty
 function trackPos(x,y){let best=Infinity,bs=0,bl=0,bt=null;
