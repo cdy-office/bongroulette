@@ -312,13 +312,11 @@ function bombMove(m,dt){
   }else{
     let t=null,bd=Infinity;for(const o of S.marbles){if(!o.alive||!o.bomb||!isFoe(m,o))continue;const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;t=o}}
     m.target=t;
-    if(!m.fleeSide)m.fleeSide=rng()<0.5?-1:1;                          // 공마다 왼쪽/오른쪽으로 갈라져 도망친다
     m.roamT-=dt;if(m.roamT<=0){m.roamT=rand(2,4);const ra=rng()*TAU,rr=Math.sqrt(rng())*MAZE.R*0.6;m.roamX=Math.cos(ra)*rr;m.roamY=Math.sin(ra)*rr}
     if(t&&Math.hypot(m.x-t.x,m.y-t.y)>320){                             // 폭탄이 멀면 굳이 도망치지 않고 빈 곳을 돌아다닌다
       const gx=m.roamX-m.x,gy=m.roamY-m.y,gl=Math.hypot(gx,gy)||1;ax=gx/gl*acc*0.85;ay=gy/gl*acc*0.85;t=null}
     if(t){const dx=m.x-t.x,dy=m.y-t.y,L=Math.hypot(dx,dy)||1,k=clamp(1-L/320,0,1);
       let fx=dx/L,fy=dy/L;
-      {const px2=-fy,py2=fx;fx+=px2*m.fleeSide*0.8;fy+=py2*m.fleeSide*0.8;const nn=Math.hypot(fx,fy)||1;fx/=nn;fy/=nn} // 정반대가 아니라 비스듬히 갈라져 달린다
       const outw=fx*cx+fy*cy;                                           // 도망 방향 중 바깥으로 향하는 성분
       if(outw>0&&rim>0){fx-=cx*outw*(1+rim*1.6);fy-=cy*outw*(1+rim*1.6); // 벽 쪽으로 도망가려 하면 안쪽으로 꺾는다
         const n2=Math.hypot(fx,fy)||1;fx/=n2;fy/=n2}
@@ -425,7 +423,7 @@ class Marble{
     this.target=null;this.retarget=0;this.dashCd=rand(0.6,2.2);this.wob=rand(0,TAU);
     this.hit=0;this.dash=0;this.burn=0;this.kills=0;this.inv=0;
     this.skill=null;this.skillCd=0;this.shield=false;this.shieldFx=0;this.frozen=0;this.trail=[];this.tick=0;
-    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.toPortal=0;this.fleeSide=0;this.roamT=0;this.roamX=0;this.roamY=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
+    this.hpMax=CFG.hpMax;this.speedMul=1;this.fling=0;this.swing=0;this.swingA=0;this.hammerT=0;this.hammerA=0;this.quakeT=0;this.magnetT=0;this.iai=null;this.tornadoT=0;this.tornadoFlung=false;this.recoil=0;this.aim=null;this.s=0;this.lat=0;this.lap=-1;this.prog=0;this.dist=0;this.esc=1;this.escTarget=1;this.escT=0;this.biteCd=0;this.bomb=null;this.bombCd=0;this.wallT=0;this.portalT=0;this.portalCd=0;this.toPortal=0;this.roamT=0;this.roamX=0;this.roamY=0;this.escCd=rand(0,1.2);this.atkCd=rand(0.5,2.5);this.lane=0;this.laneT=0;this.spd=1;this.spdTarget=1;this.spdT=0;this.boost=0;this.stun=0;this.slow=0;this.breathT=0;this.breathA=0;this.breathCd=0;this.rocketT=0;this.rocketCharge=0;this.rocketA=0;this.rocketTarget=null;this.beeDmg=0;this.beeTextT=0;this.swingDur=0.32;this.fireAcc=0;this.fireCd=0;this.fireDmg=0;this.fireTextT=0;
   }
 }
 
