@@ -538,7 +538,7 @@ function checkBars(instant){
   if(S.barsActive)return;
   const alive=S.factions.filter(f=>!f.out);
   if(S.factions.length>=2&&alive.length<=BARS_AT){
-    S.barsActive=true;S.barsAnim=instant?1:0;if(!instant)SFX.play('bars');
+    S.barsActive=true;S.barsAnim=1; // 표시는 하지 않고, 카메라가 따라가기 시작하는 신호로만 쓴다
     alive.forEach((f,i)=>{f.barred=true;f.side=i%2?'bottom':'top'});
   }
 }
@@ -1208,7 +1208,7 @@ function die(m,by,reason){
 }
 function factionOut(f,m){
   f.out=true;f.outAnim=1.4;S.factionsOut.push(f);f.rank=S.factions.length-S.factionsOut.length+1;
-  shatterBar(f);if(barsOn())SFX.play('shatter');
+
   if(S.final)boom(m,1.5);else burst(m.x,m.y,16,f.color,220);
   if(!S.single){S.toasts.push({text:`${f.name} 탈락`,sub:`${f.rank}위  ·  남은 팀 ${factionsAlive()}`,color:f.color,life:4,max:4});if(S.toasts.length>10)S.toasts.shift()}
   addFeed(`💥 <b style="color:${f.color}">${esc(f.name)}</b> 탈락 (${f.rank}위)`,'big');
@@ -1334,7 +1334,7 @@ const isMobile=()=>W<=820;
 const viewBottom=()=>isMobile()?Math.round(H*0.54)-36:H;
 // 바는 경기장 위에 겹쳐 그린다. 예전엔 위아래로 72px씩 깎아서 바가 뜨는 순간 화면이 확 작아졌다
 const running=()=>S.phase==='countdown'||S.phase==='battle';
-const region=()=>{const e=S.barsActive?(1-Math.cos(S.barsAnim*Math.PI))/2:0;const b=(isMobile()?34:18)*e;const VB=viewBottom();
+const region=()=>{const b=0;const VB=viewBottom();
   if(isMobile())return {L:8,R:W-8,T:10+b,B:VB-10-b};
   const u=S.uiAnim===undefined?(running()?1:0):S.uiAnim; // 경기 중이면 좌우 패널 자리까지 경기장이 쓴다
   return {L:lerp(294,12,u),R:lerp(W-254,W-12,u),T:12+b,B:VB-12-b}};
@@ -1945,13 +1945,12 @@ function render(){
     ctx.font=`900 54px ${FONT}`;ctx.lineWidth=10;ctx.strokeStyle='rgba(0,0,0,0.9)';ctx.strokeText('결정타!',0,0);ctx.fillStyle='#ffd166';ctx.fillText('결정타!',0,0);
     ctx.font=`800 15px ${FONT}`;ctx.lineWidth=5;ctx.strokeText('FINAL BLOW',0,40);ctx.fillStyle='#fff';ctx.fillText('FINAL BLOW',0,40);ctx.restore();
   }
-  if(barsOn()&&!S.duel){const lay=barLayout();for(const f of S.factions)if(f.barred)drawBar(f,lay.get(f))}
   if(S.duel&&S.duelists&&S.phase==='battle')drawDuelHud(L,R,T,B,cx);
   for(const s of S.shards){ctx.save();ctx.globalAlpha=clamp(s.life/0.5,0,1);ctx.translate(s.x,s.y);ctx.rotate(s.rot);ctx.fillStyle=s.color;ctx.fillRect(-s.w/2,-s.h/2,s.w,s.h);ctx.restore()}
   for(const c of S.confetti){ctx.save();ctx.globalAlpha=clamp(c.life/1,0,1);ctx.translate(c.x,c.y);ctx.rotate(c.rot);ctx.fillStyle=c.color;ctx.fillRect(-c.w/2,-c.h/2,c.w,c.h);ctx.restore()}
   ctx.globalAlpha=1;
   ctx.textAlign='center';ctx.textBaseline='top';
-  const hudY=(S.duel&&S.phase==='battle')?12+DUEL_H+5:(barsOn()?T-16:T+8);
+  const hudY=(S.duel&&S.phase==='battle')?12+DUEL_H+5:T+8;
   if(S.phase==='battle'||S.phase==='finished'){
     ctx.font=`700 13px ${FONT}`;ctx.fillStyle='rgba(236,237,243,0.85)';
     const nb=isBomb()?aliveList().filter(m=>m.bomb).length:0;
