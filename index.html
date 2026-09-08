@@ -1420,9 +1420,8 @@ function drawDuelHud(L,R,T,B,cx){
     // 얼굴
     const fr=20,fx=right?x+w-12-fr:x+12+fr,fy=y+h/2;
     const face=opt.faces&&S.faceOf&&S.faceOf[m.name]?faceImgs[S.faceOf[m.name]]:null;
-    ctx.save();ctx.beginPath();ctx.arc(fx,fy,fr,0,TAU);ctx.closePath();ctx.clip();
-    ctx.fillStyle=m.color;ctx.fillRect(fx-fr,fy-fr,fr*2,fr*2);
-    if(face&&face.ok)ctx.drawImage(face.img,fx-fr,fy-fr,fr*2,fr*2);ctx.restore();
+    ctx.fillStyle=m.color;ctx.beginPath();ctx.arc(fx,fy,fr,0,TAU);ctx.fill();
+    {const rf=face&&face.ok?roundFace(S.faceOf[m.name]):null;if(rf)ctx.drawImage(rf,fx-fr,fy-fr,fr*2,fr*2)} // 미리 잘라 둔 얼굴 (clip 없이)
     ctx.beginPath();ctx.arc(fx,fy,fr,0,TAU);ctx.strokeStyle=m.color;ctx.lineWidth=2;ctx.stroke();
     // 이름 + HP 숫자
     const tx0=right?x+12:x+12+fr*2+10,tx1=right?x+w-12-fr*2-10:x+w-12,inner=tx1-tx0;
@@ -1450,6 +1449,20 @@ function drawDuelHud(L,R,T,B,cx){
   const lowAny=S.duelists.some(m=>m.alive&&m.hp/m.hpMax<0.3);
   if(lowAny){const a=(0.08+0.08*(0.5+0.5*Math.sin(S.duelT*6)))*p;ctx.fillStyle=`rgba(255,40,70,${a})`;const th=42;
     ctx.fillRect(L-40,T-40,R-L+80,th);ctx.fillRect(L-40,B+40-th,R-L+80,th);ctx.fillRect(L-40,T-40,th,B-T+80);ctx.fillRect(R+40-th,T-40,th,B-T+80)}
+}
+// 상단 정보줄. 이모지가 들어 있어 글자로 매 프레임 그리면 렌더러가 끊기므로, 문자열이 바뀔 때만 한 장에 그려 두고 붙인다
+const hudSlots=[{key:null,cv:null,w:0,h:0},{key:null,cv:null,w:0,h:0}];
+function hudLine(txt,color,px,weight,x,y,slot){
+  const c=hudSlots[slot],key=txt+'|'+color+'|'+px;
+  if(c.key!==key){
+    if(!c.cv){c.cv=document.createElement('canvas')}
+    const g=c.cv.getContext('2d');g.font=`${weight} ${px}px ${FONT}`;
+    const w=Math.ceil(g.measureText(txt).width)+8,h=Math.ceil(px*1.5);
+    c.cv.width=Math.max(1,w*LBL_SS);c.cv.height=Math.max(1,h*LBL_SS);c.w=w;c.h=h;
+    g.setTransform(LBL_SS,0,0,LBL_SS,0,0);g.font=`${weight} ${px}px ${FONT}`;g.textAlign='center';g.textBaseline='top';
+    g.fillStyle=color;g.fillText(txt,w/2,2);c.key=key;
+  }
+  ctx.drawImage(c.cv,x-c.w/2,y-2,c.w,c.h);
 }
 function drawToasts(R,T,B){
   const gap=48,maxN=Math.max(1,Math.floor((B-T-50)/gap));
@@ -1792,12 +1805,11 @@ function render(){
     ctx.beginPath();ctx.arc(0,0,MAZE.R,0,TAU);ctx.fill();
     for(const pt of PORTALS){ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,0,TAU);ctx.fill()}
     for(const pt of PORTALS){ // 주머니 안쪽: 짝 색으로 은은하게 + 소용돌이 (마주 보는 짝끼리 같은 색)
-      ctx.save();ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,0,TAU);ctx.clip();
-      ctx.globalAlpha=0.16;ctx.fillStyle=pt.color;ctx.fillRect(pt.x-MAZE.pr,pt.y-MAZE.pr,MAZE.pr*2,MAZE.pr*2);ctx.globalAlpha=1;
+      ctx.globalAlpha=0.16;ctx.fillStyle=pt.color;ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,0,TAU);ctx.fill();ctx.globalAlpha=1; // clip 없이 원을 직접 채운다
       ctx.strokeStyle=pt.color;ctx.lineWidth=2.5;ctx.globalAlpha=0.75;
       for(let k=0;k<2;k++){ctx.beginPath();for(let i=0;i<=22;i++){const u=i/22,rad=8+u*(MAZE.pr-14),an=k*Math.PI+u*3.4+S.time*1.6;
         const px=pt.x+Math.cos(an)*rad,py=pt.y+Math.sin(an)*rad;i?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.stroke()}
-      ctx.globalAlpha=1;ctx.restore();
+      ctx.globalAlpha=1;
       ctx.beginPath();ctx.arc(pt.x,pt.y,MAZE.pr,pt.a-P_HALF,pt.a+P_HALF);ctx.strokeStyle=pt.color;ctx.lineWidth=5;ctx.stroke(); // 주머니 바깥 테두리 (짝끼리 같은 색)
     }
     ctx.strokeStyle=S.final?'#5a2a3a':'#3a3a52';ctx.lineWidth=6; // 큰 원 테두리는 주머니 입구만 비워 둠
@@ -1956,8 +1968,8 @@ function render(){
     ctx.font=`700 13px ${FONT}`;ctx.fillStyle='rgba(236,237,243,0.85)';
     const nb=isBomb()?aliveList().filter(m=>m.bomb).length:0;
     const raceTxt=isRace()?`🏁 LAP ${Math.max(0,S.raceLap)+1}   ·   ${S.raceLap<1?'첫 바퀴는 탈락 없음':`이번 바퀴 꼴찌 ${raceK(aliveList().length)}명 탈락`}   ·   `:isHole()?`🌀 흡인력 ${Math.round(HOLE.pull+HOLE.grow*S.time)}   ·   `:isBomb()?`💣 폭탄 ${nb}개   ·   `:'';
-    ctx.fillText(`${raceTxt}⏱ ${fmt(S.time)}   ·   ${S.single?'':`남은 팀 ${factionsAlive()} / ${S.factions.length}   ·   `}생존 ${aliveList().length} / ${S.marbles.length}${opt.zone&&!isRace()&&S.time<CFG.zoneGrace?'   ·   🌀 자기장 '+Math.ceil(CFG.zoneGrace-S.time)+'초 후':''}${S.final?'   ·   ⚔️ FINAL':''}`,cx,hudY);
-    if(S.determined&&S.phase==='battle'){ctx.font=`800 14px ${FONT}`;ctx.fillStyle='#ffd166';ctx.fillText('🏆 당첨 확정: '+S.winners.map(f=>f.name).join(', ')+'  ·  전투는 계속됩니다',cx,hudY+20)}
+    hudLine(`${raceTxt}⏱ ${fmt(S.time)}   ·   ${S.single?'':`남은 팀 ${factionsAlive()} / ${S.factions.length}   ·   `}생존 ${aliveList().length} / ${S.marbles.length}${opt.zone&&!isRace()&&S.time<CFG.zoneGrace?'   ·   🌀 자기장 '+Math.ceil(CFG.zoneGrace-S.time)+'초 후':''}${S.final?'   ·   ⚔️ FINAL':''}`,'rgba(236,237,243,0.85)',13,700,cx,hudY,0);
+    if(S.determined&&S.phase==='battle')hudLine('🏆 당첨 확정: '+S.winners.map(f=>f.name).join(', ')+'  ·  전투는 계속됩니다','#ffd166',14,800,cx,hudY+20,1);
   }
   if(S.phase==='idle'){
     ctx.font=`600 13px ${FONT}`;ctx.fillStyle='rgba(139,141,156,0.9)';
