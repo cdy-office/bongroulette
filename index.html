@@ -658,7 +658,15 @@ const SFX=(()=>{
   def('rocket',40,()=>{noise({f:200,f2:2000,dur:0.45,g:0.22,ft:'bandpass'});tone({f:200,f2:900,dur:0.6,g:0.22,type:'sawtooth',at:0.35})});
   def('giant',40,()=>{tone({f:60,f2:40,dur:0.8,g:0.45,type:'triangle'});tone({f:120,dur:0.6,g:0.12,type:'sawtooth'})});
   def('firestep',80,()=>noise({f:900,f2:3000,dur:0.3,g:0.12,ft:'bandpass'}),4);
-  return {play:(n,a)=>{const fn=L[n];if(fn&&ok(n,fn.cool,fn.cap))try{fn(a||{})}catch(e){}},test:(n,a)=>{ensure();gm=1;L[n](a||{})},names:()=>Object.keys(L),ensure,get on(){return on},set on(v){on=v},setVol:v=>{vol=v;if(master)master.gain.value=v}};
+  def('hbd',0,()=>{const B=0.5; // 한 박 0.5초
+    const N=[[392,0,.5],[392,.5,.5],[440,1,1],[392,2,1],[523,3,1],[494,4,2],
+             [392,6,.5],[392,6.5,.5],[440,7,1],[392,8,1],[587,9,1],[523,10,2],
+             [392,12,.5],[392,12.5,.5],[784,13,1],[659,14,1],[523,15,1],[494,16,1],[440,17,2],
+             [698,19,.5],[698,19.5,.5],[659,20,1],[523,21,1],[587,22,1],[523,23,2.5]];
+    for(const [f,t,l] of N){tone({f,dur:l*B*0.95,g:0.2,at:t*B,type:'triangle',a:0.02});tone({f:f/2,dur:l*B*0.95,g:0.07,at:t*B,type:'sine',a:0.02})}
+    for(const [f,t,l] of [[130.8,0,3],[98,3,3],[98,6,3],[130.8,9,3],[130.8,12,3],[174.6,15,2],[130.8,17,2],[174.6,19,2],[98,21,2],[130.8,23,2.5]])tone({f,dur:l*B*0.9,g:0.14,at:t*B,type:'sine',a:0.03});
+  },99);
+  return {play:(n,a)=>{const fn=L[n];if(fn&&ok(n,fn.cool,fn.cap))try{fn(a||{})}catch(e){}},resume:()=>{ensure();return ctx?ctx.resume().catch(()=>{}):Promise.resolve()},get running(){return !!ctx&&ctx.state==='running'},test:(n,a)=>{ensure();gm=1;L[n](a||{})},names:()=>Object.keys(L),ensure,get on(){return on},set on(v){on=v},setVol:v=>{vol=v;if(master)master.gain.value=v}};
 })();
 
 // ---------- 이펙트 도우미 ----------
@@ -2119,10 +2127,15 @@ window.addEventListener('keydown',e=>{if(document.getElementById('welcome'))retu
   const sparks=['✨','🎉','🎊','⭐','💖','🎈'];
   for(let i=0;i<14;i++){const e=document.createElement('div');e.className='spark';e.textContent=sparks[i%sparks.length];
     e.style.left=(4+Math.random()*92)+'vw';e.style.top=(4+Math.random()*92)+'vh';e.style.animationDelay=(Math.random()*1.2)+'s';wc.appendChild(e)}
+  // 생일 축하 노래: 브라우저가 허용하면 접속하자마자, 아니면 첫 터치·클릭 순간부터
+  let hbdPlayed=false;
+  const tryHbd=async()=>{if(hbdPlayed||!SFX.on)return;await SFX.resume();if(SFX.running){hbdPlayed=true;SFX.play('hbd');document.removeEventListener('pointerdown',tryHbd)}};
+  setTimeout(tryHbd,200);
+  document.addEventListener('pointerdown',tryHbd);
   const btn=document.getElementById('wcBtn');
   btn.addEventListener('click',()=>{
     if(wc.dataset.step==='1'){
-      SFX.ensure();SFX.play('win'); // 첫 클릭이 소리 허용 시점이기도 하다
+      tryHbd(); // 노래가 아직이면 여기서 시작 (이미 나오고 있으면 그대로)
       wc.dataset.step='2';
       document.getElementById('wcTitle').textContent='🎮 모드 안내';
       document.getElementById('wcText').innerHTML='왼쪽 위에 <b>4가지 모드</b>를 만들어 놨어요!<br>레이스 모드가 진짜 재밌으니 <b>꼭 해보세요~!</b>';
