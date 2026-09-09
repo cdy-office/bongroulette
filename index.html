@@ -2129,7 +2129,7 @@ window.addEventListener('keydown',e=>{if(document.getElementById('welcome'))retu
     e.style.left=(4+Math.random()*92)+'vw';e.style.top=(4+Math.random()*92)+'vh';e.style.animationDelay=(Math.random()*1.2)+'s';wc.appendChild(e)}
   // 생일 축하 노래: 브라우저가 허용하면 접속하자마자, 아니면 첫 터치·클릭 순간부터
   let hbdPlayed=false;
-  const tryHbd=async()=>{if(hbdPlayed||!SFX.on)return;await SFX.resume();if(SFX.running){hbdPlayed=true;SFX.play('hbd');document.removeEventListener('pointerdown',tryHbd)}};
+  const tryHbd=async()=>{if(hbdPlayed||!SFX.on)return;await SFX.resume();if(hbdPlayed)return;if(SFX.running){hbdPlayed=true;SFX.play('hbd');document.removeEventListener('pointerdown',tryHbd)}}; // 대기 중이던 resume이 첫 터치에 같이 풀려도 한 번만
   setTimeout(tryHbd,200);
   document.addEventListener('pointerdown',tryHbd);
   const btn=document.getElementById('wcBtn');
