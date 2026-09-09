@@ -151,7 +151,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-famil
     <div class="opt" title="켜기: 같은 이름끼리도 서로 공격 (완전 개인전) / 끄기: 같은 이름끼리는 노리지도 않고 피해도 없음"><span class="k">⚔️ 팀킬</span>
       <div class="seg" id="teamSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
     </div>
-    <div class="opt" title="남은 공이 이 수가 되면 체력 회복 + 스킬 획득 결전이 시작되고 카메라가 따라갑니다"><span class="k">⚔️ 결전</span><input type="number" id="finalN" min="2" max="10" value="5"><span class="k" style="width:auto">명 남으면 시작</span></div>
+    <div class="opt" title="남은 공이 이 수가 되면 체력 회복 + 스킬 획득 결전이 시작되고 카메라가 따라갑니다"><span class="k">⚔️ 결전</span><input type="number" id="finalN" min="2" value="10"><span class="k" style="width:auto">명 남으면 시작</span></div>
     <div class="opt"><span class="k">🎲 시드</span><span class="seedv" id="seedText"></span></div>
   </div>
   <div class="btns">
@@ -212,7 +212,7 @@ for(const o of OBST){let a=0;const n=o.pts.length;for(let i=0;i<n;i++){const [x1
 const BAR_H=34, BAR_Y=10;   // 이름별 체력바 높이/상단 여백
 const DUEL_H=60;            // 마지막 1:1 패널 높이
 const BARS_AT=12;           // 남은 이름이 이 수 이하가 되면 체력바 표시
-const FINAL_AT=5;           // 결전 인원 기본값 (옵션 ⚔️ 결전, 2~10). 남은 공이 이 수 이하가 되면 결전 단계 (카메라도 이때부터)
+const FINAL_AT=10;          // 결전 인원 기본값 (옵션 ⚔️ 결전, 2 이상·상한 없음). 남은 공이 이 수 이하가 되면 결전 단계 (카메라도 이때부터)
 const CFG={
   hpMax:160,
   accel:260,        // 추적 가속도
@@ -715,7 +715,7 @@ function enterFinal(alive){
   S.final=true;S.finalT=0;S.zoneHold=3;SFX.play('final');
   const keys=SKILL_KEYS.slice();
   for(let i=keys.length-1;i>0;i--){const j=(rng()*(i+1))|0;[keys[i],keys[j]]=[keys[j],keys[i]]}
-  alive.forEach((m,i)=>{m.hpFrom=clamp(m.hp/m.hpMax,0,1);m.skill=keys[i%keys.length]; // hpFrom: 체력 링이 차오르는 시작점m.skillCd=rand(1.5,3);m.shield=false;m.trail=[];
+  alive.forEach((m,i)=>{m.hpFrom=clamp(m.hp/m.hpMax,0,1);m.skill=keys[i%keys.length];m.skillCd=rand(1.5,3);m.shield=false;m.trail=[]; // hpFrom: 체력 링이 차오르는 시작점. 스킬은 인원이 종류보다 많으면 겹쳐서 나눠 준다
     if(m.skill==='giant'){m.r*=1.6;m.mass=m.r*m.r;m.hpMax=Math.round(CFG.hpMax*BAL.giantHp);m.speedMul=isRace()?1:BAL.giantSpeed} // 거인화: 몸집·체력 증가, 느려짐 (1.75배는 너무 잘 살아남아 1.4배로)
     m.hp=m.hpMax;
     const s=SKILLS[m.skill];burst(m.x,m.y,20,s.color,220);
@@ -2115,8 +2115,8 @@ seg($('#faceSeg'),v=>{opt.faces=v==='1';deadKey=-1;updateRank()});
 seg($('#sndSeg'),v=>{SFX.on=v==='1';if(SFX.on){SFX.ensure();SFX.play('ui')}});
 document.addEventListener('pointerdown',()=>{if(SFX.on)SFX.ensure()},{passive:true}); // 첫 클릭에서 오디오 켜기 (브라우저 정책)
 document.querySelectorAll('#mtabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#mtabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');SFX.play('ui');document.body.dataset.tab=b.dataset.t}));
-finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN(v))opt.finalAt=clamp(v,2,10)});
-finalN.addEventListener('change',()=>{opt.finalAt=clamp(parseInt(finalN.value,10)||FINAL_AT,2,10);finalN.value=opt.finalAt});
+finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN(v))opt.finalAt=Math.max(2,v)});
+finalN.addEventListener('change',()=>{opt.finalAt=Math.max(2,parseInt(finalN.value,10)||FINAL_AT);finalN.value=opt.finalAt});
 btnStart.addEventListener('click',start);
 btnShuffle.addEventListener('click',()=>{SFX.play('shuffle');seed=(Math.random()*1e9)>>>0;S.seedUsed=false;setup()});
 $('#btnStop').addEventListener('click',()=>{SFX.play('uiOff');setup()});
