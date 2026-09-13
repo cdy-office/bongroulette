@@ -10,14 +10,14 @@
 [hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;overflow:hidden}
 #arena3d{position:fixed;inset:0;width:100%;height:100%;display:none;pointer-events:none}
-#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+#game{z-index:1;position:fixed;inset:0;width:100%;height:100%;display:block}
 #graphicsNote{max-width:230px;line-height:1.45}
 #graphicsNote:empty{display:none}
 body[data-run="1"] #graphicsRow{display:none}
 #liveGraphicsRow,#liveQualityRow{display:none}
 body[data-run="1"] #liveGraphicsRow,body[data-run="1"] #liveQualityRow{display:flex}
 #liveQuality{background:#151b25;color:#ecedf3;border:1px solid #414653;border-radius:6px;padding:4px 7px;font:inherit;font-size:12px}
-.panel{position:fixed;background:#12121a;border:1px solid var(--line);border-radius:12px}
+.panel{z-index:2;position:fixed;background:#12121a;border:1px solid var(--line);border-radius:12px}
 #ctrl{left:12px;top:12px;bottom:12px;width:270px;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:13px;overflow:auto;scrollbar-width:thin;scrollbar-color:#3a3a4a transparent}
 #ctrl::-webkit-scrollbar{width:6px}
 #ctrl::-webkit-scrollbar-thumb{background:#3a3a4a;border-radius:3px}
@@ -101,6 +101,22 @@ body[data-run="1"] #btnPause,body[data-run="1"] #btnStop{display:block;flex:1 1 
   body:not([data-tab="rank"]) #rank{display:none}
   .btns{position:sticky;top:-10px;z-index:1;background:#12121a;padding:6px 0}
 }
+
+#gateControls{padding:10px;border:1px solid var(--line);border-radius:10px;background:#181823;font-size:12px}
+#gateControls h3{margin:0 0 5px;color:var(--text);font-size:14px}
+#gateConnection{color:#aebdc5;line-height:1.45;margin:0 0 8px}
+.gateButtons{display:flex;gap:6px}.gateButtons button{flex:1;background:#242435;color:#4fd1c5;padding:10px 8px;border:1px solid #3e5e62;border-radius:7px;cursor:pointer;font-weight:800}
+.gateButtons button:last-child{color:#c8b6ff;border-color:#56506d;background:#242435}
+#gateMessageForm{display:flex;gap:5px;margin-top:8px}#gateMessage{min-width:0;width:130px;flex:1}#gateSend{padding:5px 9px}
+#gateControls details{margin-top:8px}#gateControls summary{cursor:pointer;color:#b8c6cb}
+#gateControls label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}
+#gateControls input[type=number]{width:60px}#gateStatus{color:#e9d9a5;margin-top:8px;line-height:1.4}
+#gateChatLog{white-space:pre-line;color:var(--muted);font-size:11px;line-height:1.7;margin-top:8px;max-height:114px;overflow:hidden}
+#gateTiming{color:#a6a7ba;font-size:11px;margin-top:8px}
+body[data-mode="gate"] #liveQualityRow{display:none!important}
+body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
+@media(min-width:821px){body[data-mode="gate"][data-run="1"] #ctrl{width:235px}body[data-mode="gate"] #ctrl>.feedwrap{display:none}}
+
 </style>
 </head>
 <body>
@@ -108,7 +124,7 @@ body[data-run="1"] #btnPause,body[data-run="1"] #btnStop{display:block;flex:1 1 
 
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
-  <div class="seg" id="gameSeg" title="콜로세움: 경기장 전투 / 레이스: 트랙을 돌며 한 바퀴마다 꼴찌 탈락. 결전 인원부터 스킬 (피해는 정지·뒤로 밀림)"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="hole">🌀 블랙홀</button><button data-v="bomb">💣 폭탄 돌리기</button></div>
+  <div class="seg" id="gameSeg" title="콜로세움: 경기장 전투 / 레이스: 트랙을 돌며 한 바퀴마다 꼴찌 탈락. 결전 인원부터 스킬 (피해는 정지·뒤로 밀림)"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button></div>
   <div id="nameBox">
     <div class="opt" style="margin-bottom:8px" title="켜기: 이름과 같은 그림은 자동 매칭, 없는 이름은 무작위 얼굴 / 끄기: 색 공만"><span class="k">🖼️ 얼굴</span>
       <div class="seg" id="faceSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
@@ -119,6 +135,22 @@ body[data-run="1"] #btnPause,body[data-run="1"] #btnStop{display:block;flex:1 1 
     <label class="t" for="names">이름들을 입력하세요</label>
     <textarea id="names" spellcheck="false">송판*1, 네즈미*1, 강자*1, 루시엘*1, 신가호*1, 게코스*1, 비아트리체*1, 드응으루마루헤이요*1, 테무르*1, 미카엘린*1, 미카엘라*1, 러한테스메르*1, 배해수*1, 안나*1, 오마에*1, 헤이즐*1, 한봉식*1, 큐피*1, 세실리아*1, 광견이형*1, 햇냥이*1, 메리미*1,</textarea>
     <div class="hint">쉼표나 줄바꿈으로 구분. <b>이름*숫자</b>로 같은 이름을 여러 개 넣어요. 입력을 고치면 바로 리셋됩니다.</div>
+  </div>
+
+  <div id="gateControls" hidden>
+    <h3>🚪 문 열기</h3>
+    <p id="gateConnection">SOOP 채팅 API 승인 대기 · 현재는 아래 시험 입력과 자동 채팅 체험으로 진행할 수 있습니다.</p>
+    <div class="gateButtons"><button id="gateLeft" type="button">!왼 · 0/3</button><button id="gateRight" type="button">!오 · 0/3</button></div>
+    <form id="gateMessageForm"><input id="gateMessage" aria-label="시험용 채팅" placeholder="!왼 또는 !오" autocomplete="off" maxlength="40"><button id="gateSend" type="submit">전송</button></form>
+    <details><summary>문 설정 · 체험</summary>
+      <label>문 여는 채팅 수<input id="gateThreshold" type="number" min="1" max="50" value="3"></label>
+      <label>기본 문 열림 (초)<input id="gateDuration" type="number" min="0.2" max="2" step="0.05" value="0.4"></label>
+      <label><span>자동 채팅 체험</span><input id="gateAuto" type="checkbox"></label>
+      <small>대기 구슬이 많을수록 문을 더 오래 엽니다. 구슬이 줄면 기본 시간으로 돌아옵니다. 자동 체험은 가상 채팅입니다.</small>
+    </details>
+    <div id="gateTiming">현재 문 열림 0.40초</div>
+    <div id="gateStatus" role="status">시작 후 채팅을 보내주세요.</div>
+    <div id="gateChatLog" aria-label="시험 채팅 기록"></div>
   </div>
   <div id="graphicsRow">
     <div class="opt"><span class="k">🎨 그래픽</span><div class="seg" id="graphicsSeg"><button data-v="3d" class="on">미니어처 3D</button><button data-v="2d">기존 2D</button></div></div>
@@ -323,6 +355,8 @@ const hitsObst=(x,y,pad)=>OB.some(o=>{const c=obstClosest(o,x,y);return c.inside
 const isRace=()=>opt.game==='race';
 // ---------- 블랙홀 모드: 가운데로 나선형으로 빨려 들어감, 빨려 들어가면 탈락, 마지막까지 버틴 공이 승리 ----------
 const isHole=()=>opt.game==='hole';
+const isGate=()=>opt.game==='gate';
+let gateGame=null;
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
 const MAZE={R:430,pr:72,fuse:7,pass:0.5,spawn:1.0,hold:660,flee:520,wallSlow:0.55,pcd:2,blastRadius:200,areaSpeedMul:1.25}; // areaSpeedMul 동반 탈락 단계 보유자 속도 배율
@@ -481,12 +515,13 @@ function parseNames(text){
 function setup(){
   setPaused(false);
   $('#graphicsRow').hidden=$('#liveGraphicsRow').hidden=!['arena','race','bomb'].includes(opt.game);
+  document.body.dataset.mode=opt.game;$('#gateControls').hidden=!isGate();
   if(S.seedUsed){seed=(Math.random()*1e9)>>>0;S.seedUsed=false} // 한 번 쓴 시드는 다시 쓰지 않음
   rng=mulberry32(seed);seedText.textContent=seed;
   const names=parseNames(namesEl.value);
   const uniq=[...new Set(names)];
   // 이름이 하나뿐이면 공 하나하나를 개별로 취급
-  const single=uniq.length<2;S.single=single;
+  const single=isGate()||uniq.length<2;S.single=single;
   const keys=names.map((nm,i)=>single?`${nm} #${i+1}`:nm);
   const ukeys=[...new Set(keys)];
   const hue=new Map(ukeys.map((k,i)=>[k,(i*137.508+20)%360]));
@@ -550,6 +585,10 @@ function setup(){
   S.time=0;S.countdown=0;S.fight=0;S.zoneR=ARENA_R;S.determined=false;S.winners=[];S.hits=0;S.dmgTotal=0;
   S.phase='idle';
   for(const k of new Set(S.marbles.map(m=>m.name))){const c=S.marbles.find(m=>m.name===k).color;for(const px of [16,20])textBitmap(k,c,px,700,3,2)} // 이름표를 미리 그려 둔다
+  if(isGate()&&gateGame){
+    gateGame.reset(S.marbles,rng,{threshold:$('#gateThreshold').value,openDuration:$('#gateDuration').value});
+    $('#gateAuto').checked=false;syncGateUI();
+  }
   checkBars(true);
   btnStart.disabled=n<2;
   deadKey=-1;updateRank();
@@ -580,6 +619,7 @@ function setPaused(value){
   btnPause.textContent=paused?'▶ 재개':'⏸ 일시정지';
   btnPause.setAttribute('aria-pressed',String(paused));
   SFX.setPaused(paused);
+  if(isGate())syncGateUI();
 }
 
 const aliveList=()=>S.marbles.filter(m=>m.alive);
@@ -919,6 +959,7 @@ function step(dt){
   if(S.phase==='countdown'){if(S.countdown===3)SFX.play('tick',{n:3});const c0=Math.ceil(S.countdown);S.countdown-=dt;if(Math.ceil(S.countdown)<c0&&S.countdown>0)SFX.play('tick',{n:Math.ceil(S.countdown)});if(S.countdown<=0){S.phase='battle';S.fight=1;addFeed('⚔️ 전투 시작!');SFX.play('go')}return}
   if(S.phase!=='battle')return;
   S.time+=dt;
+  if(isGate()){stepGate(dt);return;}
   const alive=aliveList();const na=alive.length;
   if(!S.final&&na<=opt.finalAt&&S.time>1&&!isBomb())enterFinal(alive); // 폭탄 모드는 폭탄이 스킬을 준다
   if(S.final)S.finalT+=dt;
@@ -1442,6 +1483,7 @@ function poly(x,y,r,n,rot){ctx.beginPath();for(let i=0;i<n;i++){const a=rot+i/n*
 function stadiumPath(L,R){ctx.moveTo(-L,-R);ctx.lineTo(L,-R);ctx.arc(L,0,R,-Math.PI/2,Math.PI/2);ctx.lineTo(-L,R);ctx.arc(-L,0,R,Math.PI/2,Math.PI*1.5);ctx.closePath()}
 
 function updateCamera(dt){
+  if(isGate())return;
   const {L,R,T,B}=region();
   const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_R;
   const fit=Math.max(0.08,Math.min((R-L)/(AW*2+40),(B-T)/(AH*2+40))); // 화면이 아주 작아져도(모바일 키보드 등) 0 이하로 내려가지 않게
@@ -1935,6 +1977,13 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(warmGlyphs);el
 function render(delta=1/60){
   if(W<2||H<2)return; // 창이 아직 크기를 못 받았거나 숨겨진 상태
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(isGate()&&gateGame){
+    if(arena3d)arena3d.setActive(false);
+    const mobile=isMobile(),b=region();
+    const bounds={L:mobile?8:(running()?250:294),R:mobile?W-8:W-254,T:12,B:b.B};
+    gateGame.render(ctx,W,H,bounds,opt.view3d,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});syncGateUI();return;
+  }
+  if(gateGame)gateGame.setActive(false);
   const use3d=['arena','race','bomb'].includes(opt.game)&&opt.view3d&&arena3d&&arena3d.healthy;
   if(arena3d)arena3d.setActive(use3d);
   if(use3d)ctx.clearRect(0,0,W,H);
@@ -2211,6 +2260,41 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+// Gate commands use the same path for manual and future approved chat input.
+function gateCommand(message,metadata){
+  if(!isGate()||S.phase!=='battle'||S.paused||!gateGame)return false;
+  const accepted=gateGame.round.command(message,metadata);syncGateUI();return accepted;
+}
+function syncGateUI(){
+  if(!isGate()||!gateGame?.round)return;
+  const g=gateGame.round,active=S.phase==='battle'&&!S.paused&&g.acceptsCommands&&g.remaining>0;
+  for(const [i,id] of ['#gateLeft','#gateRight'].entries()){
+    const b=$(id),label=(i?'!오':'!왼')+' · '+g.counts[i]+'/'+g.threshold+(g.open[i]?' 열림':'');if(b.textContent!==label)b.textContent=label;b.disabled=!active;
+  }
+  $('#gateSend').disabled=!active;
+  for(const id of ['#gateThreshold','#gateDuration'])$(id).disabled=running();
+  const timing=`현재 문 열림 ${(g.activeGate>=0?g.currentPulse:g.pulseDuration).toFixed(2)}초`;
+  if($('#gateTiming').textContent!==timing)$('#gateTiming').textContent=timing;
+  const log=g.history.map(e=>`${e.simulated?'가상':'시험'} · ${e.side?'!오':'!왼'}${e.triggered?' → 문 열기 예약':''}`).join('\n');
+  if($('#gateChatLog').textContent!==log)$('#gateChatLog').textContent=log;
+  const status=S.paused?'일시정지 중':S.phase==='idle'?'시작 후 채팅을 보내주세요.':S.phase==='countdown'?'경기 시작을 준비합니다.':g.phase==='winner'?'마지막 구슬이 정해졌습니다.':g.acceptsCommands?`갈림길 ${g.round} · 위에 ${g.remaining}개 · 왼쪽 ${g.totals[0]} / 오른쪽 ${g.totals[1]}${g.phase==='follow'?' · 낙하 중 문 작동':''}`:g.phase==='descend'?'전원 낙하 완료 · 카메라가 아래의 길을 확인합니다.':'구슬이 아래의 다음 갈림길로 이동합니다.';
+  if($('#gateStatus').textContent!==status)$('#gateStatus').textContent=status;
+}
+function stepGate(dt){
+  const g=gateGame.round,previousDeaths=g.eliminated.length;g.update(dt,$('#gateAuto').checked);
+  if(g.eliminated.length>previousDeaths&&S.time-(g.lastDeathSound??-1)>.12){SFX.play('death',{big:false});g.lastDeathSound=S.time;}
+  for(const p of g.players){
+    const m=p.source;
+    if(!p.alive&&m.alive){m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;
+      const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);
+    }
+  }
+  if(g.phase==='winner'&&S.phase==='battle'){
+    const p=g.players.find(p=>p.alive),m=p.source;S.phase='finished';S.determined=true;S.winners=[m.faction];m.win=true;m.faction.win=true;
+    $('#gateAuto').checked=false;SFX.play('win');deadKey=-1;updateRank();
+  }
+}
+
 // ---------- UI ----------
 function seg(el,cb){el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');SFX.play('ui');cb(b.dataset.v)}))}
 function setGraphicsMode(value){
@@ -2233,6 +2317,10 @@ document.addEventListener('pointerdown',()=>{if(SFX.on)SFX.ensure()},{passive:tr
 document.querySelectorAll('#mtabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#mtabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');SFX.play('ui');document.body.dataset.tab=b.dataset.t}));
 finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN(v))opt.finalAt=Math.max(2,v)});
 finalN.addEventListener('change',()=>{opt.finalAt=Math.max(2,parseInt(finalN.value,10)||FINAL_AT);finalN.value=opt.finalAt});
+$('#gateLeft').addEventListener('click',()=>gateCommand('!왼'));
+$('#gateRight').addEventListener('click',()=>gateCommand('!오'));
+$('#gateMessageForm').addEventListener('submit',e=>{e.preventDefault();const input=$('#gateMessage');if(gateCommand(input.value))input.value='';else $('#gateStatus').textContent='진행 중에 !왼 또는 !오를 입력해주세요.';});
+for(const id of ['#gateThreshold','#gateDuration'])$(id).addEventListener('change',()=>{if(!running())setup();});
 btnStart.addEventListener('click',start);
 btnPause.addEventListener('click',()=>setPaused(!S.paused));
 btnShuffle.addEventListener('click',()=>{SFX.play('shuffle');seed=(Math.random()*1e9)>>>0;S.seedUsed=false;setup()});
@@ -2247,11 +2335,14 @@ if(window.createColosseum3D){
   if(result.ready){arena3d=result;window.RW.view3d=result}
   else{opt.view3d=false;$('#graphicsNote').textContent=result.error;$('#graphicsSeg [data-v="2d"]').click()}
 }else{opt.view3d=false;$('#graphicsNote').textContent='3D 파일을 불러오지 못해 기존 2D로 표시합니다.';$('#graphicsSeg [data-v="2d"]').click()}
+gateGame=window.createGateGame?.({canvas,roundFace,onError:()=>setGraphicsMode(false)});
+Object.assign(window.RW,{gateCommand,get gateGame(){return gateGame;}});
 const previewParams=new URLSearchParams(['localhost','127.0.0.1','[::1]'].includes(location.hostname)?location.search:''); // 체험·QA 파라미터는 로컬 개발에서만 사용
 if(previewParams.get('demo')==='duel')namesEl.value='광견이형, 루시엘';
 if(previewParams.get('demo')==='final'){namesEl.value='광견이형, 루시엘, 송판, 네즈미, 강자, 안나, 미카엘라, 헤이즐';}
 if(previewParams.get('demo')==='skills'){namesEl.value='광견이형, 루시엘, 송판';}
 if(previewParams.get('demo')==='race-duel')namesEl.value='광견이형, 루시엘';
+if(previewParams.get('demo')==='gate'){$('#gameSeg [data-v="gate"]').click();}
 if(previewParams.get('demo')==='bomb'){$('#gameSeg [data-v="bomb"]').click();}
 if(['race','race-duel'].includes(previewParams.get('demo'))){$('#gameSeg [data-v="race"]').click();}
 setup();
