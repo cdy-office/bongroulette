@@ -1494,18 +1494,17 @@ function drawBar(f,r){
       ctx.fillStyle='#ff4d6d';ctx.fillText('탈락',0,1);ctx.restore()}}
   ctx.restore();
 }
-// 오른쪽 아래 알림 (최근 것이 맨 아래, 위로 쌓임. 화면 높이만큼 표시)
-function duelHudLayout(cx){
-  const left=isMobile()?8:12,right=isMobile()?W-8:W-272; // 순위표와 화면 가장자리 확보
-  const available=Math.max(1,right-left),scale=Math.min(2,available/364),gap=32;
-  const w=Math.min(300,available/(2*scale)-gap),half=(w+gap)*scale;
-  return {scale,w,cx:clamp(cx,left+half,right-half),bottom:12+DUEL_H*scale};
+// 1대1 패널은 카메라/게임 영역과 독립적으로 화면 상단 중앙에 고정한다.
+function duelHudLayout(){
+  const available=Math.max(1,W-24),scale=Math.min(1.2,available/364),gap=32;
+  const w=Math.min(280,available/(2*scale)-gap);
+  return {scale,w,cx:W/2,bottom:12+DUEL_H*scale};
 }
 function drawDuelHud(L,R,T,B,cx){
   const [A,Bm]=S.duelists;const eo=x=>1-(1-x)**3;
   const pOut=S.finish?clamp((S.finish.dur-S.finish.t)/0.35,0,1):1; // 결정타 연출 끝에 같이 빠진다
   const pL=Math.min(eo(clamp(S.duelT/0.3,0,1)),pOut),pR=Math.min(eo(clamp((S.duelT-0.1)/0.3,0,1)),pOut); // 왼쪽 먼저, 오른쪽 0.1초 뒤
-  const layout=duelHudLayout(cx),h=DUEL_H,y=0,gap=32,w=layout.w; // 얼굴·글씨·체력바·VS를 함께 확대
+  const layout=duelHudLayout(),h=DUEL_H,y=0,gap=32,w=layout.w; // 얼굴·글씨·체력바·VS를 함께 확대
   ctx.save();ctx.translate(layout.cx,12);ctx.scale(layout.scale,layout.scale);
   const draw=(m,x,right,off,p)=>{
     const raceDuel=isRace()&&S.raceDuel;
@@ -1568,7 +1567,7 @@ function hudLine(txt,color,px,weight,x,y,slot,backdropHeight=0){
   ctx.drawImage(c.cv,x-c.w/2,y-2,c.w,c.h);
 }
 function drawToasts(L,T,B){
-  const top=S.duel&&(S.phase==='battle'||S.finish)?Math.max(T,duelHudLayout(W/2).bottom+32):T;
+  const top=S.duel&&(S.phase==='battle'||S.finish)?Math.max(T,duelHudLayout().bottom+32):T;
   const gap=48,maxN=Math.max(0,Math.min(5,Math.floor((B-top-12)/gap)));
   let y=top+48,shown=0;
   for(let i=S.toasts.length-1;i>=0&&shown<maxN;i--,shown++){
@@ -2138,7 +2137,7 @@ function render(delta=1/60){
   ctx.globalAlpha=1;
   drawRaceMarkers(use3d,L,R,T,B);
   ctx.textAlign='center';ctx.textBaseline='top';
-  const duelPanel=S.duel&&(S.phase==='battle'||S.finish)?duelHudLayout(cx):null;
+  const duelPanel=S.duel&&(S.phase==='battle'||S.finish)?duelHudLayout():null;
   const hudY=duelPanel?duelPanel.bottom+5:T+8,hudX=duelPanel?duelPanel.cx:cx;
   if(S.phase==='battle'||S.phase==='finished'){
     ctx.font=`700 13px ${FONT}`;ctx.fillStyle='rgba(236,237,243,0.85)';
