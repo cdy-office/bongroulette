@@ -774,13 +774,13 @@ function enterDuel(alive){
     return;
   }
   for(const m of S.duelists){
-    m.hpFromD=clamp(m.hp/m.hpMax,0,1);m.hpMax*=3;m.hp=m.hpMax;m.hpTrail=m.hp;m.speedMul*=1.2;
+    m.hpFromD=clamp(m.hp/m.hpMax,0,1);m.hpMax*=2;m.hp=m.hpMax;m.hpTrail=m.hp;m.speedMul*=1.2;
     if(ACTIVE.has(m.skill))m.skillCd*=0.5; // 진입 전에 남아 있던 발동 대기도 절반으로
     burst(m.x,m.y,14,m.color,160);
-  } // 현재 최대 체력(거인화 포함)을 한 번만 세 배로 늘리고 전부 회복
-  S.banner={text:'⚔️ 1 : 1',sub:`${A.label}   vs   ${B.label}   ·   체력 3배 · 스킬 강화`,age:-0.1,life:2.4}; // 패널이 먼저, 배너는 0.1초 뒤
+  } // 현재 최대 체력(거인화 포함)을 한 번만 두 배로 늘리고 전부 회복
+  S.banner={text:'⚔️ 1 : 1',sub:`${A.label}   vs   ${B.label}   ·   체력 2배 · 스킬 강화`,age:-0.1,life:2.4}; // 패널이 먼저, 배너는 0.1초 뒤
   addFeed(`⚔️ <b>마지막 1:1</b> · <b style="color:${A.color}">${esc(A.label)}</b> vs <b style="color:${B.color}">${esc(B.label)}</b>`,'gold');
-  addFeed('체력·최대 체력 3배 · 발동형 스킬 쿨타임 절반 · 상시 스킬 피해 2배 · 이동 속도 +20%','gold');
+  addFeed('체력·최대 체력 2배 · 발동형 스킬 쿨타임 절반 · 상시 스킬 피해 2배 · 이동 속도 +20%','gold');
 }
 // 콜로세움의 마지막 두 참가자에게만 적용한다. 탈락자의 잔류 효과는 강화하지 않는다.
 function isArenaDuelist(m){return opt.game==='arena'&&S.duel&&!!m&&S.duelists?.includes(m)}
