@@ -72,7 +72,9 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
         if (!validPost(req, s)) return json(res, 403, { error: '페이지를 새로고침한 뒤 다시 로그인해주세요.' });
         if (!configured) return json(res, 503, { error: '서버에 SOOP 키를 설정해야 합니다.' });
         if (s.pending?.expires <= now()) s.pending = null;
-        if (s.pending || s.connection) return json(res, 409, { error: '진행 중인 연결을 해제한 뒤 다시 시도해주세요.' });
+        if (s.connection) return json(res, 409, { error: '이미 연결되어 있습니다. 페이지를 새로고침해주세요.' });
+        if (s.authorizing) return json(res, 409, { error: '로그인을 처리 중입니다. 잠시 후 새로고침해주세요.' });
+        // A fresh, CSRF-checked click replaces an abandoned authorization request.
         s.pending = { state: random(), expires: now() + 5 * 60000 };
         const auth = new URL('https://openapi.sooplive.com/auth/code');
         auth.searchParams.set('client_id', clientId);
@@ -84,14 +86,16 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
       // before serving HTML or loading third-party resources.
       if (url.pathname === '/' && (url.searchParams.has('code') || url.searchParams.has('error'))) {
         if (!s?.pending || s.pending.expires <= now()) return redirect(res, '/?soop=expired');
-        const pending = s.pending; s.pending = null;
+        const pending = s.pending;
         // State passthrough needs verification with the real approved app. Fail
         // closed if SOOP omits it; never silently weaken the CSRF binding.
         if (!equal(url.searchParams.get('state'), pending.state)) return redirect(res, '/?soop=state');
+        s.pending = null;
         if (url.searchParams.has('error')) return redirect(res, '/?soop=cancelled');
         const code = url.searchParams.get('code');
         if (!code || code.length > 2048) return redirect(res, '/?soop=auth');
         let connection;
+        s.authorizing = true;
         try {
           const response = await fetchImpl('https://openapi.sooplive.com/auth/token', {
             method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -105,6 +109,7 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
           connection = await bridge.connect(tokens.access_token, text => push(s, text), () => destroy(s));
           if (!sessions.has(s.id)) { await connection.close(); return redirect(res, '/?soop=closed'); }
           s.connection = connection; s.active = true;
+          s.authorizing = false;
           const lifetime = Number(tokens.expires_in);
           s.expires = now() + Math.min(Number.isFinite(lifetime) && lifetime > 0 ? lifetime : 3600, 28800) * 1000;
           // Refresh tokens are deliberately not saved. Expiry requires re-login.

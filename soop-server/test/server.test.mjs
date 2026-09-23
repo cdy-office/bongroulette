@@ -74,3 +74,14 @@ test('one-time callback connects, SSE receives no credentials, logout destroys c
 test('production refuses unencrypted authentication', () => {
   assert.throws(() => createApp({ origin: 'http://bongroulette.com' }), /HTTPS/);
 });
+
+test('retry replaces abandoned login without a stale callback consuming the new request', async t => {
+  const f = await fixture(t);
+  const oldState = await f.login();
+  const newState = await f.login();
+  assert.notEqual(oldState, newState);
+  assert.equal((await f.call(`/?code=old&state=${oldState}`)).headers.get('location'), '/?soop=state');
+  assert.equal(f.exchanges(), 0);
+  assert.equal((await f.call(`/?code=new&state=${newState}`)).headers.get('location'), '/?soop=connected');
+  assert.equal(f.exchanges(), 1);
+});
