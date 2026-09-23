@@ -1,0 +1,11 @@
+{
+  "name": "bongroulette-soop-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env.local server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "install-browser": "playwright install chromium"
+  },
+  "dependencies": { "playwright": "1.63.0" }
+}

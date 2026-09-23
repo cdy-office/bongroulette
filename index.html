@@ -139,7 +139,7 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
 
   <div id="gateControls" hidden>
     <h3>🚪 문 열기</h3>
-    <p id="gateConnection">SOOP 채팅 API 승인 대기 · 현재는 아래 시험 입력과 자동 채팅 체험으로 진행할 수 있습니다.</p>
+    <p id="gateConnection">SOOP 미연결 · 시험 입력으로 체험할 수 있습니다.</p>
     <div class="gateButtons"><button id="gateLeft" type="button">!왼 · 0/3</button><button id="gateRight" type="button">!오 · 0/3</button></div>
     <form id="gateMessageForm"><input id="gateMessage" aria-label="시험용 채팅" placeholder="!왼 또는 !오" autocomplete="off" maxlength="40"><button id="gateSend" type="submit">전송</button></form>
     <details><summary>문 설정 · 체험</summary>
@@ -188,6 +188,8 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
 <div id="rank" class="panel"><h3><span>순위</span><span id="rankHead">0 / 0</span></h3><div id="rankAlive"></div><div id="rankDead"></div></div>
 <div id="mtabs"><button data-t="ctrl" class="on">⚙️ 설정</button><button data-t="rank">🏆 순위</button></div>
 
+<link rel="stylesheet" href="soop.css">
+<script type="module" src="soop-client.js"></script>
 <script src="colosseum3d.bundle.js"></script>
 <script>
 (() => {
@@ -2269,13 +2271,13 @@ function syncGateUI(){
   if(!isGate()||!gateGame?.round)return;
   const g=gateGame.round,active=S.phase==='battle'&&!S.paused&&g.acceptsCommands&&g.remaining>0;
   for(const [i,id] of ['#gateLeft','#gateRight'].entries()){
-    const b=$(id),label=(i?'!오':'!왼')+' · '+g.counts[i]+'/'+g.threshold+(g.open[i]?' 열림':'');if(b.textContent!==label)b.textContent=label;b.disabled=!active;
+    const b=$(id),label=(i?'!오':'!왼')+' · '+g.counts[i]+'/'+g.threshold+(g.open[i]?' 열림':'');if(b.textContent!==label)b.textContent=label;b.disabled=!active||!!window.RW?.soopConnected;
   }
-  $('#gateSend').disabled=!active;
+  $('#gateSend').disabled=!active||!!window.RW?.soopConnected;
   for(const id of ['#gateThreshold','#gateDuration'])$(id).disabled=running();
   const timing=`현재 문 열림 ${(g.activeGate>=0?g.currentPulse:g.pulseDuration).toFixed(2)}초`;
   if($('#gateTiming').textContent!==timing)$('#gateTiming').textContent=timing;
-  const log=g.history.map(e=>`${e.simulated?'가상':'시험'} · ${e.side?'!오':'!왼'}${e.triggered?' → 문 열기 예약':''}`).join('\n');
+  const log=g.history.map(e=>`${e.simulated?'가상':window.RW?.soopConnected?'SOOP':'시험'} · ${e.side?'!오':'!왼'}${e.triggered?' → 문 열기 예약':''}`).join('\n');
   if($('#gateChatLog').textContent!==log)$('#gateChatLog').textContent=log;
   const status=S.paused?'일시정지 중':S.phase==='idle'?'시작 후 채팅을 보내주세요.':S.phase==='countdown'?'경기 시작을 준비합니다.':g.phase==='winner'?'마지막 구슬이 정해졌습니다.':g.acceptsCommands?`갈림길 ${g.round} · 위에 ${g.remaining}개 · 왼쪽 ${g.totals[0]} / 오른쪽 ${g.totals[1]}${g.phase==='follow'?' · 낙하 중 문 작동':''}`:g.phase==='descend'?'전원 낙하 완료 · 카메라가 아래의 길을 확인합니다.':'구슬이 아래의 다음 갈림길로 이동합니다.';
   if($('#gateStatus').textContent!==status)$('#gateStatus').textContent=status;
@@ -2329,7 +2331,14 @@ $('#btnStop').addEventListener('click',()=>{SFX.play('uiOff');setup()});
 let deb=0;namesEl.addEventListener('input',()=>{if(S.phase!=='idle')setup();clearTimeout(deb);deb=setTimeout(()=>setup(),200)});
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&!e.target.closest('button,input,textarea,select,[contenteditable="true"]')){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
-window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,setPaused,advanceFrame,aliveList,ranking,factionRanking,render,updateCamera,fx,updateRank,setSeed:v=>{seed=v>>>0}};
+function chatAnchor(m){
+  if(!m?.alive||isGate())return null;
+  const {L,R,T,B}=region(),z=S.cam.zoom;
+  const use3d=opt.view3d&&arena3d?.active;
+  const p=use3d?arena3d.project(m.x,m.y,m.r*(m.skill?3.3:2.1)+12):{x:(L+R)/2+(m.x-S.cam.x)*z,y:(T+B)/2+(m.y-S.cam.y-(m.skill?m.r*3.1:m.r+8))*z,visible:true};
+  return {x:p.x,y:p.y-12,visible:p.visible!==false&&p.x>L&&p.x<R&&p.y>T+35&&p.y<B};
+}
+window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,setPaused,advanceFrame,aliveList,ranking,factionRanking,render,updateCamera,fx,updateRank,chatAnchor,setSeed:v=>{seed=v>>>0}};
 if(window.createColosseum3D){
   const result=window.createColosseum3D({S,opt,BAL,OBST,RACE,MAZE,PORTALS,bombEliminationCap,roundFace,textBitmap,skillLabel,onError:message=>{opt.view3d=false;$('#graphicsNote').textContent=message;$('#graphicsSeg [data-v="2d"]').click()}});
   if(result.ready){arena3d=result;window.RW.view3d=result}

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: bongroulette-soop
+    runtime: docker
+    branch: deploy/soop-chat
+    plan: free
+    region: singapore
+    dockerfilePath: ./soop-server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: SOOP_CLIENT_ID
+        sync: false
+      - key: SOOP_CLIENT_SECRET
+        sync: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 8080
