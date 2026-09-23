@@ -1,6 +1,19 @@
 #soopPanel{border:1px solid #39394e;border-radius:12px;background:#181823;padding:11px;font-size:12px;line-height:1.5}
 #soopPanel strong{display:flex;align-items:center;gap:8px;color:#ececf4;margin-bottom:10px}
 .soop-logo{display:block;width:72px;height:auto}
+#donationPanel{margin-top:8px;border-top:1px solid #39394e;padding-top:8px;font-size:12px;min-height:0;overflow:auto;flex-shrink:0}
+#donationPanel summary{cursor:pointer;font-weight:700;color:#eeeafa}
+#donationBadge{color:#4fd1c5}
+.donation-settings{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
+#donationPanel input{width:68px;background:#0d0d14;color:#ecedf3;border:1px solid #39394e;border-radius:6px;padding:5px;font:inherit}
+#donationPanel button{background:#273754;color:#e6efff;border:1px solid #536b99;border-radius:6px;padding:5px 8px;cursor:pointer;font:inherit}
+#donationPanel button:disabled{opacity:.5;cursor:default}
+#donationPanel p,#donationPanel small{font-size:11px;line-height:1.5;color:#a9a9bf;margin:6px 0}
+#donationRows{max-height:140px;overflow:auto}
+.donation-row{padding:7px 0;border-top:1px solid #303041;font-size:11px;overflow-wrap:anywhere}
+.donation-row b{display:block;color:#4fd1c5;font-weight:500;margin:4px 0}
+#donationPanel .donation-row input{width:180px;max-width:70%;margin:5px 5px 0 0}
+@media(min-width:821px){#nameEntry:has(#donationPanel[open]){height:min(550px,calc(100vh - 24px))}#donationPanel[open]{max-height:310px;flex:0 1 auto}}
 .soop-actions{display:flex;gap:6px}
 .soop-actions button{border:1px solid #536b99;background:#273754;color:#e6efff;border-radius:8px;padding:8px 10px;cursor:pointer}
 .soop-actions button:disabled{opacity:.5;cursor:default}

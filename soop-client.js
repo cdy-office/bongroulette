@@ -1,4 +1,5 @@
 import { createChatReceiver } from './soop-chat.js';
+import { mountDonations } from './soop-donations.js';
 const $ = id => document.getElementById(id);
 const panel = document.createElement('section');
 panel.id = 'soopPanel';
@@ -41,6 +42,7 @@ function speak(text) {
   return true;
 }
 let csrf = '', stream = null, live = false, pending = false, configured = false, clockOffset = 0;
+const donations = mountDonations({ host: $('nameEntry'), names: $('names'), idle: () => window.RW?.S.phase === 'idle', now: () => Date.now() + clockOffset, onNamesChanged: () => window.RW.setup() });
 let items = [], lastPhase = '', lastMode = '', lastTime = 0;
 function state() {
   const rw = window.RW;
@@ -74,6 +76,7 @@ function setStatus(message) {
 }
 function setLive(value) {
   live = value;
+  donations.connected(value);
   if (window.RW) window.RW.soopConnected = value;
   $('gateAuto').disabled = value;
   if (value) $('gateAuto').checked = false;
@@ -92,7 +95,7 @@ async function api(path, method = 'GET') {
 function connectStream(broadcaster) {
   stopStream(); stream = new EventSource('/api/soop/events');
   stream.addEventListener('ready', () => { setLive(true); setStatus(`${broadcaster} 방송 채팅에 연결되었습니다.`); });
-  stream.onmessage = event => { try { receiver.receive(JSON.parse(event.data)); } catch { /* Invalid events are discarded. */ } };
+  stream.onmessage = event => { try { const data = JSON.parse(event.data); const used = donations.receive(data); if (data.type !== 'donation' && !used) receiver.receive(data); } catch { /* Invalid events are discarded. */ } };
   const closed = () => { stopStream(); setStatus('채팅 연결이 종료되었습니다. 방송 상태를 확인하고 다시 로그인해주세요.'); };
   stream.addEventListener('closed', closed);
   stream.onerror = closed; // No automatic reconnect or replay into another round.

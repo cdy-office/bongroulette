@@ -4,7 +4,7 @@ import http from 'node:http';
 import { chromium } from 'playwright';
 import { createApp } from '../server.mjs';
 
-test('browser: login relay, gate commands, pause, audience text and disconnect', { timeout: 60000 }, async t => {
+test('browser: login relay, donation names, gate commands, pause, audience text and disconnect', { timeout: 90000 }, async t => {
   const server = http.createServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -34,9 +34,25 @@ test('browser: login relay, gate commands, pause, audience text and disconnect',
   t.diagnostic('callback ready');
   await page.waitForFunction(() => window.RW?.soopConnected);
   assert.equal(await page.locator('#gateAuto').isDisabled(), true);
+  await page.locator('#donationPanel summary').click();
+  await page.locator('#donationToggle').click();
+  const namesBefore = await page.locator('#names').inputValue();
+  send({ type: 'donation', userId: 'donor-a', nickname: '후원자', count: 100 });
+  send({ type: 'chat', userId: 'someone-else', text: '오등록' });
+  send({ type: 'chat', userId: 'donor-a', text: '메리미' });
+  await page.waitForFunction(() => document.getElementById('names').value.includes('메리미*11'));
+  assert.equal((await page.locator('#names').inputValue()).includes('오등록'), false);
+  assert.equal((await page.locator('#names').inputValue()).includes('후원자'), false);
+  await page.screenshot({ path: 'C:/Users/andth/AppData/Local/Temp/donation-layout.png' });
+  await page.locator('#donationPanel summary').click();
   await page.locator('#gameSeg [data-v="gate"]').click();
   await page.locator('#btnStart').click();
   await page.waitForFunction(() => window.RW.S.phase === 'battle');
+  const battleNames = await page.locator('#names').inputValue();
+  send({ type: 'donation', userId: 'donor-b', nickname: '다른 후원자', count: 20 });
+  send({ type: 'chat', userId: 'donor-b', text: '테스트이름' });
+  await page.waitForTimeout(150);
+  assert.equal(await page.locator('#names').inputValue(), battleNames);
   send('!왼'); send('!왼'); send('!왼');
   await page.waitForFunction(() => window.RW.gateGame.round.opened[0] > 0);
   await page.evaluate(() => window.RW.setPaused(true));
@@ -46,6 +62,9 @@ test('browser: login relay, gate commands, pause, audience text and disconnect',
   await page.waitForTimeout(150);
   assert.deepEqual(await page.evaluate(() => [...window.RW.gateGame.round.counts]), before);
   await page.locator('#btnStop').click();
+  await page.waitForFunction(() => document.getElementById('names').value.includes('테스트이름*2'));
+  await page.locator('#names').fill(namesBefore);
+  await page.waitForTimeout(300);
   await page.locator('#gameSeg [data-v="arena"]').click();
   await page.evaluate(() => { window.RW.opt.view3d = false; });
   await page.locator('#btnStart').click();

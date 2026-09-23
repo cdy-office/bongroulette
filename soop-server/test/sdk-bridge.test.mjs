@@ -25,7 +25,12 @@ test('SDK readiness enables room access before relaying text without closing', a
   assert.equal(instance.getRoomInfo().bjId, 'test-streamer');
   instance.onMessage('MESSAGE', { message: '!왼', userId: 'not-forwarded' });
   instance.onMessage('DONATION', { message: 'not-forwarded' });
-  assert.deepEqual(messages, ['!왼']);
+  assert.deepEqual(messages, [{ type: 'chat', text: '!왼', userId: 'not-forwarded' }]);
+  instance.onMessage('BALLOON_GIFTED', { userId: 'donor', userNickname: '후원자', count: 100 });
+  assert.deepEqual(messages.at(-1), { type: 'donation', userId: 'donor', nickname: '후원자', count: 100 });
+  instance.onMessage('BALLOON_GIFTED', { userId: 'donor', count: 100, fromVod: true });
+  instance.onMessage('BALLOON_GIFTED', { userId: 'donor', count: -100 });
+  assert.equal(messages.length, 2);
   assert.equal(closed, 0);
   instance.onClose();
   assert.equal(closed, 1);

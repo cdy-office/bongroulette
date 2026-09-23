@@ -11,6 +11,7 @@ const assets = new Map([
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
   ['/soop-client.js', ['soop-client.js', 'text/javascript']],
   ['/soop-chat.js', ['soop-chat.js', 'text/javascript']],
+  ['/soop-donations.js', ['soop-donations.js', 'text/javascript']],
   ['/soop.svg', ['soop.svg', 'image/svg+xml']],
   ['/soop.css', ['soop.css', 'text/css']],
   ['/colosseum3d.bundle.js', ['colosseum3d.bundle.js', 'text/javascript']],
@@ -53,10 +54,15 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
   }
   function validPost(req, s) { return s && req.headers.origin === origin && equal(req.headers['x-csrf-token'], s.csrf); }
   function push(s, message) {
-    if (!s.active || !s.stream || typeof message !== 'string') return;
+    if (!s.active || !s.stream) return;
+    if (typeof message === 'string') message = { type: 'chat', text: message };
+    let payload;
+    if (message?.type === 'chat' && typeof message.text === 'string') payload = { type: 'chat', text: message.text.slice(0, 320), userId: String(message.userId || '').slice(0, 100) };
+    else if (message?.type === 'donation' && Number.isSafeInteger(message.count) && message.count > 0) payload = { type: 'donation', count: message.count, userId: String(message.userId || '').slice(0, 100), nickname: String(message.nickname || '').slice(0, 100) };
+    else return;
     if (s.stream.writableLength > 65536) { destroy(s); return; }
     // Do not retain/replay any chat. Every stream has an independent sequence.
-    const data = { id: `${s.chatId}:${++s.sequence}`, text: message.slice(0, 320), at: now() };
+    const data = { ...payload, id: `${s.chatId}:${++s.sequence}`, at: now() };
     s.stream.write(`data: ${JSON.stringify(data)}\n\n`);
   }
   async function handler(req, res) {

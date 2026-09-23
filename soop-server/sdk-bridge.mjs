@@ -14,7 +14,10 @@ export async function initializeSdk({ clientId, clientSecret, accessToken }) {
   sdk.handleReady(() => ready());
   sdk.handleMessageReceived((action, data) => {
     if (action === 'MESSAGE' && typeof data?.message === 'string') {
-      window.deliverChat(data.message.slice(0, 320));
+      window.deliverChat({ type: 'chat', text: data.message.slice(0, 320), userId: String(data.userId || '').slice(0, 100) });
+    }
+    if (action === 'BALLOON_GIFTED' && !data?.fromVod && !data?.relaysBroad && Number.isSafeInteger(data?.count) && data.count > 0) {
+      window.deliverChat({ type: 'donation', count: data.count, userId: String(data.userId || '').slice(0, 100), nickname: String(data.userNickname || '').slice(0, 100) });
     }
   });
   sdk.handleChatClosed(() => {
@@ -53,7 +56,7 @@ export function createSdkBridge({ clientId, clientSecret, origin = 'http://127.0
         await page.route(runtimeUrl, route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Private SOOP runtime</title>' }));
         await page.goto(runtimeUrl);
         await page.exposeFunction('deliverChat', message => {
-          if (!stopped && typeof message === 'string') onMessage(message.slice(0, 320));
+          if (!stopped) onMessage(message);
         });
         await page.exposeFunction('chatClosed', () => { if (!stopped) onClosed(); });
         await page.addScriptTag({ url: SDK_URL });
