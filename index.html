@@ -24,10 +24,13 @@ body[data-run="1"] #liveGraphicsRow,body[data-run="1"] #liveQualityRow{display:f
 #ctrl::-webkit-scrollbar-track{background:transparent}
 /* 어느 화면에서도 눌려 사라지지 않게. 모바일은 이 상태로 시트가 스크롤된다 */
 #ctrl>*{flex-shrink:0}
-/* 데스크톱에서만, 이름 입력칸과 기록칸이 줄어들어 스크롤 없이 다 들어가게 한다 */
+/* 데스크톱에서는 이름 입력창을 설정창 오른쪽 아래에 별도로 배치한다 */
 @media (min-width:821px){
-  #ctrl>#nameBox{display:flex;flex-direction:column;flex:0 1 auto;min-height:0;overflow:hidden}
-  #ctrl>#nameBox textarea{flex:1 1 auto;min-height:64px}
+  #ctrl>#nameBox{flex:none}
+  #nameEntry{position:fixed;left:294px;bottom:12px;width:min(460px,calc(100vw - 570px));height:min(310px,44vh);display:flex;flex-direction:column;padding:16px;background:#12121af5;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px #0004;z-index:3}
+  #ctrl #nameEntry textarea{flex:1;min-height:96px;height:auto;font-size:15px;line-height:1.6;padding:12px}
+  #ctrl #nameEntry label.t{font-size:14px;margin-bottom:10px}
+  #nameEntry .hint{line-height:1.5;margin-top:8px}
   #ctrl>.feedwrap{flex:1 1 0;min-height:0}
   #ctrl>.btns{position:sticky;bottom:0;z-index:2;background:#12121a;padding:6px 0}
 }
@@ -84,6 +87,7 @@ body[data-run="1"] #btnPause,body[data-run="1"] #btnStop{display:block;flex:1 1 
   body[data-run="1"] #ctrl>.btns{position:static;background:transparent;padding:0}
 }
 #mtabs{display:none}
+body[data-run="1"] #nameEntry{display:none}
 /* 모바일: 위쪽은 경기장, 아래 46%는 설정/순위 시트 (탭으로 전환) */
 @media (max-width:820px){
   body{touch-action:manipulation}
@@ -132,9 +136,11 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
     <div class="opt" style="margin-bottom:8px" title="효과음 (타격·탈락·스킬별 소리). 브라우저 정책상 첫 클릭 뒤부터 소리가 납니다"><span class="k">🔊 소리</span>
       <div class="seg" id="sndSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
     </div>
+    <section id="nameEntry" aria-label="참가자 이름 입력">
     <label class="t" for="names">이름들을 입력하세요</label>
     <textarea id="names" spellcheck="false">송판*1, 네즈미*1, 강자*1, 루시엘*1, 신가호*1, 게코스*1, 비아트리체*1, 드응으루마루헤이요*1, 테무르*1, 미카엘린*1, 미카엘라*1, 러한테스메르*1, 배해수*1, 안나*1, 오마에*1, 헤이즐*1, 한봉식*1, 큐피*1, 세실리아*1, 광견이형*1, 햇냥이*1, 메리미*1,</textarea>
     <div class="hint">쉼표나 줄바꿈으로 구분. <b>이름*숫자</b>로 같은 이름을 여러 개 넣어요. 입력을 고치면 바로 리셋됩니다.</div>
+    </section>
   </div>
 
   <div id="gateControls" hidden>
