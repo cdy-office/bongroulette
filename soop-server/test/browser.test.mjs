@@ -40,11 +40,12 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   assert.equal(await page.locator('#donationWait').count(), 0);
   send({ type: 'donation', userId: 'donor-a', nickname: '후원자', count: 100 });
   send({ type: 'chat', userId: 'someone-else', text: '오등록' });
-  send({ type: 'chat', userId: 'donor-a', text: '메리미' });
-  await page.waitForFunction(() => document.getElementById('names').value.includes('메리미*10'));
+  send({ type: 'chat', userId: 'donor-a', text: '아무이름123' });
+  await page.waitForFunction(() => document.getElementById('names').value.includes('아무이름123*10'));
   assert.equal((await page.locator('#names').inputValue()).includes('오등록'), false);
   assert.equal((await page.locator('#names').inputValue()).includes('후원자'), false);
-  await page.screenshot({ path: 'C:/Users/andth/AppData/Local/Temp/donation-layout.png' });
+  assert.equal(await page.evaluate(() => RW.S.marbles.filter(m => m.name === '아무이름123').length), 10);
+  await page.screenshot({ path: 'C:/Users/andth/AppData/Local/Temp/donation-arbitrary-name.png' });
   await page.locator('#gameSeg [data-v="gate"]').click();
   await page.locator('#btnStart').click();
   await page.waitForFunction(() => window.RW.S.phase === 'battle');
@@ -83,6 +84,18 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.waitForFunction(() => document.querySelector('.soop-marble-bubble')?.textContent === '화이팅');
   assert.equal(await page.locator('#soopAudience').textContent().then(text => text.includes('!화이팅')), false);
   await page.locator('.soop-marble-bubble').waitFor({ state: 'visible' });
+  const targetName = await page.evaluate(() => RW.aliveList()[0].name);
+  send(`!(${targetName}) 지정 응원`);
+  await page.waitForFunction(() => [...document.querySelectorAll('.soop-marble-bubble')].some(e => e.textContent === '지정 응원' && !e.hidden));
+  assert.equal(await page.evaluate(name => {
+    const el = [...document.querySelectorAll('.soop-marble-bubble')].find(e => e.textContent === '지정 응원');
+    return RW.aliveList().filter(m => m.name === name).some(m => {
+      const p = RW.chatAnchor(m); return p.visible && Math.abs(parseFloat(el.style.left) - p.x) < 30 && Math.abs(parseFloat(el.style.top) - p.y) < 30;
+    });
+  }, targetName), true);
+  send('!(존재하지않는구슬) 잘못된 대상');
+  await page.waitForTimeout(150);
+  assert.equal(await page.locator('.soop-marble-bubble').allTextContents().then(texts => texts.includes('잘못된 대상')), false);
   await page.screenshot({path:'../artifacts/soop-chat-bottom.png'});
   await page.evaluate(() => window.RW.setPaused(true));
   await page.waitForFunction(() => !document.querySelector('.soop-marble-bubble'));

@@ -1,3 +1,9 @@
+export function speechCandidates(marbles, target = '') {
+  const alive = marbles.filter(m => m.alive);
+  if (!target) return alive;
+  const key = target.normalize('NFC');
+  return alive.filter(m => m.name.normalize('NFC') === key);
+}
 export function createChatReceiver({ game, command, show, speak = () => false, now = Date.now }) {
   const seen = new Set();
   return {
@@ -17,6 +23,12 @@ export function createChatReceiver({ game, command, show, speak = () => false, n
       }
       if (!['arena', 'race', 'bomb'].includes(state.mode)) return false;
       if (text.startsWith('!')) {
+        if (text.startsWith('!(')) {
+          const match = text.match(/^!\(([^)]+)\)\s*(.+)$/u);
+          if (!match) return false;
+          const target = match[1].trim(), message = match[2].trim().slice(0, 80);
+          return target && message ? speak(message, target) : false;
+        }
         const message = text.slice(1).trim().slice(0, 80);
         return message ? speak(message) : false;
       }

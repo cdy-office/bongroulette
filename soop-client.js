@@ -1,9 +1,9 @@
-import { createChatReceiver } from './soop-chat.js';
+import { createChatReceiver, speechCandidates } from './soop-chat.js';
 import { mountDonations } from './soop-donations.js';
 const $ = id => document.getElementById(id);
 const panel = document.createElement('section');
 panel.id = 'soopPanel';
-panel.innerHTML = '<strong><img class="soop-logo" src="soop.svg" alt="SOOP"> 방송 채팅</strong><div class="soop-actions"><button type="button" id="soopLogin" disabled>SOOP 로그인 · 연결</button><button type="button" id="soopLogout" hidden>연결 해제</button></div><p id="soopStatus" role="status">연결 설정 확인 중…</p><small>채팅 내용이 게임 화면과 방송에 표시될 수 있습니다. 본인 방송을 켠 뒤 연결해주세요.</small>';
+panel.innerHTML = '<strong><img class="soop-logo" src="soop.svg" alt="SOOP"> 방송 채팅</strong><div class="soop-actions"><button type="button" id="soopLogin" disabled>SOOP 로그인 · 연결</button><button type="button" id="soopLogout" hidden>연결 해제</button></div><p id="soopStatus" role="status">연결 설정 확인 중…</p><small>!(이름) 대사 → 해당 구슬 · !대사 → 무작위 구슬<br>채팅 내용이 게임 화면과 방송에 표시될 수 있습니다. 본인 방송을 켠 뒤 연결해주세요.</small>';
 $('ctrl').append(panel);
 const audience = document.createElement('aside');
 audience.id = 'soopAudience';
@@ -28,8 +28,8 @@ function animateSpeech() {
   });
   if (speeches.length) speechFrame = requestAnimationFrame(animateSpeech);
 }
-function speak(text) {
-  const alive = window.RW.aliveList();
+function speak(text, target = '') {
+  const alive = speechCandidates(window.RW.aliveList(), target);
   if (!alive.length) return false;
   const random = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
   const marble = alive[Math.floor(random * alive.length)];
