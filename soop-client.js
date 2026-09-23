@@ -2,8 +2,8 @@ import { createChatReceiver } from './soop-chat.js';
 const $ = id => document.getElementById(id);
 const panel = document.createElement('section');
 panel.id = 'soopPanel';
-panel.innerHTML = '<strong>SOOP 방송 채팅</strong><div class="soop-actions"><button type="button" id="soopLogin" disabled>SOOP 로그인 · 연결</button><button type="button" id="soopLogout" hidden>연결 해제</button></div><p id="soopStatus" role="status">연결 설정 확인 중…</p><label><input id="soopAudienceToggle" type="checkbox" checked> 다른 게임에서 관중석 채팅 표시</label><small>채팅 내용이 게임 화면과 방송에 표시될 수 있습니다. 본인 방송을 켠 뒤 연결해주세요.</small>';
-$('gateControls').before(panel);
+panel.innerHTML = '<strong><img class="soop-logo" src="soop.svg" alt="SOOP"> 방송 채팅</strong><div class="soop-actions"><button type="button" id="soopLogin" disabled>SOOP 로그인 · 연결</button><button type="button" id="soopLogout" hidden>연결 해제</button></div><p id="soopStatus" role="status">연결 설정 확인 중…</p><small>채팅 내용이 게임 화면과 방송에 표시될 수 있습니다. 본인 방송을 켠 뒤 연결해주세요.</small>';
+$('ctrl').append(panel);
 const audience = document.createElement('aside');
 audience.id = 'soopAudience';
 audience.setAttribute('aria-label', '관중석 채팅');
@@ -28,7 +28,6 @@ function animateSpeech() {
   if (speeches.length) speechFrame = requestAnimationFrame(animateSpeech);
 }
 function speak(text) {
-  if (!$('soopAudienceToggle').checked) return false;
   const alive = window.RW.aliveList();
   if (!alive.length) return false;
   const random = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
@@ -65,7 +64,6 @@ const receiver = createChatReceiver({
   command: (text, meta) => window.RW?.gateCommand(text, meta) || false,
   speak,
   show: text => {
-    if (!$('soopAudienceToggle').checked) return;
     items.push({ text, expires: Date.now() + 6000 });
     items = items.slice(-4); drawAudience();
   }
@@ -122,7 +120,6 @@ $('soopLogout').addEventListener('click', async () => {
   try { await api('logout', 'POST'); } catch { /* Stream close also destroys session. */ }
   stopStream(); await refresh();
 });
-$('soopAudienceToggle').addEventListener('change', clearAudience);
 window.addEventListener('pagehide', () => stopStream());
 setInterval(() => {
   const s = state(), time = window.RW?.S.time || 0;

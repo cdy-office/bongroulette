@@ -11,6 +11,7 @@ const assets = new Map([
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
   ['/soop-client.js', ['soop-client.js', 'text/javascript']],
   ['/soop-chat.js', ['soop-chat.js', 'text/javascript']],
+  ['/soop.svg', ['soop.svg', 'image/svg+xml']],
   ['/soop.css', ['soop.css', 'text/css']],
   ['/colosseum3d.bundle.js', ['colosseum3d.bundle.js', 'text/javascript']],
   ['/THREE-LICENSE.txt', ['THREE-LICENSE.txt', 'text/plain']]
