@@ -85,7 +85,7 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   assert.equal(await page.locator('#soopAudience').textContent().then(text => text.includes('!화이팅')), false);
   await page.locator('.soop-marble-bubble').waitFor({ state: 'visible' });
   const targetName = await page.evaluate(() => RW.aliveList()[0].name);
-  send(`!(${targetName}) 지정 응원`);
+  send(`!${targetName} 지정 응원`);
   await page.waitForFunction(() => [...document.querySelectorAll('.soop-marble-bubble')].some(e => e.textContent === '지정 응원' && !e.hidden));
   assert.equal(await page.evaluate(name => {
     const el = [...document.querySelectorAll('.soop-marble-bubble')].find(e => e.textContent === '지정 응원');
