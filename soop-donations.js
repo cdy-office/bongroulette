@@ -4,9 +4,9 @@ export class DonationCollector {
   constructor({ now = Date.now, onChange = () => {} } = {}) {
     this.now = now; this.onChange = onChange; this.rows = []; this.seen = new Set(); this.active = false;
   }
-  start(unit, seconds) {
-    if (!Number.isSafeInteger(unit) || unit < 1 || unit > 100000 || !Number.isSafeInteger(seconds) || seconds < 1 || seconds > 120) return false;
-    this.unit = unit; this.seconds = seconds; this.active = true; return true;
+  start(unit) {
+    if (!Number.isSafeInteger(unit) || unit < 1 || unit > 100000) return false;
+    this.unit = unit; this.seconds = 5; this.active = true; return true;
   }
   stop() { this.active = false; for (const row of this.rows) if (row.status === 'waiting') row.status = 'unmatched'; this.onChange(); }
   tick() {
@@ -57,8 +57,9 @@ export function addNames(text, name, quantity) {
 }
 
 export function mountDonations({ host, names, idle, now, onNamesChanged }) {
-  const box = document.createElement('details'); box.id = 'donationPanel';
-  box.innerHTML = '<summary>🎈 별풍선 자동 입력 <span id="donationBadge"></span></summary><div class="donation-settings"><label>구슬 1개당 <input id="donationUnit" type="number" min="1" max="100000" value="10" list="donationUnits"> 개</label><datalist id="donationUnits"><option value="1"><option value="10"><option value="20"><option value="100"></datalist><label>메시지 대기 <input id="donationWait" type="number" min="1" max="120" value="15"> 초</label><button id="donationToggle" type="button" disabled>접수 시작</button></div><p class="donation-help">별풍선 후원 후 같은 사람이 쓰는 첫 채팅을 구슬 이름으로 등록합니다. SOOP TTS 대기 시간과 맞춰주세요. 후원 건별 나머지는 제외합니다.</p><p id="donationStatus" role="status">SOOP 연결 후 접수를 시작해주세요.</p><div id="donationRows"></div><small>경기 중에는 대기하며, 종료 후 반영할 수 있습니다. 새로고침하면 접수 내역이 지워집니다.</small>';
+  const box = document.createElement('section'); box.id = 'donationPanel';
+  box.innerHTML = '<div class="donation-heading"><strong>🎈 별풍선 자동 입력</strong><button id="donationToggle" type="button" role="switch" aria-label="별풍선 자동 입력" aria-checked="false">끄기</button></div><div id="donationContent" hidden><div class="donation-settings"><label>별풍선 <input id="donationUnit" type="number" min="1" max="100000" value="10" list="donationUnits"> 개당 구슬 1개</label><datalist id="donationUnits"><option value="1"><option value="10"><option value="20"><option value="100"></datalist></div><p class="donation-help">후원 후 5초 안에 같은 사람이 쓰는 첫 채팅을 구슬 이름으로 등록합니다. 후원 건별 나머지는 제외합니다.</p><p id="donationStatus" role="status"></p><div id="donationRows"></div><small>경기 중에는 대기합니다. 새로고침하거나 다시 켜면 접수 내역이 초기화됩니다.</small></div>';
+
   host.append(box);
   const $ = id => box.querySelector('#' + id);
   let connected = false;
@@ -71,12 +72,13 @@ export function mountDonations({ host, names, idle, now, onNamesChanged }) {
   }
   function draw() {
     for (const row of collector.rows) if (row.status === 'ready' && !row.error) apply(row);
-    $('donationUnit').disabled = $('donationWait').disabled = collector.active;
-    $('donationToggle').disabled = !connected || collector.rows.length >= 1000;
-    $('donationToggle').textContent = collector.active ? '접수 마감' : '접수 시작';
-    $('donationBadge').textContent = collector.active ? '· 접수 중' : '';
+    $('donationToggle').disabled = !idle() && !collector.active;
+    $('donationToggle').textContent = collector.active ? '켜기' : '끄기';
+    $('donationToggle').setAttribute('aria-checked', String(collector.active));
+    $('donationContent').hidden = !collector.active;
+    box.classList.toggle('active', collector.active);
     const waiting = collector.rows.filter(r => !['applied', 'below'].includes(r.status)).length;
-    $('donationStatus').textContent = `접수 ${collector.rows.length}건 · 반영 ${collector.rows.filter(r => r.status === 'applied').reduce((n, r) => n + r.quantity, 0)}구슬 · 대기 ${waiting}건${collector.rows.length >= 1000 ? ' · 1,000건 접수 한도로 마감됨' : ''}`;
+    $('donationStatus').textContent = `${connected ? '' : 'SOOP 연결 필요 · '}접수 ${collector.rows.length}건 · 반영 ${collector.rows.filter(r => r.status === 'applied').reduce((n, r) => n + r.quantity, 0)}구슬 · 대기 ${waiting}건${collector.rows.length >= 1000 ? ' · 1,000건 접수 한도로 마감됨' : ''}`;
     const fragment = document.createDocumentFragment();
     // All unresolved entries stay accessible; completed entries show the last ten.
     const completed = collector.rows.filter(r => ['applied', 'below'].includes(r.status)).slice(-10);
@@ -102,8 +104,17 @@ export function mountDonations({ host, names, idle, now, onNamesChanged }) {
   }
   $('donationToggle').onclick = () => {
     if (collector.active) collector.stop();
-    else if (!collector.start(Number($('donationUnit').value), Number($('donationWait').value))) { $('donationStatus').textContent = '별풍선 수는 1~100000, 대기 시간은 1~120의 정수로 입력해주세요.'; return; }
+    else {
+      const input = $('donationUnit');
+      if (!input.reportValidity() || !collector.start(Number(input.value))) return;
+      collector.rows = []; collector.seen.clear();
+      names.value = ''; onNamesChanged();
+    }
     draw();
+  };
+  $('donationUnit').oninput = () => {
+    const input = $('donationUnit'), unit = Number(input.value);
+    if (input.validity.valid && Number.isSafeInteger(unit) && unit > 0) collector.unit = unit;
   };
   let wasIdle = idle();
   setInterval(() => { collector.tick(); const isIdle = idle(); if (isIdle !== wasIdle) { wasIdle = isIdle; draw(); } }, 500);

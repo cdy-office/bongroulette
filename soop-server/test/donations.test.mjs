@@ -4,7 +4,7 @@ import { DonationCollector, addNames, validName } from '../../soop-donations.js'
 
 test('matches only the following chat of the same donor, once, within the TTS window', () => {
   let now = 1000;
-  const c = new DonationCollector({ now: () => now }); c.start(10, 15);
+  const c = new DonationCollector({ now: () => now }); c.start(10);
   const gift = { id: 'g1', type: 'donation', userId: 'a', nickname: '후원자', count: 105, at: now };
   c.receive(gift); c.receive(gift);
   assert.equal(c.rows.length, 1);
@@ -14,14 +14,14 @@ test('matches only the following chat of the same donor, once, within the TTS wi
   assert.equal(c.rows[0].name, '메리미'); assert.equal(c.rows[0].quantity, 10); assert.equal(c.rows[0].remainder, 5);
   c.receive({ id: 'c3', type: 'chat', userId: 'a', text: '바꾸지 않기', at: now });
   assert.equal(c.rows[0].name, '메리미');
-  c.receive({ ...gift, id: 'g2' }); now += 16000;
+  c.receive({ ...gift, id: 'g2' }); now += 5001;
   c.receive({ id: 'c4', type: 'chat', userId: 'a', text: '늦은 메시지', at: now });
   assert.equal(c.rows[1].status, 'unmatched'); assert.equal(c.rows[1].name, '');
 });
 test('new gift supersedes unmatched gift; stop prevents accidental next-session matches', () => {
-  const c = new DonationCollector({ now: () => 1000 }); c.start(20, 15);
+  const c = new DonationCollector({ now: () => 1000 }); c.start(20);
   for (const id of ['a', 'b']) c.receive({ id, type: 'donation', userId: 'u', count: 100, at: 1000 });
-  assert.equal(c.rows[0].status, 'unmatched'); c.stop(); c.start(1, 15);
+  assert.equal(c.rows[0].status, 'unmatched'); c.stop(); c.start(1);
   assert.equal(c.receive({ id: 'chat', type: 'chat', userId: 'u', text: '이름', at: 1000 }), false);
   assert.equal(c.rows[1].quantity, 5);
 });
