@@ -110,7 +110,7 @@ body[data-run="1"] #nameEntry{display:none}
 }
 
 body:not([data-mode="gate"]) .gateOption{display:none!important}
-body[data-mode="gate"] #ctrl .opt .k{width:90px;color:#a4a5b8;font-size:12px}
+body[data-mode="gate"] #ctrl .opt .k{width:104px;color:#a4a5b8;font-size:12px}
 body[data-mode="gate"] #ctrl{background:linear-gradient(145deg,rgba(24,24,35,.97),rgba(15,15,24,.97));border-color:#303041;box-shadow:0 12px 38px #0004}
 body[data-mode="gate"] #nameBox>.opt{min-height:36px;margin-bottom:5px!important}
 body[data-mode="gate"][data-run="1"] #nameBox>.opt{margin-bottom:5px!important}
@@ -125,7 +125,7 @@ body[data-mode="gate"] #ctrl .btns button{border-radius:9px}
 body[data-mode="gate"] #speedRow{margin:7px 0}
 #gatePreviewRow,#gateThresholdRow{margin-bottom:8px}
 #gateThreshold{width:60px}
-body[data-mode="gate"] #nameBox #gateRule button{font-size:11px;padding:7px;min-width:0}
+body[data-mode="gate"] #nameBox #gateRule button{font-size:10px;padding:7px 4px;min-width:0}
 #gateRule button:disabled{cursor:default;opacity:.65}
 body[data-mode="gate"] #liveQualityRow{display:none!important}
 body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
@@ -146,9 +146,9 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
     <div class="opt" style="margin-bottom:8px" title="효과음 (타격·탈락·스킬별 소리). 브라우저 정책상 첫 클릭 뒤부터 소리가 납니다"><span class="k">🔊 소리</span>
       <div class="seg" id="sndSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
     </div>
-    <div class="opt gateOption" id="gatePreviewRow"><span class="k">결과 미리보기</span><div class="seg" id="gatePreview" role="group" aria-label="결과 미리보기"><button type="button" data-v="1" aria-pressed="false">켜기</button><button type="button" data-v="0" class="on" aria-pressed="true">끄기</button></div></div>
-    <div class="opt gateOption" id="gateRuleRow" title="적은 쪽: 모두 내려간 뒤 구슬이 더 적은 쪽이 용암이 됩니다. 동률은 무작위이며, 한쪽에 모두 모이면 전원 생존합니다."><span class="k">탈락 기준</span><div class="seg" id="gateRule" role="group" aria-label="탈락 기준"><button type="button" data-v="random" class="on" aria-pressed="true">무작위</button><button type="button" data-v="minority" aria-pressed="false">적은 쪽</button></div></div>
-    <div class="opt gateOption" id="gateThresholdRow"><label class="k" for="gateThreshold">문 여는 채팅 수</label><input id="gateThreshold" type="number" min="1" max="50" value="3"><span class="hint">회</span></div>
+    <div class="opt gateOption" id="gatePreviewRow"><span class="k">🔮 결과 미리보기</span><div class="seg" id="gatePreview" role="group" aria-label="결과 미리보기"><button type="button" data-v="1" aria-pressed="false">켜기</button><button type="button" data-v="0" class="on" aria-pressed="true">끄기</button></div></div>
+    <div class="opt gateOption" id="gateRuleRow" title="적은 쪽: 모두 내려간 뒤 구슬이 더 적은 쪽이 용암이 됩니다. 동률은 무작위이며, 한쪽에 모두 모이면 전원 생존합니다."><span class="k">⚖️ 탈락 기준</span><div class="seg" id="gateRule" role="group" aria-label="탈락 기준"><button type="button" data-v="random" class="on" aria-pressed="true">무작위</button><button type="button" data-v="minority" aria-pressed="false">적은 쪽</button></div></div>
+    <div class="opt gateOption" id="gateThresholdRow"><label class="k" for="gateThreshold">💬 문 여는 채팅 수</label><input id="gateThreshold" type="number" min="1" max="50" value="3"><span class="hint">회</span></div>
     <section id="nameEntry" data-collapsed="false" aria-label="참가자 이름 입력">
     <label class="t" for="names">이름들을 입력하세요</label>
     <textarea id="names" spellcheck="false" placeholder="참가자 이름을 입력하세요">송판*1, 네즈미*1, 강자*1, 루시엘*1, 신가호*1, 게코스*1, 비아트리체*1, 드응으루마루헤이요*1, 테무르*1, 미카엘린*1, 미카엘라*1, 러한테스메르*1, 배해수*1, 안나*1, 오마에*1, 헤이즐*1, 한봉식*1, 큐피*1, 세실리아*1, 광견이형*1, 햇냥이*1, 메리미*1,</textarea>
