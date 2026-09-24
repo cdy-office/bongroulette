@@ -110,7 +110,19 @@ body[data-run="1"] #nameEntry{display:none}
 }
 
 body:not([data-mode="gate"]) .gateOption{display:none!important}
-body[data-mode="gate"] #ctrl .opt .k{width:90px}
+body[data-mode="gate"] #ctrl .opt .k{width:90px;color:#a4a5b8;font-size:12px}
+body[data-mode="gate"] #ctrl{background:linear-gradient(145deg,rgba(24,24,35,.97),rgba(15,15,24,.97));border-color:#303041;box-shadow:0 12px 38px #0004}
+body[data-mode="gate"] #nameBox>.opt{min-height:36px;margin-bottom:5px!important}
+body[data-mode="gate"][data-run="1"] #nameBox>.opt{margin-bottom:5px!important}
+body[data-mode="gate"] #ctrl .seg{border-radius:9px;border-color:#323243;background:#11111b}
+body[data-mode="gate"] #nameBox .seg button{min-width:40px;padding:7px 9px;transition:background .15s,color .15s}
+body[data-mode="gate"] #ctrl .seg button.on{background:#2b2a40;color:#f3f1ff}
+body[data-mode="gate"] #ctrl .seg button:hover{color:#fff;background:#242437}
+body[data-mode="gate"] #gateThresholdRow{padding-top:10px;margin-top:8px!important;border-top:1px solid #2c2c3b}
+body[data-mode="gate"] #gateThreshold{height:32px;padding:5px 8px;border-color:#323243;font-size:12px}
+body[data-mode="gate"] #ctrl .btns{padding-top:10px;border-top:1px solid #2c2c3b;gap:7px}
+body[data-mode="gate"] #ctrl .btns button{border-radius:9px}
+body[data-mode="gate"] #speedRow{margin:7px 0}
 #gatePreviewRow,#gateThresholdRow{margin-bottom:8px}
 #gateThreshold{width:60px}
 body[data-mode="gate"] #liveQualityRow{display:none!important}
