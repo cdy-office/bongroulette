@@ -34,7 +34,7 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   t.diagnostic('callback ready');
   await page.waitForFunction(() => window.RW?.soopConnected);
   assert.equal(await page.locator('#gateAuto').isDisabled(), true);
-  await page.locator('#nameEntryToggle').click();
+  await page.locator('#names').click();
   await page.locator('#donationToggle').click();
   const namesBefore = '메리미*1, 안나*1';
   assert.equal(await page.locator('#names').inputValue(), '');
@@ -50,6 +50,8 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.locator('#gameSeg [data-v="gate"]').click();
   await page.locator('#btnStart').click();
   await page.waitForFunction(() => window.RW.S.phase === 'battle');
+  assert.equal(await page.locator('#soopPanel').isVisible(), false);
+  assert.equal(await page.evaluate(() => RW.soopConnected), true);
   const battleNames = await page.locator('#names').inputValue();
   send({ type: 'donation', userId: 'donor-b', nickname: '다른 후원자', count: 20 });
   send({ type: 'chat', userId: 'donor-b', text: '테스트이름' });
@@ -100,6 +102,9 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.screenshot({path:'../artifacts/soop-chat-bottom.png'});
   await page.evaluate(() => window.RW.setPaused(true));
   await page.waitForFunction(() => !document.querySelector('.soop-marble-bubble'));
+  await page.locator('#btnStop').click();
+  await page.waitForFunction(() => document.body.dataset.run === '0');
+  assert.equal(await page.locator('#soopPanel').isVisible(), true);
   await page.locator('#soopLogout').click();
   await page.waitForFunction(() => !window.RW.soopConnected);
   assert.equal(await page.locator('.soop-bubble').count(), 0);
