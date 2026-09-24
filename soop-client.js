@@ -73,7 +73,7 @@ const receiver = createChatReceiver({
 });
 function setStatus(message) {
   $('soopStatus').textContent = message;
-  $('gateConnection').textContent = live ? 'SOOP 실시간 채팅 연결됨 · !왼 / !오를 집계합니다.' : 'SOOP 미연결 · 시험 입력으로 체험할 수 있습니다.';
+  $('gateConnection').textContent = live ? 'SOOP 실시간 채팅 연결됨 · !왼 / !오를 집계합니다.' : 'SOOP 미연결 · !왼 / !오 버튼으로 문을 열 수 있습니다.';
 }
 function setLive(value) {
   live = value;

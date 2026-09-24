@@ -114,11 +114,10 @@ body[data-run="1"] #nameEntry{display:none}
 #gateConnection{color:#aebdc5;line-height:1.45;margin:0 0 8px}
 .gateButtons{display:flex;gap:6px}.gateButtons button{flex:1;background:#242435;color:#4fd1c5;padding:10px 8px;border:1px solid #3e5e62;border-radius:7px;cursor:pointer;font-weight:800}
 .gateButtons button:last-child{color:#c8b6ff;border-color:#56506d;background:#242435}
-#gateMessageForm{display:flex;gap:5px;margin-top:8px}#gateMessage{min-width:0;width:130px;flex:1}#gateSend{padding:5px 9px}
+#gatePreviewRow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}#gatePreviewRow .seg{flex:none}#gatePreviewRow .k{color:var(--muted)}
 #gateControls details{margin-top:8px}#gateControls summary{cursor:pointer;color:#b8c6cb}
 #gateControls label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}
-#gateControls input[type=number]{width:60px}#gateStatus{color:#e9d9a5;margin-top:8px;line-height:1.4}
-#gateChatLog{white-space:pre-line;color:var(--muted);font-size:11px;line-height:1.7;margin-top:8px;max-height:114px;overflow:hidden}
+#gateControls input[type=number]{width:60px}
 #gateTiming{color:#a6a7ba;font-size:11px;margin-top:8px}
 body[data-mode="gate"] #liveQualityRow{display:none!important}
 body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
@@ -148,19 +147,16 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
 
   <div id="gateControls" hidden>
     <h3>🚪 문 열기</h3>
-    <p id="gateConnection">SOOP 미연결 · 시험 입력으로 체험할 수 있습니다.</p>
+    <p id="gateConnection">SOOP 미연결 · !왼 / !오 버튼으로 문을 열 수 있습니다.</p>
     <div class="gateButtons"><button id="gateLeft" type="button">!왼 · 0/3</button><button id="gateRight" type="button">!오 · 0/3</button></div>
-    <form id="gateMessageForm"><input id="gateMessage" aria-label="시험용 채팅" placeholder="!왼 또는 !오" autocomplete="off" maxlength="40"><button id="gateSend" type="submit">전송</button></form>
-    <label for="gatePreview"><span>용암 위치 미리보기</span><input id="gatePreview" type="checkbox" role="switch"></label>
+    <div id="gatePreviewRow"><span class="k">용암 미리보기</span><div class="seg" id="gatePreview" role="group" aria-label="용암 위치 미리보기"><button type="button" data-v="1" aria-pressed="false">켜기</button><button type="button" data-v="0" class="on" aria-pressed="true">끄기</button></div></div>
     <details><summary>문 설정 · 체험</summary>
       <label>문 여는 채팅 수<input id="gateThreshold" type="number" min="1" max="50" value="3"></label>
       <label>기본 문 열림 (초)<input id="gateDuration" type="number" min="0.2" max="2" step="0.05" value="0.4"></label>
       <label><span>자동 채팅 체험</span><input id="gateAuto" type="checkbox"></label>
       <small>대기 구슬이 많을수록 문을 더 오래 엽니다. 구슬이 줄면 기본 시간으로 돌아옵니다. 자동 체험은 가상 채팅입니다.</small>
+      <div id="gateTiming">현재 문 열림 0.40초</div>
     </details>
-    <div id="gateTiming">현재 문 열림 0.40초</div>
-    <div id="gateStatus" role="status">시작 후 채팅을 보내주세요.</div>
-    <div id="gateChatLog" aria-label="시험 채팅 기록"></div>
   </div>
   <div id="graphicsRow">
     <div class="opt"><span class="k">🎨 그래픽</span><div class="seg" id="graphicsSeg"><button data-v="3d" class="on">미니어처 3D</button><button data-v="2d">기존 2D</button></div></div>
@@ -1994,7 +1990,7 @@ function render(delta=1/60){
     if(arena3d)arena3d.setActive(false);
     const mobile=isMobile(),b=region();
     const bounds={L:mobile?8:(running()?250:294),R:mobile?W-8:W-254,T:12,B:b.B};
-    gateGame.render(ctx,W,H,bounds,opt.view3d,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,gatePreview:$('#gatePreview').checked,delta});syncGateUI();return;
+    gateGame.render(ctx,W,H,bounds,opt.view3d,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,gatePreview:$('#gatePreview .on').dataset.v==='1',delta});syncGateUI();return;
   }
   if(gateGame)gateGame.setActive(false);
   const use3d=['arena','race','bomb'].includes(opt.game)&&opt.view3d&&arena3d&&arena3d.healthy;
@@ -2285,14 +2281,9 @@ function syncGateUI(){
   for(const [i,id] of ['#gateLeft','#gateRight'].entries()){
     const b=$(id),label=(i?'!오':'!왼')+' · '+g.counts[i]+'/'+g.threshold+(g.open[i]?' 열림':'');if(b.textContent!==label)b.textContent=label;b.disabled=!active||!!window.RW?.soopConnected;
   }
-  $('#gateSend').disabled=!active||!!window.RW?.soopConnected;
   for(const id of ['#gateThreshold','#gateDuration'])$(id).disabled=running();
   const timing=`현재 문 열림 ${(g.activeGate>=0?g.currentPulse:g.pulseDuration).toFixed(2)}초`;
   if($('#gateTiming').textContent!==timing)$('#gateTiming').textContent=timing;
-  const log=g.history.map(e=>`${e.simulated?'가상':window.RW?.soopConnected?'SOOP':'시험'} · ${e.side?'!오':'!왼'}${e.triggered?' → 문 열기 예약':''}`).join('\n');
-  if($('#gateChatLog').textContent!==log)$('#gateChatLog').textContent=log;
-  const status=S.paused?'일시정지 중':S.phase==='idle'?'시작 후 채팅을 보내주세요.':S.phase==='countdown'?'경기 시작을 준비합니다.':g.phase==='winner'?'마지막 구슬이 정해졌습니다.':g.acceptsCommands?`갈림길 ${g.round} · 위에 ${g.remaining}개 · 왼쪽 ${g.totals[0]} / 오른쪽 ${g.totals[1]}${g.phase==='follow'?' · 낙하 중 문 작동':''}`:g.phase==='descend'?'전원 낙하 완료 · 카메라가 아래의 길을 확인합니다.':'구슬이 아래의 다음 갈림길로 이동합니다.';
-  if($('#gateStatus').textContent!==status)$('#gateStatus').textContent=status;
 }
 function stepGate(dt){
   const g=gateGame.round,previousDeaths=g.eliminated.length;g.update(dt,$('#gateAuto').checked);
@@ -2333,11 +2324,10 @@ finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN
 finalN.addEventListener('change',()=>{opt.finalAt=Math.max(2,parseInt(finalN.value,10)||FINAL_AT);finalN.value=opt.finalAt});
 $('#gateLeft').addEventListener('click',()=>gateCommand('!왼'));
 $('#gateRight').addEventListener('click',()=>gateCommand('!오'));
-$('#gateMessageForm').addEventListener('submit',e=>{e.preventDefault();const input=$('#gateMessage');if(gateCommand(input.value))input.value='';else $('#gateStatus').textContent='진행 중에 !왼 또는 !오를 입력해주세요.';});
 for(const id of ['#gateThreshold','#gateDuration'])$(id).addEventListener('change',()=>{if(!running())setup();});
 btnStart.addEventListener('click',start);
 function setNamesExpanded(expanded){$('#nameEntry').dataset.collapsed=String(!expanded);}
-$('#gatePreview').addEventListener('change',()=>{pausedRedraw=true;});
+seg($('#gatePreview'),()=>{$('#gatePreview').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.classList.contains('on'))));pausedRedraw=true;});
 namesEl.addEventListener('focus',()=>setNamesExpanded(true));
 namesEl.addEventListener('pointerdown',()=>setNamesExpanded(true));
 btnPause.addEventListener('click',()=>setPaused(!S.paused));
