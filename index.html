@@ -151,6 +151,7 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
     <p id="gateConnection">SOOP 미연결 · 시험 입력으로 체험할 수 있습니다.</p>
     <div class="gateButtons"><button id="gateLeft" type="button">!왼 · 0/3</button><button id="gateRight" type="button">!오 · 0/3</button></div>
     <form id="gateMessageForm"><input id="gateMessage" aria-label="시험용 채팅" placeholder="!왼 또는 !오" autocomplete="off" maxlength="40"><button id="gateSend" type="submit">전송</button></form>
+    <label for="gatePreview"><span>용암 위치 미리보기</span><input id="gatePreview" type="checkbox" role="switch"></label>
     <details><summary>문 설정 · 체험</summary>
       <label>문 여는 채팅 수<input id="gateThreshold" type="number" min="1" max="50" value="3"></label>
       <label>기본 문 열림 (초)<input id="gateDuration" type="number" min="0.2" max="2" step="0.05" value="0.4"></label>
@@ -1993,7 +1994,7 @@ function render(delta=1/60){
     if(arena3d)arena3d.setActive(false);
     const mobile=isMobile(),b=region();
     const bounds={L:mobile?8:(running()?250:294),R:mobile?W-8:W-254,T:12,B:b.B};
-    gateGame.render(ctx,W,H,bounds,opt.view3d,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});syncGateUI();return;
+    gateGame.render(ctx,W,H,bounds,opt.view3d,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,gatePreview:$('#gatePreview').checked,delta});syncGateUI();return;
   }
   if(gateGame)gateGame.setActive(false);
   const use3d=['arena','race','bomb'].includes(opt.game)&&opt.view3d&&arena3d&&arena3d.healthy;
@@ -2336,6 +2337,7 @@ $('#gateMessageForm').addEventListener('submit',e=>{e.preventDefault();const inp
 for(const id of ['#gateThreshold','#gateDuration'])$(id).addEventListener('change',()=>{if(!running())setup();});
 btnStart.addEventListener('click',start);
 function setNamesExpanded(expanded){$('#nameEntry').dataset.collapsed=String(!expanded);}
+$('#gatePreview').addEventListener('change',()=>{pausedRedraw=true;});
 namesEl.addEventListener('focus',()=>setNamesExpanded(true));
 namesEl.addEventListener('pointerdown',()=>setNamesExpanded(true));
 btnPause.addEventListener('click',()=>setPaused(!S.paused));
