@@ -125,6 +125,8 @@ body[data-mode="gate"] #ctrl .btns button{border-radius:9px}
 body[data-mode="gate"] #speedRow{margin:7px 0}
 #gatePreviewRow,#gateThresholdRow{margin-bottom:8px}
 #gateThreshold{width:60px}
+body[data-mode="gate"] #nameBox #gateRule button{font-size:11px;padding:7px;min-width:0}
+#gateRule button:disabled{cursor:default;opacity:.65}
 body[data-mode="gate"] #liveQualityRow{display:none!important}
 body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
 @media(min-width:821px){body[data-mode="gate"][data-run="1"] #ctrl{width:235px}body[data-mode="gate"] #ctrl>.feedwrap{display:none}}
@@ -145,6 +147,7 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
       <div class="seg" id="sndSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
     </div>
     <div class="opt gateOption" id="gatePreviewRow"><span class="k">결과 미리보기</span><div class="seg" id="gatePreview" role="group" aria-label="결과 미리보기"><button type="button" data-v="1" aria-pressed="false">켜기</button><button type="button" data-v="0" class="on" aria-pressed="true">끄기</button></div></div>
+    <div class="opt gateOption" id="gateRuleRow" title="적은 쪽: 모두 내려간 뒤 구슬이 더 적은 쪽이 용암이 됩니다. 동률은 무작위이며, 한쪽에 모두 모이면 전원 생존합니다."><span class="k">탈락 기준</span><div class="seg" id="gateRule" role="group" aria-label="탈락 기준"><button type="button" data-v="random" class="on" aria-pressed="true">무작위</button><button type="button" data-v="minority" aria-pressed="false">적은 쪽</button></div></div>
     <div class="opt gateOption" id="gateThresholdRow"><label class="k" for="gateThreshold">문 여는 채팅 수</label><input id="gateThreshold" type="number" min="1" max="50" value="3"><span class="hint">회</span></div>
     <section id="nameEntry" data-collapsed="false" aria-label="참가자 이름 입력">
     <label class="t" for="names">이름들을 입력하세요</label>
@@ -590,7 +593,7 @@ function setup(){
   S.phase='idle';
   for(const k of new Set(S.marbles.map(m=>m.name))){const c=S.marbles.find(m=>m.name===k).color;for(const px of [16,20])textBitmap(k,c,px,700,3,2)} // 이름표를 미리 그려 둔다
   if(isGate()&&gateGame){
-    gateGame.reset(S.marbles,rng,{threshold:$('#gateThreshold').value,openDuration:0.4});
+    gateGame.reset(S.marbles,rng,{threshold:$('#gateThreshold').value,openDuration:0.4,lavaRule:$('#gateRule .on').dataset.v});
     syncGateUI();
   }
   checkBars(true);
@@ -2272,6 +2275,7 @@ function gateCommand(message,metadata){
 }
 function syncGateUI(){
   $('#gateThreshold').disabled=running();
+  $('#gateRule').querySelectorAll('button').forEach(b=>b.disabled=running());
 }
 function stepGate(dt){
   const g=gateGame.round,previousDeaths=g.eliminated.length;g.update(dt,false);
@@ -2313,6 +2317,7 @@ finalN.addEventListener('change',()=>{opt.finalAt=Math.max(2,parseInt(finalN.val
 $('#gateThreshold').addEventListener('change',()=>{if(!running())setup();});
 btnStart.addEventListener('click',start);
 function setNamesExpanded(expanded){$('#nameEntry').dataset.collapsed=String(!expanded);}
+seg($('#gateRule'),()=>{$('#gateRule').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.classList.contains('on'))));if(!running())setup();});
 seg($('#gatePreview'),()=>{$('#gatePreview').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.classList.contains('on'))));pausedRedraw=true;});
 namesEl.addEventListener('focus',()=>setNamesExpanded(true));
 namesEl.addEventListener('pointerdown',()=>setNamesExpanded(true));
