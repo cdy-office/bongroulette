@@ -34,6 +34,7 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   t.diagnostic('callback ready');
   await page.waitForFunction(() => window.RW?.soopConnected);
   assert.equal(await page.locator('#gateAuto').isDisabled(), true);
+  await page.locator('#nameEntryToggle').click();
   await page.locator('#donationToggle').click();
   const namesBefore = '메리미*1, 안나*1';
   assert.equal(await page.locator('#names').inputValue(), '');
