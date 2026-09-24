@@ -73,14 +73,11 @@ const receiver = createChatReceiver({
 });
 function setStatus(message) {
   $('soopStatus').textContent = message;
-  $('gateConnection').textContent = live ? 'SOOP 실시간 채팅 연결됨 · !왼 / !오를 집계합니다.' : 'SOOP 미연결 · !왼 / !오 버튼으로 문을 열 수 있습니다.';
 }
 function setLive(value) {
   live = value;
   donations.connected(value);
   if (window.RW) window.RW.soopConnected = value;
-  $('gateAuto').disabled = value;
-  if (value) $('gateAuto').checked = false;
   $('soopLogin').hidden = value; $('soopLogout').hidden = !value;
   $('soopLogin').disabled = pending || !configured;
   if (!value) { clearAudience(); receiver.clear(); }
