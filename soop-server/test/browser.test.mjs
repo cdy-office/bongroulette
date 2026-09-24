@@ -40,7 +40,7 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   assert.equal(await page.locator('#donationWait').count(), 0);
   send({ type: 'donation', userId: 'donor-a', nickname: '후원자', count: 100 });
   send({ type: 'chat', userId: 'someone-else', text: '오등록' });
-  send({ type: 'chat', userId: 'donor-a', text: '아무이름123' });
+  send({ type: 'chat', userId: 'donor-a(2)', text: '아무이름123' });
   await page.waitForFunction(() => document.getElementById('names').value.includes('아무이름123*10'));
   assert.equal((await page.locator('#names').inputValue()).includes('오등록'), false);
   assert.equal((await page.locator('#names').inputValue()).includes('후원자'), false);

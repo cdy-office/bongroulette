@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DonationCollector, addNames, validName } from '../../soop-donations.js';
+import { DonationCollector, addNames, validName, donorAccountId } from '../../soop-donations.js';
+
+test('gift and chat connection IDs match the same account without mixing other donors', () => {
+  const c = new DonationCollector({ now: () => 1000 }); c.start(10);
+  c.receive({ id: 'g', type: 'donation', userId: 'viewer', count: 100, at: 1000 });
+  c.receive({ id: 'other', type: 'chat', userId: 'viewer2(1)', text: '다른 사람', at: 1000 });
+  assert.equal(c.rows[0].status, 'waiting');
+  c.receive({ id: 'c', type: 'chat', userId: 'viewer(2)', text: '새로운이름', at: 1000 });
+  assert.equal(c.rows[0].name, '새로운이름');
+  assert.equal(c.rows[0].status, 'ready');
+  c.receive({ id: 'repeat', type: 'chat', userId: 'viewer(3)', text: '중복 금지', at: 1000 });
+  assert.equal(c.rows[0].name, '새로운이름');
+  assert.equal(donorAccountId('viewer(12)'), 'viewer');
+  assert.equal(donorAccountId('viewer2'), 'viewer2');
+});
+
+test('timely server arrival survives a busy UI without extending the five-second window', () => {
+  let now = 1000;
+  const c = new DonationCollector({ now: () => now }); c.start(10);
+  c.receive({ id: 'g', type: 'donation', userId: 'a', count: 10, at: 1000 });
+  now = 7000; c.tick();
+  c.receive({ id: 'c', type: 'chat', userId: 'a', text: '정상 수신', at: 2000 });
+  assert.equal(c.rows[0].status, 'ready');
+  c.rows[0].status = 'applied';
+  c.receive({ id: 'next', type: 'donation', userId: 'a(2)', count: 10, at: 7000 });
+  assert.equal(c.rows[0].status, 'applied');
+  c.receive({ id: 'g2', type: 'donation', userId: 'b', count: 10, at: 7000 });
+  now = 13000; c.tick(); c.stop(); c.start(10);
+  c.receive({ id: 'c2', type: 'chat', userId: 'b', text: '이전 접수', at: 8000 });
+  assert.equal(c.rows[2].status, 'unmatched');
+});
 
 test('matches only the following chat of the same donor, once, within the TTS window', () => {
   let now = 1000;

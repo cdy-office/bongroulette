@@ -1,5 +1,10 @@
 // SOOP's own notice widget matches a gift to the sender's following chat.
 // Keep the match one-shot and short-lived; never use a donor nickname as a name.
+// Chat IDs may carry a connection suffix (e.g. user(2)); gift IDs identify
+// the account. Compare account IDs, never nicknames or full connection IDs.
+export function donorAccountId(value) {
+  return typeof value === 'string' ? value.trim().replace(/\(\d+\)$/, '') : '';
+}
 export class DonationCollector {
   constructor({ now = Date.now, onChange = () => {} } = {}) {
     this.now = now; this.onChange = onChange; this.rows = []; this.seen = new Set(); this.active = false;
@@ -8,21 +13,22 @@ export class DonationCollector {
     if (!Number.isSafeInteger(unit) || unit < 1 || unit > 100000) return false;
     this.unit = unit; this.seconds = 5; this.active = true; return true;
   }
-  stop() { this.active = false; for (const row of this.rows) if (row.status === 'waiting') row.status = 'unmatched'; this.onChange(); }
+  stop() { this.active = false; for (const row of this.rows) { row.expired = false; if (row.status === 'waiting') row.status = 'unmatched'; } this.onChange(); }
   tick() {
     let changed = false;
-    for (const row of this.rows) if (row.status === 'waiting' && this.now() > row.deadline) { row.status = 'unmatched'; changed = true; }
+    for (const row of this.rows) if (row.status === 'waiting' && this.now() > row.deadline) { row.status = 'unmatched'; row.expired = true; changed = true; }
     if (changed) this.onChange();
   }
   receive(event) {
     this.tick();
     if (!this.active || !event?.id || this.seen.has(event.id) || !Number.isFinite(event.at) || Math.abs(this.now() - event.at) > 15000) return false;
+    event = { ...event, userId: donorAccountId(event.userId) };
     this.seen.add(event.id); if (this.seen.size > 10000) this.seen.delete(this.seen.values().next().value);
     if (event.type === 'donation') {
       if (!Number.isSafeInteger(event.count) || event.count <= 0) return false;
       // As in the SOOP widget, a newer gift replaces the previous unmatched
       // gift from this sender. Preserve the older row for manual correction.
-      for (const row of this.rows) if (event.userId && row.userId === event.userId && row.status === 'waiting') row.status = 'unmatched';
+      for (const row of this.rows) if (event.userId && row.userId === event.userId && (row.status === 'waiting' || (row.status === 'unmatched' && row.expired))) { row.status = 'unmatched'; row.expired = false; }
       if (this.rows.length >= 1000) { this.stop(); return false; }
       this.rows.push({ id: event.id, userId: event.userId, donor: event.nickname || '후원자', count: event.count,
         quantity: Math.floor(event.count / this.unit), remainder: event.count % this.unit,
@@ -31,9 +37,11 @@ export class DonationCollector {
       this.onChange(); return true;
     }
     if (event.type !== 'chat' || !event.userId || typeof event.text !== 'string' || !event.text.trim()) return false;
-    const row = [...this.rows].reverse().find(r => r.status === 'waiting' && r.userId === event.userId && event.at >= r.at && event.at <= r.deadline);
+    // A busy game can process an already-received event after the timer ticks.
+    // Use its server arrival time, not the UI processing time, for the window.
+    const row = [...this.rows].reverse().find(r => (r.status === 'waiting' || (r.status === 'unmatched' && r.expired)) && r.userId === event.userId && event.at >= r.at && event.at <= r.deadline);
     if (!row) return false;
-    row.name = event.text.trim(); row.status = validName(row.name) ? 'ready' : 'invalid';
+    row.expired = false; row.name = event.text.trim(); row.status = validName(row.name) ? 'ready' : 'invalid';
     this.onChange(); return true;
   }
 }
