@@ -2102,6 +2102,7 @@ function render(delta=1/60){
     if(arena3d)arena3d.setActive(false);if(gateGame)gateGame.setActive(false);
     const mobile=isMobile(),b=region(),bounds={L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B};
     const winnerScreen=pinballGame.render(ctx,W,H,bounds,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});
+    drawToasts(bounds.L,bounds.T+58,bounds.B);
     drawConfetti();
     if(winnerScreen)drawBanner((bounds.L+bounds.R)/2,(bounds.T+bounds.B)/2,bounds.B,{...winnerScreen,bounds});
     return;
@@ -2416,7 +2417,9 @@ function stepGate(dt){
 
 function stepPinball(dt){
   const drained=pinballGame.update(dt);if(drained.length)SFX.play('death',{big:false});
-  for(const m of drained){m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);}
+  for(const m of drained){m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);
+    S.toasts.push({text:`${m.name} 탈락`,sub:`${m.rank}위  ·  남은 구슬 ${S.marbles.length-S.eliminated.length}개`,color:m.color,life:4,max:4});if(S.toasts.length>10)S.toasts.shift();
+  }
   if(pinballGame.winner){const m=pinballGame.winner;S.phase='finished';S.determined=true;S.winners=[m.faction];m.win=true;m.faction.win=true;
     S.bannerDelay=0.9;S.bannerNext={text:`🏆 ${m.name} 승리!`,sub:`LAST ONE STANDING  ·  ${fmt(pinballGame.time)}`,nameColor:m.color,name:m.name};
     deadKey=-1;updateRank();}
