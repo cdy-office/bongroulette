@@ -14,7 +14,7 @@ export async function initializeSdk({ clientId, clientSecret, accessToken }) {
   sdk.handleReady(() => ready());
   sdk.handleMessageReceived((action, data) => {
     if (action === 'MESSAGE' && typeof data?.message === 'string') {
-      window.deliverChat({ type: 'chat', text: data.message.slice(0, 320), userId: String(data.userId || '').slice(0, 100) });
+      window.deliverChat({ type: 'chat', text: data.message.slice(0, 320), userId: String(data.userId || '').slice(0, 100), nickname: String(data.userNickname || '').slice(0, 100) });
     }
     if (action === 'BALLOON_GIFTED' && !data?.fromVod && !data?.relaysBroad && Number.isSafeInteger(data?.count) && data.count > 0) {
       window.deliverChat({ type: 'donation', count: data.count, userId: String(data.userId || '').slice(0, 100), nickname: String(data.userNickname || '').slice(0, 100) });

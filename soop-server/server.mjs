@@ -59,7 +59,7 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
     if (!s.active || !s.stream) return;
     if (typeof message === 'string') message = { type: 'chat', text: message };
     let payload;
-    if (message?.type === 'chat' && typeof message.text === 'string') payload = { type: 'chat', text: message.text.slice(0, 320), userId: String(message.userId || '').slice(0, 100) };
+    if (message?.type === 'chat' && typeof message.text === 'string') payload = { type: 'chat', text: message.text.slice(0, 320), userId: String(message.userId || '').slice(0, 100), nickname: String(message.nickname || '').slice(0, 100) };
     else if (message?.type === 'donation' && Number.isSafeInteger(message.count) && message.count > 0) payload = { type: 'donation', count: message.count, userId: String(message.userId || '').slice(0, 100), nickname: String(message.nickname || '').slice(0, 100) };
     else return;
     if (s.stream.writableLength > 65536) { destroy(s); return; }

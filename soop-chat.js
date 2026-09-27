@@ -19,7 +19,7 @@ export function createChatReceiver({ game, command, show, speak = () => false, n
       if (!text) return false;
       if (state.mode === 'cannon') {
         if (text !== '!발사') return false;
-        return command(text, { eventId: event.id, round: state.round });
+        return command(text, { eventId: event.id, round: state.round, nickname: typeof event.nickname==='string'?event.nickname.slice(0,100):'' });
       }
       if (state.mode === 'gate' || state.mode === 'pinball') {
         if (text !== '!왼' && text !== '!오') return false;
