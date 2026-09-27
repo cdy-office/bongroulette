@@ -9,7 +9,8 @@ const random = () => randomBytes(32).toString('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const assets = new Map([
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
-  ['/soop-client.js', ['soop-client.js', 'text/javascript']],
+  ['/pinball.js', ['pinball.js', 'text/javascript']],
+    ['/soop-client.js', ['soop-client.js', 'text/javascript']],
   ['/soop-chat.js', ['soop-chat.js', 'text/javascript']],
   ['/soop-donations.js', ['soop-donations.js', 'text/javascript']],
   ['/soop.svg', ['soop.svg', 'image/svg+xml']],

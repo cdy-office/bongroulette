@@ -212,7 +212,7 @@ body[data-run="1"] #ctrl .seg button{padding:5px 8px}
 }
 
 /* Mode navigation stays above the arena, independent of the settings rail. */
-#gameSeg{position:fixed;z-index:3;top:16px;left:50%;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:6px;border:1px solid #364153;border-radius:14px;background:#111923ed;box-shadow:0 8px 26px #0004;backdrop-filter:blur(12px)}
+#gameSeg{position:fixed;z-index:3;top:16px;left:50%;transform:translateX(-50%);width:min(660px,calc(100vw - 32px));display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;padding:6px;border:1px solid #364153;border-radius:14px;background:#111923ed;box-shadow:0 8px 26px #0004;backdrop-filter:blur(12px)}
 #gameSeg button{font-family:inherit;font-size:13px;font-weight:650;white-space:nowrap;padding:12px 8px;border-radius:9px;transition:background .15s,color .15s}
 #gameSeg button:hover{background:#253548;color:#f2f6ff}
 #gameSeg button.on{background:#294442;color:#9af2dd;box-shadow:inset 0 0 0 1px #5c9f93}
@@ -221,11 +221,13 @@ body[data-run="1"] #gameSeg{display:none}
 @media(min-width:821px) and (max-width:1200px){body:not([data-run="1"]) #ctrl{top:86px}body:not([data-run="1"]) #rank{top:86px}}
 @media(max-width:820px){#gameSeg{top:10px;width:calc(100vw - 20px);max-width:560px;padding:4px;gap:2px;border-radius:11px}#gameSeg button{font-size:11px;padding:11px 3px}}
 
+body[data-mode="pinball"] .opts>.opt:not(#speedRow){display:none!important}
+@media(max-width:820px){#gameSeg button{font-size:10px;padding:11px 1px}}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택" title="콜로세움: 경기장 전투 / 레이스: 트랙을 돌며 한 바퀴마다 꼴찌 탈락. 결전 인원부터 스킬 (피해는 정지·뒤로 밀림)"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button></div>
+<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택" title="콜로세움: 경기장 전투 / 레이스: 트랙을 돌며 한 바퀴마다 꼴찌 탈락. 결전 인원부터 스킬 (피해는 정지·뒤로 밀림)"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="pinball">🎱 핀볼</button></div>
 
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
@@ -289,6 +291,7 @@ body[data-run="1"] #gameSeg{display:none}
 <link rel="stylesheet" href="soop.css">
 <script type="module" src="soop-client.js"></script>
 <script src="colosseum3d.bundle.js"></script>
+<script src="pinball.js"></script>
 <script>
 (() => {
 'use strict';
@@ -456,6 +459,8 @@ const isRace=()=>opt.game==='race';
 // ---------- 블랙홀 모드: 가운데로 나선형으로 빨려 들어감, 빨려 들어가면 탈락, 마지막까지 버틴 공이 승리 ----------
 const isHole=()=>opt.game==='hole';
 const isGate=()=>opt.game==='gate';
+const isPinball=()=>opt.game==='pinball';
+let pinballGame=null;
 let gateGame=null;
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
 const isBomb=()=>opt.game==='bomb';
@@ -622,7 +627,7 @@ function setup(){
   const names=parseNames(namesEl.value);
   const uniq=[...new Set(names)];
   // 이름이 하나뿐이면 공 하나하나를 개별로 취급
-  const single=isGate()||uniq.length<2;S.single=single;
+  const single=isGate()||isPinball()||uniq.length<2;S.single=single;
   const keys=names.map((nm,i)=>single?`${nm} #${i+1}`:nm);
   const ukeys=[...new Set(keys)];
   const hue=new Map(ukeys.map((k,i)=>[k,(i*137.508+20)%360]));
@@ -690,6 +695,7 @@ function setup(){
     gateGame.reset(S.marbles,rng,{threshold:$('#gateThreshold').value,openDuration:0.4,lavaRule:$('#gateRule .on').dataset.v});
     syncGateUI();
   }
+  if(isPinball()&&pinballGame)pinballGame.reset(S.marbles,rng);
   checkBars(true);
   btnStart.disabled=n<2;
   deadKey=-1;updateRank();
@@ -1061,6 +1067,7 @@ function step(dt){
   if(S.phase!=='battle')return;
   S.time+=dt;
   if(isGate()){stepGate(dt);return;}
+  if(isPinball()){stepPinball(dt);return;}
   const alive=aliveList();const na=alive.length;
   if(!S.final&&na<=opt.finalAt&&S.time>1&&!isBomb())enterFinal(alive); // 폭탄 모드는 폭탄이 스킬을 준다
   if(S.final)S.finalT+=dt;
@@ -1584,7 +1591,7 @@ function poly(x,y,r,n,rot){ctx.beginPath();for(let i=0;i<n;i++){const a=rot+i/n*
 function stadiumPath(L,R){ctx.moveTo(-L,-R);ctx.lineTo(L,-R);ctx.arc(L,0,R,-Math.PI/2,Math.PI/2);ctx.lineTo(-L,R);ctx.arc(-L,0,R,Math.PI/2,Math.PI*1.5);ctx.closePath()}
 
 function updateCamera(dt){
-  if(isGate())return;
+  if(isGate()||isPinball())return;
   const {L,R,T,B}=region();
   const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_R;
   const fit=Math.max(0.08,Math.min((R-L)/(AW*2+40),(B-T)/(AH*2+40))); // 화면이 아주 작아져도(모바일 키보드 등) 0 이하로 내려가지 않게
@@ -2078,6 +2085,10 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(warmGlyphs);el
 function render(delta=1/60){
   if(W<2||H<2)return; // 창이 아직 크기를 못 받았거나 숨겨진 상태
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(isPinball()&&pinballGame){
+    if(arena3d)arena3d.setActive(false);if(gateGame)gateGame.setActive(false);
+    const mobile=isMobile(),b=region();pinballGame.render(ctx,W,H,{L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B},{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf});return;
+  }
   if(isGate()&&gateGame){
     if(arena3d)arena3d.setActive(false);
     const mobile=isMobile(),b=region();
@@ -2364,6 +2375,7 @@ function frame(now){
 
 // Gate commands use the same path for manual and future approved chat input.
 function gateCommand(message,metadata){
+  if(isPinball())return S.phase==='battle'&&!S.paused&&pinballGame.command(message);
   if(!isGate()||S.phase!=='battle'||S.paused||!gateGame)return false;
   const accepted=gateGame.round.command(message,metadata);syncGateUI();return accepted;
 }
@@ -2386,6 +2398,12 @@ function stepGate(dt){
   }
 }
 
+function stepPinball(dt){
+  const drained=pinballGame.update(dt);if(drained.length)SFX.play('death',{big:false});
+  for(const m of drained){m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);}
+  if(pinballGame.winner){const m=pinballGame.winner;S.phase='finished';S.determined=true;S.winners=[m.faction];m.win=true;m.faction.win=true;SFX.play('win');deadKey=-1;updateRank();}
+}
+window.addEventListener('keydown',e=>{if(!isPinball()||e.repeat||e.target.matches('input,textarea,select')||document.querySelector('dialog[open]'))return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();gateCommand(e.key==='ArrowLeft'?'!왼':'!오');}});
 // ---------- UI ----------
 function seg(el,cb){el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');SFX.play('ui');cb(b.dataset.v)}))}
 function setGraphicsMode(value){
@@ -2467,6 +2485,8 @@ if(window.createColosseum3D){
   if(result.ready){arena3d=result;window.RW.view3d=result}
   else{opt.view3d=false;$('#graphicsNote').textContent=result.error;$('#graphicsSeg [data-v="2d"]').click()}
 }else{opt.view3d=false;$('#graphicsNote').textContent='3D 파일을 불러오지 못해 기존 2D로 표시합니다.';$('#graphicsSeg [data-v="2d"]').click()}
+pinballGame=window.createPinballGame({roundFace});
+window.RW.pinballGame=pinballGame;
 gateGame=window.createGateGame?.({canvas,roundFace,onError:()=>setGraphicsMode(false)});
 Object.assign(window.RW,{gateCommand,get gateGame(){return gateGame;}});
 const previewParams=new URLSearchParams(['localhost','127.0.0.1','[::1]'].includes(location.hostname)?location.search:''); // 체험·QA 파라미터는 로컬 개발에서만 사용
@@ -2474,6 +2494,7 @@ if(previewParams.get('demo')==='duel')namesEl.value='광견이형, 루시엘';
 if(previewParams.get('demo')==='final'){namesEl.value='광견이형, 루시엘, 송판, 네즈미, 강자, 안나, 미카엘라, 헤이즐';}
 if(previewParams.get('demo')==='skills'){namesEl.value='광견이형, 루시엘, 송판';}
 if(previewParams.get('demo')==='race-duel')namesEl.value='광견이형, 루시엘';
+if(previewParams.get('demo')==='pinball'){$('#gameSeg [data-v="pinball"]').click();}
 if(previewParams.get('demo')==='gate'){$('#gameSeg [data-v="gate"]').click();}
 if(previewParams.get('demo')==='bomb'){$('#gameSeg [data-v="bomb"]').click();}
 if(['race','race-duel'].includes(previewParams.get('demo'))){$('#gameSeg [data-v="race"]').click();}

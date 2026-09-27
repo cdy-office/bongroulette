@@ -17,7 +17,7 @@ export function createChatReceiver({ game, command, show, speak = () => false, n
       if (!state || state.phase !== 'battle' || state.paused || state.finished) return false;
       const text = event.text.slice(0, 320).replace(/[\u0000-\u001f\u007f]/g, '').trim();
       if (!text) return false;
-      if (state.mode === 'gate') {
+      if (state.mode === 'gate' || state.mode === 'pinball') {
         if (text !== '!왼' && text !== '!오') return false;
         return command(text, { eventId: event.id, round: state.round });
       }

@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import {createChatReceiver} from '../../soop-chat.js';
+function game(n){const c={window:{}};vm.runInNewContext(readFileSync(new URL('../../pinball.js',import.meta.url),'utf8'),c);let seed=123;const rng=()=>((seed=(seed*1664525+1013904223)>>>0)/4294967296);const g=c.window.createPinballGame({roundFace:()=>null});g.reset(Array.from({length:n},(_,i)=>({i,name:`ball ${i}`})),rng);return g;}
+for(const n of [2,22,200])test(`${n} marbles launch, remain finite, drain to exactly one winner`,()=>{const g=game(n),dead=new Set();for(let i=0;!g.winner&&i<120*90;i++){for(const m of g.update(1/120)){assert(!dead.has(m.i));dead.add(m.i);}assert(g.balls.every(b=>Number.isFinite(b.x+b.y+b.vx+b.vy)));}assert(g.winner);assert.equal(dead.size,n-1);assert.equal(g.balls.filter(b=>b.alive).length,1);});
+test('left flipper strikes a nearby marble upward',()=>{const g=game(2);g.update(.01);Object.assign(g.balls[0],{x:205,y:868,vx:0,vy:100,cool:0});Object.assign(g.balls[1],{x:300,y:200,vx:0,vy:0});assert(g.command('!왼'));g.update(1/120);assert(g.balls[0].vy< -500);assert(!g.command('anything'));});
+test('simultaneous drain preserves one winner, reset clears result',()=>{const g=game(2);g.update(.01);g.balls.forEach((b,i)=>Object.assign(b,{x:280+i*30,y:1005+i,vy:100,vx:0}));assert.equal(g.update(.01).length,1);assert(g.winner);g.reset([{i:0},{i:1}],()=>.5);assert.equal(g.winner,undefined);assert.equal(g.time,0);});
+test('SOOP pinball commands deduplicate and stop while paused',()=>{const calls=[];let paused=false;const r=createChatReceiver({game:()=>({mode:'pinball',phase:'battle',paused}),command:t=>{calls.push(t);return true;},show:()=>{},now:()=>100});const e={id:'a',at:100,text:'!왼'};assert(r.receive(e));assert(!r.receive(e));assert(!r.receive({...e,id:'b',text:'hello'}));paused=true;assert(!r.receive({...e,id:'c',text:'!오'}));assert.deepEqual(calls,['!왼']);});
