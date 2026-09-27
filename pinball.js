@@ -58,34 +58,46 @@
   const collisionGrid=new Map(),CELL=64;
   const colliders=[
     ...solid.map(r=>({r,radius:5,kick:0})),
-    ...slingSegments.flatMap((rs,i)=>rs.map((r,j)=>({r,radius:3,kick:j>=2&&j<slingFront.length-2?300:0,color:i===0?'#4fd1c5':'#b388ff'}))),
-    ...targets.map(r=>({r,radius:7,kick:230,color:r[0]<CENTER?'#4fd1c5':'#b388ff'}))
+    ...slingSegments.flatMap((rs,i)=>rs.map((r,j)=>({r,radius:3,kick:j>=2&&j<slingFront.length-2?580:0,id:'sling-'+i,color:i===0?'#4fd1c5':'#b388ff'}))),
+    ...targets.map((r,i)=>({r,radius:7,kick:520,id:'target-'+i,color:r[0]<CENTER?'#4fd1c5':'#b388ff'}))
   ];
   for(const item of colliders){const [x1,y1,x2,y2]=item.r,pad=R+item.radius+3;for(let x=Math.floor((Math.min(x1,x2)-pad)/CELL);x<=Math.floor((Math.max(x1,x2)+pad)/CELL);x++)for(let y=Math.floor((Math.min(y1,y2)-pad)/CELL);y<=Math.floor((Math.max(y1,y2)+pad)/CELL);y++){const key=x+','+y;if(!collisionGrid.has(key))collisionGrid.set(key,[]);collisionGrid.get(key).push(item);}}
   const font = 'Pretendard,"Malgun Gothic",sans-serif';
 
   window.createPinballGame = ({roundFace}) => {
     let balls=[], random=Math.random, time=0, launched=false, effects=[], winner=null, activeCount=0;
-    let nextLaunch=0, launchClock=0, followBall=null, shotElapsed=0;
+    let nextLaunch=0, launchClock=0;
+    const hitFlashes=new Map();
     const camera={x:W/2,y:H/2,zoom:1,ready:false};
-    const flippers=[{x:220,y:1010,angle:.4,side:1,pulse:0},{x:500,y:1010,angle:Math.PI-.4,side:-1,pulse:0}];
+    const flippers=[{x:220,y:1010,angle:.4,side:1},{x:500,y:1010,angle:Math.PI-.4,side:-1}];
     function reset(marbles,rng) {
       random=rng; time=0; launched=false; effects=[]; winner=null; activeCount=marbles.length;
-      nextLaunch=0; launchClock=0; camera.ready=false;followBall=null;shotElapsed=0;
+      nextLaunch=0; launchClock=0; camera.ready=false;hitFlashes.clear();
       const order=marbles.slice();
       for(let i=order.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
-      balls=order.map(source=>({source,x:712,y:1040,vx:0,vy:0,r:R,alive:true,queued:true,inLane:true,cool:0,stuck:0}));
-      flippers.forEach(f=>{f.pulse=0;f.angle=f.side===1?.4:Math.PI-.4;f.omega=0;});
+      balls=order.map(source=>({source,x:712,y:1040,vx:0,vy:0,r:R,alive:true,queued:true,inLane:true,cool:0,poweredUntil:new Map()}));
+      flippers.forEach(f=>{f.active=false;f.pending=false;f.stroke=0;f.angle=f.side===1?.4:Math.PI-.4;f.omega=0;});
     }
     function command(text) {
       if(text!=='!왼'&&text!=='!오')return false;
-      const f=flippers[text==='!왼'?0:1];f.pulse=Math.min(.3,f.pulse+.18);return true;
+      const f=flippers[text==='!왼'?0:1];
+      // Coalesce a burst into one next stroke; never prolong the raised phase.
+      if(f.active)f.pending=true;else{f.active=true;f.stroke=0;}
+      return true;
     }
     function spark(x,y,color) {
       for(let i=0;i<7;i++){const a=random()*Math.PI*2;effects.push({x,y,vx:Math.cos(a)*110,vy:Math.sin(a)*110,life:.4,color});}
       if(effects.length>240)effects.splice(0,effects.length-240);
     }
-    function segment(b,x1,y1,x2,y2,radius=5,kick=0,color='#4fd1c5',omega=0) {
+    function powerHit(b,id,nx,ny,incoming,strength,x,y,color) {
+      if(incoming>=-1||time<(b.poweredUntil.get(id)||0))return;
+      const outgoing=strength+Math.min(160,-incoming*.15);
+      const boost=Math.max(0,outgoing-(b.vx*nx+b.vy*ny));
+      b.vx+=nx*boost;b.vy+=ny*boost;
+      b.poweredUntil.set(id,time+.09);hitFlashes.set(id,time+.14);
+      spark(x,y,color);
+    }
+    function segment(b,x1,y1,x2,y2,radius=5,kick=0,color='#4fd1c5',omega=0,id='') {
       const dx=x2-x1,dy=y2-y1,t=clamp(((b.x-x1)*dx+(b.y-y1)*dy)/(dx*dx+dy*dy),0,1),px=x1+t*dx,py=y1+t*dy;
       let nx=b.x-px,ny=b.y-py,d=Math.hypot(nx,ny);const min=b.r+radius;
       if(d>=min)return false;
@@ -100,10 +112,8 @@
         b.vx+=ny*tangent*.025;b.vy-=nx*tangent*.025;
       }
       // Only an incoming hit on a lit rubber face fires its solenoid.
-      if(kick&&dot< -25&&b.cool<=0){
-        const boost=Math.max(0,kick-(b.vx*nx+b.vy*ny));
-        b.vx+=nx*boost;b.vy+=ny*boost;b.cool=.16;
-        spark(px,py,color);
+      if(kick){
+        powerHit(b,id,nx,ny,dot,kick,px,py,color);
       }else if(omega&&dot< -150&&b.cool<=0){
         spark(px,py,color);b.cool=.12;
       }
@@ -121,10 +131,20 @@
           launchClock=.045;
         }
         for(const f of flippers) {
-          f.pulse=Math.max(0,f.pulse-h);
-          const target=f.side===1?(f.pulse>0?-.52:.4):(f.pulse>0?Math.PI+.52:Math.PI-.4);
           const before=f.angle;
-          f.angle+=(target-f.angle)*Math.min(1,h*28);
+          if(f.active){
+            f.stroke+=h;
+            if(f.stroke>=.24){
+              f.stroke-=.24;f.active=f.pending;f.pending=false;
+            }
+          }
+          // Fast upstroke, brief impact stop, complete return, then a rest beat.
+          const t=f.stroke;
+          let lift=0;
+          if(f.active&&t<.055)lift=1-Math.pow(1-t/.055,2);
+          else if(f.active&&t<.08)lift=1;
+          else if(f.active&&t<.20){const u=(t-.08)/.12;lift=1-u*u*(3-2*u);}
+          f.angle=f.side===1?.4-.96*lift:Math.PI-.4+.96*lift;
           f.omega=(f.angle-before)/h;
         }
         const falling=[];
@@ -133,19 +153,15 @@
           b.cool=Math.max(0,b.cool-h);
           b.vy+=460*h;b.vx*=Math.exp(-.10*h);b.vy*=Math.exp(-.10*h);
           b.x+=b.vx*h;b.y+=b.vy*h;
-          for(const c of collisionGrid.get(Math.floor(b.x/CELL)+','+Math.floor(b.y/CELL))||[])segment(b,...c.r,c.radius,c.kick,c.color);
-          for(const p of bumpers) {
+          for(const c of collisionGrid.get(Math.floor(b.x/CELL)+','+Math.floor(b.y/CELL))||[])segment(b,...c.r,c.radius,c.kick,c.color,0,c.id);
+          for(const [i,p] of bumpers.entries()) {
             let dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy);const min=p.r+b.r;
             if(d>=min)continue;
             if(d<.001){dx=1;dy=0;d=1;}
             const nx=dx/d,ny=dy/d;b.x=p.x+nx*(min+.2);b.y=p.y+ny*(min+.2);
             const dot=b.vx*nx+b.vy*ny;
             if(dot<0){b.vx-=1.5*dot*nx;b.vy-=1.5*dot*ny;}
-            if(dot< -25&&b.cool<=0){
-              const boost=Math.max(0,210-(b.vx*nx+b.vy*ny));
-              b.vx+=nx*boost;b.vy+=ny*boost;
-              spark(p.x+nx*p.r,p.y+ny*p.r,'#ffd166');b.cool=.16;
-            }
+            powerHit(b,'bumper-'+i,nx,ny,dot,480,p.x+nx*p.r,p.y+ny*p.r,'#ffd166');
           }
           for(const f of flippers)segment(b,f.x,f.y,f.x+Math.cos(f.angle)*FLIPPER_LENGTH,f.y+Math.sin(f.angle)*FLIPPER_LENGTH,10,0,f.side===1?'#4fd1c5':'#b388ff',f.omega);
           if(b.inLane&&b.x<656&&b.y<240)b.inLane=false;
@@ -183,23 +199,28 @@
       ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,width,height);
       const vw=bounds.R-bounds.L,vh=bounds.B-bounds.T,boardTop=bounds.T+58,boardHeight=Math.max(100,vh-58),base=Math.max(.05,Math.min(vw/W,boardHeight/H));
       let tx=W/2,ty=H/2,tz=1;
-      const live=balls.filter(b=>b.alive&&!b.queued);
+      const live=balls.filter(b=>b.alive);
       const delta=options.paused?0:Math.min(.05,options.delta??1/60);
+      let framing=null;
       if(options.phase==='battle'&&live.length&&!winner) {
-        shotElapsed+=delta;
-        if(!followBall?.alive||followBall.queued||shotElapsed>=3){
-          const current=live.indexOf(followBall);
-          followBall=live[(current+1)%live.length];shotElapsed=0;
-        }
-        tz=2.05;tx=followBall.x+clamp(followBall.vx*.08,-50,50);ty=followBall.y+clamp(followBall.vy*.1,-65,65);
+        framing={minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity};
+        for(const b of live){framing.minX=Math.min(framing.minX,b.x-48);framing.maxX=Math.max(framing.maxX,b.x+48);framing.minY=Math.min(framing.minY,b.y-48);framing.maxY=Math.max(framing.maxY,b.y+48);}
+        tx=(framing.minX+framing.maxX)/2;ty=(framing.minY+framing.maxY)/2;
+        tz=clamp(Math.min(vw/(framing.maxX-framing.minX),boardHeight/(framing.maxY-framing.minY))/base,.75,2.5);
       }
-      if(winner){followBall=winner;tx=winner.x;ty=winner.y;tz=2.45;}
+      if(winner){tx=winner.x;ty=winner.y;tz=2.45;}
       const halfW=vw/(2*base*tz),halfH=boardHeight/(2*base*tz);
-      tx=halfW>=W/2?W/2:clamp(tx,halfW,W-halfW);
-      ty=halfH>=H/2?H/2:clamp(ty,halfH,H-halfH);
+      if(!framing){tx=halfW>=W/2?W/2:clamp(tx,halfW,W-halfW);ty=halfH>=H/2?H/2:clamp(ty,halfH,H-halfH);}
       if(!camera.ready){camera.x=tx;camera.y=ty;camera.zoom=tz;camera.ready=true;}
       const pan=1-Math.exp(-delta*3.8),zoom=1-Math.exp(-delta*1.9);
       camera.x+=(tx-camera.x)*pan;camera.y+=(ty-camera.y)*pan;camera.zoom+=(tz-camera.zoom)*zoom;
+      if(framing&&!options.paused){
+        // Smooth zoom-in, but widen immediately if spreading marbles would leave
+        // the frame while the camera center is still catching up.
+        const spanX=2*Math.max(camera.x-framing.minX,framing.maxX-camera.x);
+        const spanY=2*Math.max(camera.y-framing.minY,framing.maxY-camera.y);
+        camera.zoom=Math.min(camera.zoom,vw/(base*spanX),boardHeight/(base*spanY));
+      }
       const scale=base*camera.zoom,cx=(bounds.L+bounds.R)/2,cy=(boardTop+bounds.B)/2;
       ctx.save();ctx.beginPath();ctx.rect(bounds.L,boardTop,vw,boardHeight);ctx.clip();
       ctx.translate(cx-camera.x*scale,cy-camera.y*scale);ctx.scale(scale,scale);
@@ -218,18 +239,21 @@
       for(const [i,x] of [276,332,388,444].entries()){circle(x,183,7,'#ffd16622','#ffd16688',1.5);text(String(i+1),x,230,12,'#686879');}
       // Dashed arrows follow the orbit and shooter lane rather than unrelated decorations.
       for(let y=980;y>300;y-=76)line([[703,y+6],[712,y-3],[721,y+6]],'#4fd1c53d',3);
-      for(const r of targets){const c=r[0]<CENTER?'#4fd1c5':'#b388ff';line([[r[0],r[1]],[r[2],r[3]]],'#3d3d58',18);line([[r[0],r[1]],[r[2],r[3]]],c,8);}
-      for(const p of bumpers){
+      const flash=id=>clamp(((hitFlashes.get(id)||0)-time)/.14,0,1);
+      for(const [i,r] of targets.entries()){const c=r[0]<CENTER?'#4fd1c5':'#b388ff',pts=[[r[0],r[1]],[r[2],r[3]]];line(pts,'#3d3d58',18);line(pts,c,8);if(flash('target-'+i)){ctx.globalAlpha=flash('target-'+i);line(pts,'#ffffff',4);ctx.globalAlpha=1;}}
+      for(const [i,p] of bumpers.entries()){
         const c='#ffd166';
         circle(p.x,p.y+3,p.r+8,'#090910');circle(p.x,p.y,p.r+7,'#1b1b27','#3d3d58',2);
         circle(p.x,p.y,p.r,'#22222f',c,3);circle(p.x,p.y,p.r-7,'#181823','#303043',1);
         for(let i=0;i<4;i++){const a=i*Math.PI/2;circle(p.x+(p.r+4)*Math.cos(a),p.y+(p.r+4)*Math.sin(a),1.5,c);}
+        if(flash('bumper-'+i)){ctx.globalAlpha=flash('bumper-'+i);circle(p.x,p.y,p.r+2,'#0000','#ffffff',4);ctx.globalAlpha=1;}
       }
       poly(roundedPolygon([[342,499],[CENTER,482],[378,499],[CENTER,516]],4),'#1b1b27','#484860',1.5);
       for(let i=0;i<2;i++){
         const c=i===0?'#4fd1c5':'#b388ff';
         poly(slings[i],'#20202d','#42425c',3);
         line(i===0?slingActive:mirror(slingActive),c,3);
+        if(flash('sling-'+i)){ctx.globalAlpha=flash('sling-'+i);line(i===0?slingActive:mirror(slingActive),'#ffffff',4);ctx.globalAlpha=1;}
         circle(i===0?184:536,882,3,'#12121b',c,1.3);
       }
       for(const f of flippers){const end=[f.x+Math.cos(f.angle)*FLIPPER_LENGTH,f.y+Math.sin(f.angle)*FLIPPER_LENGTH],c=f.side===1?'#4fd1c5':'#b388ff';line([[f.x,f.y],end],'#282837',24);line([[f.x,f.y],end],c,16);circle(f.x,f.y,10,'#22222f',c,2.5);}
@@ -246,6 +270,6 @@
       if(options.phase==='countdown'){ctx.fillStyle='#12121be8';ctx.beginPath();ctx.roundRect(cx-75,cy-55,150,110,10);ctx.fill();ctx.font=`700 48px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(String(Math.ceil(options.countdown)),cx,cy);}
       if(winner){ctx.font=`700 26px ${font}`;ctx.strokeStyle='#0a0a0f';ctx.lineWidth=5;ctx.strokeText(`🏆 ${winner.source.name} 승리!`,cx,bounds.B-60);ctx.fillStyle='#ffd166';ctx.fillText(`🏆 ${winner.source.name} 승리!`,cx,bounds.B-60);}
     }
-    return {reset,command,update,render,get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera,targetId:followBall?.source.i}}};
+    return {reset,command,update,render,get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
   };
 })();

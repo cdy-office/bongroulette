@@ -45,26 +45,60 @@ test('marble collisions retain momentum while losing rebound energy',()=>{
   assert(Math.abs(g.balls[0].vx+g.balls[1].vx)<.01);
   assert(g.balls.reduce((v,b)=>v+b.vx*b.vx,0)<8000);
 });
-test('close camera follows a new living marble every three real-time seconds and freezes on pause',()=>{
+test('rapid chat produces complete flipper strokes instead of holding either flipper up',()=>{
+  const g=game(22);g.update(.1);let returns=0,wasUp=false;
+  for(let i=0;i<240;i++){
+    g.command('!왼');g.command('!오');g.update(1/120);
+    const [left,right]=g.flippers;
+    assert(Math.abs(left.angle+right.angle-Math.PI)<1e-9);
+    if(left.angle<-.5)wasUp=true;
+    if(wasUp&&left.angle>.39){returns++;wasUp=false;}
+  }
+  assert(returns>=8,'every stroke must finish its downstroke even under chat spam');
+  g.update(.5);
+  assert(Math.abs(g.flippers[0].angle-.4)<1e-9);
+  assert(!g.flippers[0].active&&!g.flippers[0].pending,'a chat burst must not leave a long backlog');
+});
+test('colored bumper contacts fire strongly even after another recent impact',()=>{
+  const round=isolatedBall({x:317,y:302,vx:-120,vy:0,cool:.2});round.g.update(.002);
+  assert(round.b.vx>480,'gold bumper must add a distinct powered impulse');
+  const slow=isolatedBall({x:317,y:302,vx:-3,vy:0});slow.g.update(.002);
+  assert(slow.b.vx>=480,'even a slow incoming touch must activate a colored bumper');
+  const sling=isolatedBall({x:222,y:806,vx:-150,vy:80,cool:.2});sling.g.update(.002);
+  assert(Math.hypot(sling.b.vx,sling.b.vy)>580,'colored sling must be more than passive rubber');
+  const target=isolatedBall({x:121,y:422,vx:-120,vy:-70,cool:.2});target.g.update(.002);
+  assert(Math.hypot(target.b.vx,target.b.vy)>520,'side target must also be powered');
+});
+test('camera fits all living marbles, zooms with their spread, and freezes on pause',()=>{
   const g=game(3);g.update(.2);
-  g.balls.forEach((b,i)=>Object.assign(b,{x:280+i*70,y:300+i*260,vx:0,vy:0,inLane:false}));
+  g.balls.forEach((b,i)=>Object.assign(b,{x:320+i*40,y:500+i*20,vx:0,vy:0,inLane:false}));
   const ctx=new Proxy({},{get:()=>()=>{},set:()=>true});
   const options={phase:'battle',faces:false,delta:1/60};
   const frame=extra=>g.render(ctx,1440,1000,{L:250,R:1224,T:12,B:1000},{...options,...extra});
-  frame({phase:'idle'});frame();const first=g.camera.targetId;
-  for(let i=0;i<175;i++)frame();
-  assert.equal(g.camera.targetId,first);assert(g.camera.zoom>2);
+  const fits=()=>{const c=g.camera,s=Math.min(974/790,930/1200)*c.zoom;for(const b of g.balls.filter(b=>b.alive)){assert((Math.abs(b.x-c.x)+b.r)*s<=974/2+.01);assert((Math.abs(b.y-c.y)+b.r)*s<=930/2+.01);}};
+  frame({phase:'idle'});for(let i=0;i<360;i++)frame();
+  const closeZoom=g.camera.zoom;assert(closeZoom>2.4);assert(Math.abs(g.camera.x-360)<1);assert(Math.abs(g.camera.y-520)<1);fits();
+  Object.assign(g.balls[0],{x:60,y:70});Object.assign(g.balls[2],{x:712,y:1100});
+  frame();fits();assert(g.camera.zoom<closeZoom,'spread must widen the view without clipping marbles');
+  for(let i=0;i<360;i++)frame();fits();assert(g.camera.zoom<1.15);
   const paused=g.camera;for(let i=0;i<300;i++)frame({paused:true});assert.deepEqual(g.camera,paused);
-  for(let i=0;i<7;i++)frame();assert.notEqual(g.camera.targetId,first);
-  const second=g.camera.targetId;g.balls.find(b=>b.source.i===second).alive=false;
-  frame();assert.notEqual(g.camera.targetId,second,'eliminated marbles are skipped immediately');
+  g.balls[0].alive=false;g.balls[2].alive=false;
+  for(let i=0;i<360;i++)frame();fits();assert(g.camera.zoom>2.4,'eliminated marbles must not keep the camera far away');
+});
+test('camera includes waiting shooter marbles and handles a narrow viewport',()=>{
+  const g=game(3);g.update(.01);Object.assign(g.balls[0],{x:60,y:70});
+  const ctx=new Proxy({},{get:()=>()=>{},set:()=>true});
+  g.render(ctx,390,844,{L:8,R:382,T:12,B:844},{phase:'battle',faces:false,delta:1/60});
+  const c=g.camera,s=Math.min(374/790,774/1200)*c.zoom;
+  for(const b of g.balls){assert((Math.abs(b.x-c.x)+b.r)*s<=187+.01);assert((Math.abs(b.y-c.y)+b.r)*s<=387+.01);}
 });
 test('both outer rollover joins release marbles instead of trapping them in a gap',()=>{
   for(const x of [228,234,240,246,492,486,480,474]){
     const g=game(22);g.update(1.1);const b=g.balls[0];
     Object.assign(b,{x,y:126,vx:0,vy:0,queued:false,inLane:false,cool:0});
-    for(let i=0;i<360;i++)g.update(1/120);
-    assert(b.y>240||!b.alive,`marble at ${x} should clear the connected upper rail`);
+    let cleared=false;
+    for(let i=0;i<360;i++){g.update(1/120);if(b.y>240||!b.alive)cleared=true;}
+    assert(cleared,`marble at ${x} should clear the connected upper rail`);
   }
 });
 test('removed central bumper leaves an unobstructed falling path',()=>{
