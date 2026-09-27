@@ -14,7 +14,7 @@ export function createChatReceiver({ game, command, show, speak = () => false, n
       seen.add(event.id);
       if (seen.size > 2048) seen.delete(seen.values().next().value);
       const state = game();
-      if (!state || state.phase !== 'battle' || state.paused || state.finished) return false;
+      if (!state || (state.phase !== 'battle' && !(state.mode === 'pinball' && state.phase === 'countdown')) || state.paused || state.finished) return false;
       const text = event.text.slice(0, 320).replace(/[\u0000-\u001f\u007f]/g, '').trim();
       if (!text) return false;
       if (state.mode === 'cannon') {

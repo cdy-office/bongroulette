@@ -1,6 +1,6 @@
 /* Pinball uses the same flat palette, marble portraits and outlined labels as the 2D modes. */
 (function () {
-  const W = 790, H = 1200, R = 12, CENTER = 360, FLIPPER_LENGTH = 100;
+  const W = 790, H = 1200, R = 12, CENTER = 360, FLIPPER_LENGTH = 108;
   const mirror = pts => pts.map(([x,y])=>[CENTER*2-x,y]);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const pathSegments = pts => pts.slice(1).map((p, i) => [...pts[i], ...p]).filter(r=>Math.hypot(r[2]-r[0],r[3]-r[1])>.001);
@@ -66,7 +66,7 @@
 
   window.createPinballGame = ({roundFace,onError=()=>{}}) => {
     let view3d=null;
-    const layout={deck,shell,boundary,rightFloor,leftFloor,orbitLeft,orbitRight,leftRamp,rightRamp,lanePosts,targets,bumpers,slings,slingActive,leftApron,rightApron};
+    const layout={deck,shell,boundary,rightFloor,leftFloor,orbitLeft,orbitRight,leftRamp,rightRamp,lanePosts,targets,bumpers,slings,slingActive,leftApron,rightApron,flipperLength:FLIPPER_LENGTH};
     let balls=[], random=Math.random, time=0, launched=false, effects=[], winner=null, activeCount=0;
     let nextLaunch=0, launchClock=0;
     const hitFlashes=new Map();
@@ -121,6 +121,25 @@
       }
       return true;
     }
+    // Countdown runs only this mechanism: marbles stay in the shooter lane.
+    function updateFlippers(dt) {
+      if(winner||!Number.isFinite(dt)||dt<=0)return;
+      const count=Math.ceil(dt/(1/200)),h=dt/count;
+      for(let step=0;step<count;step++)for(const f of flippers) {
+        const before=f.angle;
+        if(f.active){
+          f.stroke+=h;
+          if(f.stroke>=.24){f.stroke-=.24;f.active=f.pending;f.pending=false;}
+        }
+        // Fast upstroke, brief impact stop, complete return, then a rest beat.
+        const t=f.stroke;let lift=0;
+        if(f.active&&t<.055)lift=1-Math.pow(1-t/.055,2);
+        else if(f.active&&t<.08)lift=1;
+        else if(f.active&&t<.20){const u=(t-.08)/.12;lift=1-u*u*(3-2*u);}
+        f.angle=f.side===1?.4-.96*lift:Math.PI-.4+.96*lift;
+        f.omega=(f.angle-before)/h;
+      }
+    }
     function update(dt) {
       if(winner||dt<=0)return [];
       launched=true;
@@ -132,23 +151,7 @@
           const b=balls[nextLaunch++];b.queued=false;b.x=712;b.y=1040;b.vx=(random()-.5)*12;b.vy=-1540;
           launchClock=.045;
         }
-        for(const f of flippers) {
-          const before=f.angle;
-          if(f.active){
-            f.stroke+=h;
-            if(f.stroke>=.24){
-              f.stroke-=.24;f.active=f.pending;f.pending=false;
-            }
-          }
-          // Fast upstroke, brief impact stop, complete return, then a rest beat.
-          const t=f.stroke;
-          let lift=0;
-          if(f.active&&t<.055)lift=1-Math.pow(1-t/.055,2);
-          else if(f.active&&t<.08)lift=1;
-          else if(f.active&&t<.20){const u=(t-.08)/.12;lift=1-u*u*(3-2*u);}
-          f.angle=f.side===1?.4-.96*lift:Math.PI-.4+.96*lift;
-          f.omega=(f.angle-before)/h;
-        }
+        updateFlippers(h);
         const falling=[];
         for(const b of balls) {
           if(!b.alive||b.queued)continue;
@@ -291,6 +294,6 @@
       hud();
       if(winner)return {x:cx+(winner.x-camera.x)*scale,y:cy+(winner.y-camera.y)*scale,r:R*scale,scale};
     }
-    return {reset,command,update,render,setActive:value=>view3d?.setActive(value),get view3dMetrics(){return view3d?.metrics},get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
+    return {reset,command,updateFlippers,update,render,setActive:value=>view3d?.setActive(value),get view3dMetrics(){return view3d?.metrics},get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
   };
 })();

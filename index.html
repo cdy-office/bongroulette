@@ -232,7 +232,7 @@ body[data-mode="cannon"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGr
 </head>
 <body>
 <canvas id="game"></canvas>
-<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button></div>
+<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="gate">🚪 문 선택</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button></div>
 
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
@@ -1073,7 +1073,7 @@ function detonateCarriedBomb(holder){
   S.bombWait=Math.max(S.bombWait,MAZE.spawn);
 }
 function step(dt){
-  if(S.phase==='countdown'){if(S.countdown===3)SFX.play('tick',{n:3});const c0=Math.ceil(S.countdown);S.countdown-=dt;if(Math.ceil(S.countdown)<c0&&S.countdown>0)SFX.play('tick',{n:Math.ceil(S.countdown)});if(S.countdown<=0){S.phase='battle';S.fight=1;addFeed('⚔️ 전투 시작!');SFX.play('go')}return}
+  if(S.phase==='countdown'){if(isPinball())pinballGame.updateFlippers(dt);if(S.countdown===3)SFX.play('tick',{n:3});const c0=Math.ceil(S.countdown);S.countdown-=dt;if(Math.ceil(S.countdown)<c0&&S.countdown>0)SFX.play('tick',{n:Math.ceil(S.countdown)});if(S.countdown<=0){S.phase='battle';S.fight=1;addFeed('⚔️ 전투 시작!');SFX.play('go')}return}
   if(S.phase!=='battle')return;
   S.time+=dt;
   if(isGate()){stepGate(dt);return;}
@@ -2413,7 +2413,7 @@ function frame(now){
 // Gate commands use the same path for manual and future approved chat input.
 function gateCommand(message,metadata){
   if(isCannon())return S.phase==='battle'&&!S.paused&&cannonGame.round.command(message,metadata);
-  if(isPinball())return S.phase==='battle'&&!S.paused&&pinballGame.command(message);
+  if(isPinball())return running()&&!S.paused&&pinballGame.command(message);
   if(!isGate()||S.phase!=='battle'||S.paused||!gateGame)return false;
   const accepted=gateGame.round.command(message,metadata);syncGateUI();return accepted;
 }
