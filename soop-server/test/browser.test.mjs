@@ -52,6 +52,12 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.waitForFunction(() => window.RW.S.phase === 'battle');
   assert.equal(await page.locator('#soopPanel').isVisible(), false);
   assert.equal(await page.evaluate(() => RW.soopConnected), true);
+  const keyboardCounts = await page.evaluate(() => [...RW.gateGame.round.counts]);
+  const keyboardOpened = await page.evaluate(() => [...RW.gateGame.round.opened]);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(before => RW.gateGame.round.opened[0] > before[0] && RW.gateGame.round.opened[1] > before[1], keyboardOpened);
+  assert.deepEqual(await page.evaluate(() => [...RW.gateGame.round.counts]), keyboardCounts);
   const battleNames = await page.locator('#names').inputValue();
   send({ type: 'donation', userId: 'donor-b', nickname: '다른 후원자', count: 20 });
   send({ type: 'chat', userId: 'donor-b', text: '테스트이름' });
