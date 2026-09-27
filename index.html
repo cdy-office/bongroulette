@@ -2087,7 +2087,7 @@ function render(delta=1/60){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   if(isPinball()&&pinballGame){
     if(arena3d)arena3d.setActive(false);if(gateGame)gateGame.setActive(false);
-    const mobile=isMobile(),b=region();pinballGame.render(ctx,W,H,{L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B},{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf});return;
+    const mobile=isMobile(),b=region();pinballGame.render(ctx,W,H,{L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B},{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});return;
   }
   if(isGate()&&gateGame){
     if(arena3d)arena3d.setActive(false);

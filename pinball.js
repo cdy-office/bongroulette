@@ -1,66 +1,174 @@
-/* Standalone planar pinball simulation. All speeds and geometry are in table units. */
-(function(){
-const W=600,H=980,R=10,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const rails=[[45,160,80,60],[80,60,520,60],[520,60,555,160],[45,160,45,740],[555,160,555,740],[45,740,60,850],[60,850,60,940],[555,740,540,850],[540,850,540,940],[100,690,165,755],[165,755,115,800],[115,800,100,690],[500,690,435,755],[435,755,485,800],[485,800,500,690],[100,190,120,310],[500,190,480,310]];
-const bumpers=[{x:210,y:245,r:32},{x:390,y:245,r:32},{x:300,y:360,r:37},{x:170,y:485,r:26},{x:430,y:485,r:26},{x:300,y:595,r:43}];
-window.createPinballGame=({roundFace})=>{
-let balls=[],random=Math.random,time=0,launched=false,effects=[],winner=null,activeCount=0;
-const flippers=[{x:145,y:865,angle:.38,side:1,pulse:0},{x:455,y:865,angle:Math.PI-.38,side:-1,pulse:0}];
-function reset(marbles,rng){random=rng;time=0;launched=false;effects=[];winner=null;activeCount=marbles.length;
- const order=marbles.slice();for(let i=order.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
- balls=order.map((source,i)=>({source,x:85+(i%20)*22,y:640-Math.floor(i/20)*22,vx:0,vy:0,r:R,alive:true,cool:0}));
- flippers.forEach(f=>{f.pulse=0;f.angle=f.side===1?.38:Math.PI-.38;});
-}
-function command(text){if(text!=='!왼'&&text!=='!오')return false;const f=flippers[text==='!왼'?0:1];f.pulse=Math.min(.32,f.pulse+.18);return true;}
-function spark(x,y,color){for(let i=0;i<7;i++){const a=random()*Math.PI*2;effects.push({x,y,vx:Math.cos(a)*100,vy:Math.sin(a)*100,life:.4,color});}if(effects.length>240)effects.splice(0,effects.length-240);}
-function segment(b,x1,y1,x2,y2,radius=5,kick=0,side=0){const dx=x2-x1,dy=y2-y1,len=dx*dx+dy*dy,t=clamp(((b.x-x1)*dx+(b.y-y1)*dy)/len,0,1),px=x1+t*dx,py=y1+t*dy;let nx=b.x-px,ny=b.y-py,d=Math.hypot(nx,ny),min=b.r+radius;if(d>=min)return; if(d<.0001){nx=-dy;ny=dx;d=Math.hypot(nx,ny);}nx/=d;ny/=d;b.x=px+nx*(min+.1);b.y=py+ny*(min+.1);const dot=b.vx*nx+b.vy*ny;if(dot<0){b.vx-=1.72*dot*nx;b.vy-=1.72*dot*ny;}if(kick&&b.y<py+8&&b.cool<=0){b.vy=-Math.max(730,Math.abs(b.vy));b.vx+=side*(130+220*t);b.cool=.1;spark(b.x,b.y,'#8fffe0');}}
-function update(dt){if(winner)return[];if(!launched){launched=true;for(const b of balls){b.vx=(random()-.5)*350;b.vy=-600-random()*240;}}
- const deaths=[];const count=Math.ceil(dt/(1/180)),h=dt/count;
- for(let step=0;step<count;step++){time+=h;for(const f of flippers){f.pulse=Math.max(0,f.pulse-h);const target=f.side===1?(f.pulse>0?-.55:.38):(f.pulse>0?Math.PI+.55:Math.PI-.38);f.angle+=(target-f.angle)*Math.min(1,h*35);}
- const falling=[];
- for(const b of balls){if(!b.alive)continue;b.cool=Math.max(0,b.cool-h);b.vy+=(310+Math.min(180,time*1.4))*h;b.vx*=Math.exp(-.018*h);b.vy*=Math.exp(-.018*h);b.x+=b.vx*h;b.y+=b.vy*h;
- for(const rail of rails)segment(b,...rail);
- for(const p of bumpers){let dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy),min=p.r+b.r;if(d<min){if(d<.001){dx=1;dy=0;d=1;}const nx=dx/d,ny=dy/d;b.x=p.x+nx*(min+.2);b.y=p.y+ny*(min+.2);const dot=b.vx*nx+b.vy*ny;if(dot<0){b.vx-=2*dot*nx;b.vy-=2*dot*ny;}b.vx+=nx*140;b.vy+=ny*140;if(b.cool<=0){spark(b.x,b.y,'#ffc875');b.cool=.08;}}}
- for(const f of flippers)segment(b,f.x,f.y,f.x+Math.cos(f.angle)*124,f.y+Math.sin(f.angle)*124,10,f.pulse>0?1:0,f.side);
- const speed=Math.hypot(b.vx,b.vy);if(speed>1100){b.vx*=1100/speed;b.vy*=1100/speed;}
- if(b.y>H+20)falling.push(b);
- // Keep escaped high-speed balls within the closed side walls until the drain.
- if(b.y<740){if(b.x<55){b.x=55;b.vx=Math.abs(b.vx);}if(b.x>545){b.x=545;b.vx=-Math.abs(b.vx);}if(b.y<70){b.y=70;b.vy=Math.abs(b.vy);}}
- }
- // Spatial buckets keep marble contacts affordable with hundreds of entrants.
- const grid=new Map();for(const b of balls){if(!b.alive)continue;const gx=Math.floor(b.x/24),gy=Math.floor(b.y/24);for(let x=gx-1;x<=gx+1;x++)for(let y=gy-1;y<=gy+1;y++){for(const a of grid.get(x+','+y)||[]){let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d>=20)continue;if(d<.001){dx=1;dy=0;d=1;}const nx=dx/d,ny=dy/d,p=(20-d)/2;b.x+=nx*p;b.y+=ny*p;a.x-=nx*p;a.y-=ny*p;const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;if(rel<0){const impulse=-rel*.9;b.vx+=nx*impulse;b.vy+=ny*impulse;a.vx-=nx*impulse;a.vy-=ny*impulse;}}}const key=gx+','+gy;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(b);}
- // Resolve drain crossings in physical order; the last marble remains the winner.
- falling.sort((a,b)=>(b.y-H)/Math.max(1,b.vy)-(a.y-H)/Math.max(1,a.vy)||a.source.i-b.source.i);
- for(const b of falling){if(activeCount<=1)break;b.alive=false;activeCount--;deaths.push(b.source);spark(clamp(b.x,100,500),945,'#ff667b');}
- if(activeCount===1){winner=balls.find(b=>b.alive);break;}
- }
- effects=effects.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;return p.life>0;});return deaths;
-}
-function render(ctx,width,height,bounds,options){ctx.fillStyle='#090e17';ctx.fillRect(0,0,width,height);const scale=Math.max(.05,Math.min((bounds.R-bounds.L)/W,(bounds.B-bounds.T)/H)),ox=(bounds.L+bounds.R-W*scale)/2,oy=bounds.T+(bounds.B-bounds.T-H*scale)/2;ctx.save();ctx.translate(ox,oy);ctx.scale(scale,scale);
- const line=(x1,y1,x2,y2,color,lw)=>{ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();};
- const circle=(x,y,r,fill,stroke,lw=2)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.lineWidth=lw;ctx.strokeStyle=stroke;ctx.stroke();}};
- const text=(str,x,y,size,color='#dbe7f3')=>{ctx.font=`600 ${size}px sans-serif`;ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(str,x,y);};
- ctx.fillStyle='#151f31';ctx.beginPath();ctx.roundRect(24,32,552,925,42);ctx.fill();ctx.strokeStyle='#3e526c';ctx.lineWidth=5;ctx.stroke();
- const grd=ctx.createLinearGradient(0,80,0,940);grd.addColorStop(0,'#1b3144');grd.addColorStop(.55,'#111e31');grd.addColorStop(1,'#253048');ctx.fillStyle=grd;ctx.beginPath();ctx.roundRect(44,54,512,885,28);ctx.fill();
- // Printed playfield motifs, deliberately distinct from the reference table.
- ctx.save();ctx.beginPath();ctx.roundRect(44,54,512,885,28);ctx.clip();
- for(let i=0;i<7;i++){ctx.strokeStyle='#6096b018';ctx.lineWidth=2;ctx.beginPath();ctx.arc(300,440,100+i*35,0,Math.PI*2);ctx.stroke();}
- text('B O N G  /  P I N B A L L',300,110,21,'#a8d8e3');text(`${activeCount} / ${balls.length}  생존`,300,147,16,'#829db6');
- ctx.restore();
- for(const r of rails){line(...r,'#080f1d',15);line(...r,'#7389a2',7);line(r[0],r[1]-2,r[2],r[3]-2,'#b5d6dc',2);}
- for(const x of [88,512])for(let i=0;i<11;i++)circle(x,350+i*24,3,i%2?'#67d6ca':'#bd9464');
- for(const p of bumpers){circle(p.x,p.y,p.r+8,'#101724','#50647b',2);circle(p.x,p.y,p.r,'#e6ae61','#fff1bd',3);circle(p.x,p.y,p.r-8,'#234153','#6fd5cc',2);circle(p.x-5,p.y-6,6,'#ffffff50');}
- for(const x of [137,463]){ctx.fillStyle='#44cec124';ctx.beginPath();ctx.moveTo(x,705);ctx.lineTo(x+(x<300?15:-15),766);ctx.lineTo(x+(x<300?-15:15),787);ctx.closePath();ctx.fill();}
- text('LAST MARBLE STANDING',300,720,14,'#708ba7');
- for(const f of flippers){const ex=f.x+Math.cos(f.angle)*124,ey=f.y+Math.sin(f.angle)*124;line(f.x,f.y+5,ex,ey+5,'#050a13',27);line(f.x,f.y,ex,ey,f.side===1?'#55d8c1':'#a995f5',21);line(f.x,f.y-3,ex,ey-3,'#ffffff66',3);circle(f.x,f.y,12,'#213246','#c0d8e6',3);}
- text('!왼',100,914,23,'#68e4cd');text('!오',500,914,23,'#b4a1ff');text('채팅 또는 ← → 로 플리퍼 조작',300,965,15,'#8b9db7');
- for(const p of effects){ctx.globalAlpha=p.life/.4;circle(p.x,p.y,3,p.color);}ctx.globalAlpha=1;
- for(const b of balls){if(!b.alive||winner)continue;circle(b.x+2,b.y+4,b.r+1,'#0008');circle(b.x,b.y,b.r,b.source.color,'#edffff',1.5);const face=options.faces&&roundFace(options.faceOf[b.source.name]);if(face)ctx.drawImage(face,b.x-b.r+1,b.y-b.r+1,b.r*2-2,b.r*2-2);if(activeCount<=30)text(b.source.name,b.x,b.y+20,12,b.source.color);}
- if(options.phase==='idle')text('여러 구슬이 함께 발사됩니다',300,800,17,'#bdcedf');
- if(options.phase==='countdown'){circle(300,470,60,'#0b152ee8','#6ddbc4',2);text(String(Math.ceil(options.countdown)),300,470,54,'#a0f5da');}
- if(winner){ctx.fillStyle='#07111dde';ctx.fillRect(30,200,540,560);text('🏆  최후의 생존자',300,340,25,'#ffda86');circle(300,460,58,winner.source.color,'#ffe4a4',4);const face=options.faces&&roundFace(options.faceOf[winner.source.name]);if(face)ctx.drawImage(face,247,407,106,106);text(winner.source.name,300,565,30,winner.source.color);text(`${time.toFixed(1)}초 생존`,300,615,17,'#9aafc5');}
- ctx.restore();
-}
-return{reset,command,update,render,get winner(){return winner?.source},get balls(){return balls},get time(){return time}};
-};
+/* Pinball uses the same flat palette, marble portraits and outlined labels as the 2D modes. */
+(function () {
+  const W = 790, H = 1200, R = 12;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const pathSegments = pts => pts.slice(1).map((p, i) => [...pts[i], ...p]);
+  const boundary = [[315,1190],[315,1100],[220,1010],[100,920],[50,830],[50,205],[75,115],[145,55],[240,35],[600,35],[690,65],[744,120],[744,1100],[680,1100],[680,215],[650,140],[570,105]];
+  const rightFloor = [[680,830],[620,920],[500,1010],[405,1100],[405,1190]];
+  const orbit = [[145,470],[114,405],[103,300],[113,225],[150,168],[215,133],[280,128],[450,128],[525,160],[563,215],[579,285],[573,350]];
+  const leftRamp = [[130,650],[160,620],[185,568],[212,535],[232,493],[224,450],[196,420]];
+  const rightRamp = [[585,620],[544,588],[507,548],[484,499],[470,440]];
+  const slings = [[[183,775],[240,885],[174,918],[183,775]],[[537,775],[480,885],[546,918],[537,775]]];
+  const slingSegments=slings.map(pathSegments);
+  const lanePosts = [[293,146,293,210],[350,146,350,210],[407,146,407,210]];
+  const targets = [[606,344,626,371],[592,401,612,427],[570,452,590,478]];
+  const solid = [...pathSegments(boundary), ...pathSegments(rightFloor), ...pathSegments(orbit), ...pathSegments(leftRamp), ...pathSegments(rightRamp), ...lanePosts];
+  const bumpers = [{x:270,y:285,r:29},{x:421,y:285,r:29},{x:350,y:390,r:33},{x:142,y:520,r:25},{x:350,y:657,r:49}];
+  const font = 'Pretendard,"Malgun Gothic",sans-serif';
+
+  window.createPinballGame = ({roundFace}) => {
+    let balls=[], random=Math.random, time=0, launched=false, effects=[], winner=null, activeCount=0;
+    let nextLaunch=0, launchClock=0;
+    const camera={x:W/2,y:H/2,zoom:1,ready:false};
+    const flippers=[{x:220,y:1010,angle:.4,side:1,pulse:0},{x:500,y:1010,angle:Math.PI-.4,side:-1,pulse:0}];
+    function reset(marbles,rng) {
+      random=rng; time=0; launched=false; effects=[]; winner=null; activeCount=marbles.length;
+      nextLaunch=0; launchClock=0; camera.ready=false;
+      const order=marbles.slice();
+      for(let i=order.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+      balls=order.map(source=>({source,x:712,y:1040,vx:0,vy:0,r:R,alive:true,queued:true,inLane:true,cool:0,stuck:0}));
+      flippers.forEach(f=>{f.pulse=0;f.angle=f.side===1?.4:Math.PI-.4;});
+    }
+    function command(text) {
+      if(text!=='!왼'&&text!=='!오')return false;
+      const f=flippers[text==='!왼'?0:1];f.pulse=Math.min(.3,f.pulse+.18);return true;
+    }
+    function spark(x,y,color) {
+      for(let i=0;i<7;i++){const a=random()*Math.PI*2;effects.push({x,y,vx:Math.cos(a)*110,vy:Math.sin(a)*110,life:.4,color});}
+      if(effects.length>240)effects.splice(0,effects.length-240);
+    }
+    function segment(b,x1,y1,x2,y2,radius=5,kick=0,side=0) {
+      const dx=x2-x1,dy=y2-y1,t=clamp(((b.x-x1)*dx+(b.y-y1)*dy)/(dx*dx+dy*dy),0,1),px=x1+t*dx,py=y1+t*dy;
+      let nx=b.x-px,ny=b.y-py,d=Math.hypot(nx,ny);const min=b.r+radius;
+      if(d>=min)return false;
+      if(d<.0001){nx=-dy;ny=dx;d=Math.hypot(nx,ny);}
+      nx/=d;ny/=d;b.x=px+nx*(min+.1);b.y=py+ny*(min+.1);
+      const dot=b.vx*nx+b.vy*ny;
+      if(dot<0){b.vx-=1.7*dot*nx;b.vy-=1.7*dot*ny;}
+      if(kick&&b.cool<=0){
+        b.vy=-Math.max(kick,Math.abs(b.vy));b.vx+=side*(110+160*t);b.cool=.12;
+        spark(b.x,b.y,kick>700?'#4fd1c5':'#b388ff');
+      }
+      return true;
+    }
+    function update(dt) {
+      if(winner||dt<=0)return [];
+      launched=true;
+      const deaths=[],count=Math.ceil(dt/(1/200)),h=dt/count;
+      for(let step=0;step<count;step++) {
+        time+=h;launchClock-=h;
+        // One shared shooter lane fires a rapid volley. Waiting marbles have no collisions.
+        if(nextLaunch<balls.length&&launchClock<=0) {
+          const b=balls[nextLaunch++];b.queued=false;b.x=712;b.y=1040;b.vx=(random()-.5)*12;b.vy=-1540;
+          launchClock=.045;
+        }
+        for(const f of flippers) {
+          f.pulse=Math.max(0,f.pulse-h);
+          const target=f.side===1?(f.pulse>0?-.52:.4):(f.pulse>0?Math.PI+.52:Math.PI-.4);
+          f.angle+=(target-f.angle)*Math.min(1,h*38);
+        }
+        const falling=[];
+        for(const b of balls) {
+          if(!b.alive||b.queued)continue;
+          b.cool=Math.max(0,b.cool-h);
+          b.vy+=(350+Math.min(100,time*.5))*h;b.vx*=Math.exp(-.02*h);b.vy*=Math.exp(-.02*h);
+          b.x+=b.vx*h;b.y+=b.vy*h;
+          for(const rail of solid)segment(b,...rail);
+          for(let k=0;k<slings.length;k++)for(const rail of slingSegments[k])segment(b,...rail,5,520,k===0?1:-1);
+          for(const rail of targets)segment(b,...rail,7,450,-1);
+          for(const p of bumpers) {
+            let dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy);const min=p.r+b.r;
+            if(d>=min)continue;
+            if(d<.001){dx=1;dy=0;d=1;}
+            const nx=dx/d,ny=dy/d;b.x=p.x+nx*(min+.2);b.y=p.y+ny*(min+.2);
+            const dot=b.vx*nx+b.vy*ny;if(dot<0){b.vx-=1.9*dot*nx;b.vy-=1.9*dot*ny;}
+            b.vx+=nx*125;b.vy+=ny*125;
+            if(b.cool<=0){spark(b.x,b.y,'#ffd166');b.cool=.1;}
+          }
+          for(const f of flippers)segment(b,f.x,f.y,f.x+Math.cos(f.angle)*112,f.y+Math.sin(f.angle)*112,10,f.pulse>0?960:0,f.side);
+          if(b.inLane&&b.x<656&&b.y<240)b.inLane=false;
+          const max=b.inLane?1650:1150,speed=Math.hypot(b.vx,b.vy);
+          if(speed>max){b.vx*=max/speed;b.vy*=max/speed;}
+          // The ONLY drain is the narrow central chute, below both flippers.
+          if(b.y>1165&&b.x>315&&b.x<405)falling.push(b);
+          if(b.x<63){b.x=63;b.vx=Math.abs(b.vx);}if(b.x>731){b.x=731;b.vx=-Math.abs(b.vx);}
+          if(b.y<48){b.y=48;b.vy=Math.abs(b.vy);}
+        }
+        const grid=new Map();
+        for(const b of balls) {
+          if(!b.alive||b.queued)continue;
+          const gx=Math.floor(b.x/28),gy=Math.floor(b.y/28);
+          for(let x=gx-1;x<=gx+1;x++)for(let y=gy-1;y<=gy+1;y++)for(const a of grid.get(x+','+y)||[]) {
+            let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d>=R*2)continue;
+            if(d<.001){dx=1;dy=0;d=1;}const nx=dx/d,ny=dy/d,p=(R*2-d)/2;
+            b.x+=nx*p;b.y+=ny*p;a.x-=nx*p;a.y-=ny*p;
+            const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+            if(rel<0){const impulse=-rel*.87;b.vx+=nx*impulse;b.vy+=ny*impulse;a.vx-=nx*impulse;a.vy-=ny*impulse;}
+          }
+          const key=gx+','+gy;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(b);
+        }
+        falling.sort((a,b)=>(b.y-1165)/Math.max(1,b.vy)-(a.y-1165)/Math.max(1,a.vy)||a.source.i-b.source.i);
+        for(const b of falling){if(activeCount<=1)break;b.alive=false;activeCount--;deaths.push(b.source);spark(b.x,1150,'#ff4d6d');}
+        if(activeCount===1&&nextLaunch===balls.length){winner=balls.find(b=>b.alive);break;}
+      }
+      effects=effects.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;return p.life>0;});
+      return deaths;
+    }
+    function render(ctx,width,height,bounds,options) {
+      ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,width,height);
+      const vw=bounds.R-bounds.L,vh=bounds.B-bounds.T,base=Math.max(.05,Math.min(vw/W,vh/H));
+      let tx=W/2,ty=H/2,tz=1;
+      const live=balls.filter(b=>b.alive&&!b.queued);
+      if(options.phase==='battle'&&nextLaunch===balls.length&&live.length&&live.length<=8) {
+        const minY=Math.min(...live.map(b=>b.y)),maxY=Math.max(1055,...live.map(b=>b.y));
+        tz=clamp(H/(maxY-minY+260),1,1.55);ty=(minY+maxY)/2;
+      }
+      if(winner){tx=winner.x;ty=clamp(winner.y,180,1020);tz=2.1;}
+      if(!camera.ready){camera.x=tx;camera.y=ty;camera.zoom=tz;camera.ready=true;}
+      const delta=options.paused?0:Math.min(.05,options.delta??1/60),pan=1-Math.exp(-delta*1.5),zoom=1-Math.exp(-delta*.7);
+      camera.x+=(tx-camera.x)*pan;camera.y+=(ty-camera.y)*pan;camera.zoom+=(tz-camera.zoom)*zoom;
+      const scale=base*camera.zoom,cx=(bounds.L+bounds.R)/2,cy=(bounds.T+bounds.B)/2;
+      ctx.save();ctx.beginPath();ctx.rect(bounds.L,bounds.T,vw,vh);ctx.clip();
+      ctx.translate(cx-camera.x*scale,cy-camera.y*scale);ctx.scale(scale,scale);
+      const poly=(pts,fill,stroke,lw=4)=>{ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}};
+      const line=(pts,color,lw)=>{ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();};
+      const circle=(x,y,r,fill,stroke,lw=2)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}};
+      const text=(s,x,y,size,color='#8b8d9c',outline=false)=>{ctx.font=`600 ${size}px ${font}`;ctx.textAlign='center';ctx.textBaseline='middle';if(outline){ctx.strokeStyle='#0a0a0f';ctx.lineWidth=3;ctx.strokeText(s,x,y);}ctx.fillStyle=color;ctx.fillText(s,x,y);};
+      // Flat filled playfield and collider-aligned cushions match arena / gate rendering.
+      poly([[315,1185],[315,1100],[220,1010],[100,920],[50,830],[50,205],[75,115],[145,55],[240,35],[600,35],[690,65],[744,120],[744,1100],[680,1100],[680,830],[620,920],[500,1010],[405,1100],[405,1185]],'#12121b','#3a3a52',5);
+      // Closed apron makes the central drain visually unambiguous.
+      poly([[50,830],[100,920],[220,1010],[315,1100],[315,1185],[50,1185]],'#191923','#3a3a52');
+      poly([[680,830],[620,920],[500,1010],[405,1100],[405,1185],[680,1185]],'#191923','#3a3a52');
+      poly([[320,1090],[400,1090],[400,1200],[320,1200]],'#08080d');
+      for(let y=1110;y<1180;y+=23)line([[342,y],[360,y+10],[378,y]],'#ff4d6d55',3);
+      const rail=pts=>{line(pts,'#3d3d58',12);line(pts,'#22222f',7);};
+      rail(boundary);rail(rightFloor);rail(orbit);rail(leftRamp);rail(rightRamp);
+      for(const r of lanePosts)rail([[r[0],r[1]],[r[2],r[3]]]);
+      for(const [i,x] of [266,322,379,435].entries()){circle(x,183,7,'#ffd16640','#ffd16688',1);text(String(i+1),x,230,12,'#686879');}
+      // Dashed arrows follow the orbit and shooter lane rather than unrelated decorations.
+      for(let y=980;y>300;y-=76)line([[703,y+6],[712,y-3],[721,y+6]],'#4fd1c53d',3);
+      for(let i=0;i<7;i++){const a=Math.PI*.94+i*.24;circle(350+235*Math.cos(a),305+180*Math.sin(a),4,'#ffd16670');}
+      for(const [i,r] of targets.entries()){line([[r[0],r[1]],[r[2],r[3]]],'#3d3d58',20);line([[r[0],r[1]],[r[2],r[3]]],i===1?'#4fd1c5':'#b388ff',9);}
+      for(const p of bumpers){circle(p.x,p.y,p.r+6,'#22222f','#3d3d58',3);circle(p.x,p.y,p.r-2,'#181823',p.y>600?'#b388ff':'#ffd166',3);circle(p.x,p.y,p.r-10,'#22222f');}
+      // Reference-inspired central circular feature and offset upper mechanisms.
+      for(let i=0;i<12;i++){const a=i*Math.PI/6;circle(350+78*Math.cos(a),657+78*Math.sin(a),4,i%3===0?'#b388ff':'#3d3d58');}
+      for(let i=0;i<4;i++)line([[270+i*17,514],[275+i*17,498]],'#4fd1c570',5);
+      poly([[328,471],[350,455],[372,471],[350,487]],'#22222f','#3d3d58',2);
+      for(let i=0;i<2;i++){poly(slings[i],'#22222f','#3d3d58',5);line(slings[i].slice(0,2),i===0?'#4fd1c5':'#b388ff',3);}
+      for(const f of flippers){const end=[f.x+Math.cos(f.angle)*112,f.y+Math.sin(f.angle)*112],c=f.side===1?'#4fd1c5':'#b388ff';line([[f.x,f.y],end],'#282837',25);line([[f.x,f.y],end],c,17);circle(f.x,f.y,11,'#22222f',c,3);}
+      text('!왼',160,1042,22,'#4fd1c5');text('!오',560,1042,22,'#b388ff');
+      line([[695,1070],[729,1070]],'#ffd166',5);line([[698,1083],[726,1083]],'#3d3d58',4);
+      const pending=balls.length-nextLaunch;
+      if(pending){circle(712,1040,R,'#4fd1c5','#4fd1c5',2);const face=options.faces&&balls[nextLaunch]&&roundFace(options.faceOf[balls[nextLaunch].source.name]);if(face)ctx.drawImage(face,700,1028,24,24);text(`${pending}`,712,1140,17,'#ffd166');}
+      for(const p of effects){ctx.globalAlpha=p.life/.4;circle(p.x,p.y,3,p.color);}ctx.globalAlpha=1;
+      for(const b of balls){if(!b.alive||b.queued)continue;circle(b.x,b.y,R,b.source.color);const face=options.faces&&roundFace(options.faceOf[b.source.name]);if(face){ctx.drawImage(face,b.x-R,b.y-R,R*2,R*2);circle(b.x,b.y,R,'#0000',b.source.color,1.7);}if(activeCount<=35||winner)text(b.source.name,b.x,b.y+24,15,b.source.color,true);if(winner)text('👑',b.x,b.y-29,23,'#ffd166');}
+      ctx.restore();
+      // Screen-space information follows the other modes' unobtrusive centered HUD.
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`700 16px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(`🎱 핀볼  ·  생존 ${activeCount} / ${balls.length}`,cx,bounds.T+21);
+      ctx.font=`12px ${font}`;ctx.fillStyle='#8b8d9c';ctx.fillText(options.paused?'일시정지':pending?`오른쪽 발사 대기 ${pending}개`:'!왼 · !오  또는  ← →  플리퍼 조작',cx,bounds.T+44);
+      if(options.phase==='countdown'){ctx.fillStyle='#12121be8';ctx.beginPath();ctx.roundRect(cx-75,cy-55,150,110,10);ctx.fill();ctx.font=`700 48px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(String(Math.ceil(options.countdown)),cx,cy);}
+      if(winner){ctx.font=`700 26px ${font}`;ctx.strokeStyle='#0a0a0f';ctx.lineWidth=5;ctx.strokeText(`🏆 ${winner.source.name} 승리!`,cx,bounds.B-60);ctx.fillStyle='#ffd166';ctx.fillText(`🏆 ${winner.source.name} 승리!`,cx,bounds.B-60);}
+    }
+    return {reset,command,update,render,get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}}};
+  };
 })();
