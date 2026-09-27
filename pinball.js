@@ -1,19 +1,58 @@
 /* Pinball uses the same flat palette, marble portraits and outlined labels as the 2D modes. */
 (function () {
-  const W = 790, H = 1200, R = 12;
+  const W = 790, H = 1200, R = 12, CENTER = 360, FLIPPER_LENGTH = 100;
+  const mirror = pts => pts.map(([x,y])=>[CENTER*2-x,y]);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const pathSegments = pts => pts.slice(1).map((p, i) => [...pts[i], ...p]);
-  const boundary = [[315,1190],[315,1100],[220,1010],[100,920],[50,830],[50,205],[75,115],[145,55],[240,35],[600,35],[690,65],[744,120],[744,1100],[680,1100],[680,215],[650,140],[570,105]];
-  const rightFloor = [[680,830],[620,920],[500,1010],[405,1100],[405,1190]];
-  const orbit = [[145,470],[114,405],[103,300],[113,225],[150,168],[215,133],[280,128],[450,128],[525,160],[563,215],[579,285],[573,350]];
-  const leftRamp = [[130,650],[160,620],[185,568],[212,535],[232,493],[224,450],[196,420]];
-  const rightRamp = [[585,620],[544,588],[507,548],[484,499],[470,440]];
-  const slings = [[[183,775],[240,885],[174,918],[183,775]],[[537,775],[480,885],[546,918],[537,775]]];
+  const pathSegments = pts => pts.slice(1).map((p, i) => [...pts[i], ...p]).filter(r=>Math.hypot(r[2]-r[0],r[3]-r[1])>.001);
+  function arc(cx,cy,r,start,end) {
+    const a=start*Math.PI/180,b=end*Math.PI/180,n=Math.ceil(Math.abs(b-a)*r/5);
+    return Array.from({length:n+1},(_,i)=>{const t=a+(b-a)*i/n;return [cx+r*Math.cos(t),cy+r*Math.sin(t)];});
+  }
+  // Both drawing and physics use these sampled Bezier curves, so a rounded rail
+  // never retains the old angular hitbox. Chords are at most about six units.
+  function curve(commands) {
+    const pts=[];let x=0,y=0;
+    for(const [op,...v] of commands) {
+      if(op==='M'||op==='L'){[x,y]=v;pts.push([x,y]);continue;}
+      const sx=x,sy=y,c=op==='Q'?[sx+2*(v[0]-sx)/3,sy+2*(v[1]-sy)/3,v[2]+2*(v[0]-v[2])/3,v[3]+2*(v[1]-v[3])/3,v[2],v[3]]:v;
+      const length=Math.hypot(c[0]-sx,c[1]-sy)+Math.hypot(c[2]-c[0],c[3]-c[1])+Math.hypot(c[4]-c[2],c[5]-c[3]);
+      const n=Math.max(4,Math.ceil(length/6));
+      for(let i=1;i<=n;i++){const t=i/n,u=1-t;pts.push([u*u*u*sx+3*u*u*t*c[0]+3*u*t*t*c[2]+t*t*t*c[4],u*u*u*sy+3*u*u*t*c[1]+3*u*t*t*c[3]+t*t*t*c[5]]);}
+      [x,y]=c.slice(4);
+    }
+    return pts;
+  }
+  function roundedPolygon(points,radius) {
+    const corners=points.map((p,i)=>{const a=points[(i+points.length-1)%points.length],b=points[(i+1)%points.length],da=Math.hypot(a[0]-p[0],a[1]-p[1]),db=Math.hypot(b[0]-p[0],b[1]-p[1]),r=Math.min(radius,da*.3,db*.3);return {p,from:[p[0]+(a[0]-p[0])*r/da,p[1]+(a[1]-p[1])*r/da],to:[p[0]+(b[0]-p[0])*r/db,p[1]+(b[1]-p[1])*r/db]};});
+    const commands=[['M',...corners[0].from]];
+    for(const c of corners){commands.push(['L',...c.from],['Q',...c.p,...c.to]);}
+    commands.push(['L',...corners[0].from]);return curve(commands);
+  }
+  const leftFloor=curve([['M',40,820],['C',40,914,141,951,220,1010],['C',261,1041,315,1071,315,1110],['L',315,1190]]);
+  const shell=curve([['M',40,820],['L',40,210],['C',40,108,106,35,208,35],['L',512,35],['C',629,35,744,69,744,186],['L',744,1085],['Q',744,1100,729,1100],['L',695,1100],['Q',680,1100,680,1085],['L',680,820]]);
+  const shooterGuide=curve([['M',680,820],['L',680,226],['C',680,169,643,133,570,105]]);
+  const boundary=[...leftFloor.slice().reverse(),...shell.slice(1),...shooterGuide.slice(1)];
+  // Every paired playfield part is reflected from one profile, never hand-aligned.
+  const rightFloor=mirror(leftFloor);
+  const orbitLeft=arc(280,316,174,166,252);
+  const orbitRight=mirror(orbitLeft);
+  const leftRamp=arc(136,538,112,-60,60);
+  const rightRamp=mirror(leftRamp);
+  const slingLeft=curve([['M',181,785],['C',190,803,227,870,238,889],['Q',241,895,235,898],['L',179,923],['Q',171,927,172,917],['L',177,789],['Q',178,779,181,785]]);
+  const slings=[slingLeft,mirror(slingLeft)];
   const slingSegments=slings.map(pathSegments);
-  const lanePosts = [[293,146,293,210],[350,146,350,210],[407,146,407,210]];
-  const targets = [[606,344,626,371],[592,401,612,427],[570,452,590,478]];
-  const solid = [...pathSegments(boundary), ...pathSegments(rightFloor), ...pathSegments(orbit), ...pathSegments(leftRamp), ...pathSegments(rightRamp), ...lanePosts];
-  const bumpers = [{x:270,y:285,r:29},{x:421,y:285,r:29},{x:350,y:390,r:33},{x:142,y:520,r:25},{x:350,y:657,r:49}];
+  const lanePosts=[248,304,CENTER,416,472].map(x=>[x,146,x,210]);
+  const leftTargets=[[117,400,101,425],[134,449,118,474]];
+  const targets=[...leftTargets,...leftTargets.map(([x1,y1,x2,y2])=>[CENTER*2-x1,y1,CENTER*2-x2,y2])];
+  const solid=[...pathSegments(boundary),...pathSegments(rightFloor),...pathSegments(orbitLeft),...pathSegments(orbitRight),...pathSegments(leftRamp),...pathSegments(rightRamp),...lanePosts];
+  const bumpers=[{x:276,y:302,r:30},{x:444,y:302,r:30},{x:CENTER,y:414,r:34},{x:136,y:538,r:24},{x:584,y:538,r:24},{x:CENTER,y:663,r:32}];
+  const deck=[...shell,...rightFloor.slice(1),...leftFloor.slice().reverse()];
+  const leftApron=[...leftFloor,...curve([['M',315,1190],['L',58,1190],['Q',40,1190,40,1172],['L',40,820]])];
+  const rightApron=mirror(leftApron);
+  // Broad-phase buckets keep hundreds of marbles affordable with finer curves.
+  const collisionGrid=new Map(),CELL=64;
+  const colliders=[...solid.map(r=>({r,radius:5,kick:0,side:0})),...slingSegments.flatMap((rs,i)=>rs.map(r=>({r,radius:5,kick:520,side:i===0?1:-1}))),...targets.map(r=>({r,radius:7,kick:450,side:r[0]<CENTER?1:-1}))];
+  for(const item of colliders){const [x1,y1,x2,y2]=item.r,pad=R+item.radius+3;for(let x=Math.floor((Math.min(x1,x2)-pad)/CELL);x<=Math.floor((Math.max(x1,x2)+pad)/CELL);x++)for(let y=Math.floor((Math.min(y1,y2)-pad)/CELL);y<=Math.floor((Math.max(y1,y2)+pad)/CELL);y++){const key=x+','+y;if(!collisionGrid.has(key))collisionGrid.set(key,[]);collisionGrid.get(key).push(item);}}
   const font = 'Pretendard,"Malgun Gothic",sans-serif';
 
   window.createPinballGame = ({roundFace}) => {
@@ -73,9 +112,7 @@
           b.cool=Math.max(0,b.cool-h);
           b.vy+=(350+Math.min(100,time*.5))*h;b.vx*=Math.exp(-.02*h);b.vy*=Math.exp(-.02*h);
           b.x+=b.vx*h;b.y+=b.vy*h;
-          for(const rail of solid)segment(b,...rail);
-          for(let k=0;k<slings.length;k++)for(const rail of slingSegments[k])segment(b,...rail,5,520,k===0?1:-1);
-          for(const rail of targets)segment(b,...rail,7,450,-1);
+          for(const c of collisionGrid.get(Math.floor(b.x/CELL)+','+Math.floor(b.y/CELL))||[])segment(b,...c.r,c.radius,c.kick,c.side);
           for(const p of bumpers) {
             let dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy);const min=p.r+b.r;
             if(d>=min)continue;
@@ -85,13 +122,16 @@
             b.vx+=nx*125;b.vy+=ny*125;
             if(b.cool<=0){spark(b.x,b.y,'#ffd166');b.cool=.1;}
           }
-          for(const f of flippers)segment(b,f.x,f.y,f.x+Math.cos(f.angle)*112,f.y+Math.sin(f.angle)*112,10,f.pulse>0?960:0,f.side);
+          for(const f of flippers)segment(b,f.x,f.y,f.x+Math.cos(f.angle)*FLIPPER_LENGTH,f.y+Math.sin(f.angle)*FLIPPER_LENGTH,10,f.pulse>0?960:0,f.side);
           if(b.inLane&&b.x<656&&b.y<240)b.inLane=false;
+          // A marble returned to the shooter is relaunched by the plunger;
+          // it must never sit forever in the closed launch pocket.
+          if(b.x>680&&b.y>1020&&b.vy>0){b.inLane=true;b.vy=-1540;b.vx=(712-b.x)*3;}
           const max=b.inLane?1650:1150,speed=Math.hypot(b.vx,b.vy);
           if(speed>max){b.vx*=max/speed;b.vy*=max/speed;}
           // The ONLY drain is the narrow central chute, below both flippers.
           if(b.y>1165&&b.x>315&&b.x<405)falling.push(b);
-          if(b.x<63){b.x=63;b.vx=Math.abs(b.vx);}if(b.x>731){b.x=731;b.vx=-Math.abs(b.vx);}
+          if(b.x<53){b.x=53;b.vx=Math.abs(b.vx);}if(b.x>731){b.x=731;b.vx=-Math.abs(b.vx);}
           if(b.y<48){b.y=48;b.vy=Math.abs(b.vy);}
         }
         const grid=new Map();
@@ -116,7 +156,7 @@
     }
     function render(ctx,width,height,bounds,options) {
       ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,width,height);
-      const vw=bounds.R-bounds.L,vh=bounds.B-bounds.T,base=Math.max(.05,Math.min(vw/W,vh/H));
+      const vw=bounds.R-bounds.L,vh=bounds.B-bounds.T,boardTop=bounds.T+58,boardHeight=Math.max(100,vh-58),base=Math.max(.05,Math.min(vw/W,boardHeight/H));
       let tx=W/2,ty=H/2,tz=1;
       const live=balls.filter(b=>b.alive&&!b.queued);
       if(options.phase==='battle'&&nextLaunch===balls.length&&live.length&&live.length<=8) {
@@ -127,35 +167,43 @@
       if(!camera.ready){camera.x=tx;camera.y=ty;camera.zoom=tz;camera.ready=true;}
       const delta=options.paused?0:Math.min(.05,options.delta??1/60),pan=1-Math.exp(-delta*1.5),zoom=1-Math.exp(-delta*.7);
       camera.x+=(tx-camera.x)*pan;camera.y+=(ty-camera.y)*pan;camera.zoom+=(tz-camera.zoom)*zoom;
-      const scale=base*camera.zoom,cx=(bounds.L+bounds.R)/2,cy=(bounds.T+bounds.B)/2;
-      ctx.save();ctx.beginPath();ctx.rect(bounds.L,bounds.T,vw,vh);ctx.clip();
+      const scale=base*camera.zoom,cx=(bounds.L+bounds.R)/2,cy=(boardTop+bounds.B)/2;
+      ctx.save();ctx.beginPath();ctx.rect(bounds.L,boardTop,vw,boardHeight);ctx.clip();
       ctx.translate(cx-camera.x*scale,cy-camera.y*scale);ctx.scale(scale,scale);
       const poly=(pts,fill,stroke,lw=4)=>{ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}};
       const line=(pts,color,lw)=>{ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();};
       const circle=(x,y,r,fill,stroke,lw=2)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}};
       const text=(s,x,y,size,color='#8b8d9c',outline=false)=>{ctx.font=`600 ${size}px ${font}`;ctx.textAlign='center';ctx.textBaseline='middle';if(outline){ctx.strokeStyle='#0a0a0f';ctx.lineWidth=3;ctx.strokeText(s,x,y);}ctx.fillStyle=color;ctx.fillText(s,x,y);};
-      // Flat filled playfield and collider-aligned cushions match arena / gate rendering.
-      poly([[315,1185],[315,1100],[220,1010],[100,920],[50,830],[50,205],[75,115],[145,55],[240,35],[600,35],[690,65],[744,120],[744,1100],[680,1100],[680,830],[620,920],[500,1010],[405,1100],[405,1185]],'#12121b','#3a3a52',5);
-      // Closed apron makes the central drain visually unambiguous.
-      poly([[50,830],[100,920],[220,1010],[315,1100],[315,1185],[50,1185]],'#191923','#3a3a52');
-      poly([[680,830],[620,920],[500,1010],[405,1100],[405,1185],[680,1185]],'#191923','#3a3a52');
-      poly([[320,1090],[400,1090],[400,1200],[320,1200]],'#08080d');
-      for(let y=1110;y<1180;y+=23)line([[342,y],[360,y+10],[378,y]],'#ff4d6d55',3);
-      const rail=pts=>{line(pts,'#3d3d58',12);line(pts,'#22222f',7);};
-      rail(boundary);rail(rightFloor);rail(orbit);rail(leftRamp);rail(rightRamp);
+      // Restrained flat surfaces use the same palette as the other 2D boards.
+      poly(deck,'#12121b');
+      poly(leftApron,'#191923','#303044',2);poly(rightApron,'#191923','#303044',2);
+      poly([[320,1100],[400,1100],[400,1200],[320,1200]],'#08080d');
+      for(let y=1120;y<1180;y+=23)line([[346,y],[360,y+8],[374,y]],'#ff4d6d44',2.5);
+      const rail=pts=>{line(pts,'#3d3d58',11);line(pts,'#22222f',7);line(pts,'#323247',1.5);};
+      rail(boundary);rail(rightFloor);rail(orbitLeft);rail(orbitRight);rail(leftRamp);rail(rightRamp);
       for(const r of lanePosts)rail([[r[0],r[1]],[r[2],r[3]]]);
-      for(const [i,x] of [266,322,379,435].entries()){circle(x,183,7,'#ffd16640','#ffd16688',1);text(String(i+1),x,230,12,'#686879');}
+      for(const [i,x] of [276,332,388,444].entries()){circle(x,183,7,'#ffd16622','#ffd16688',1.5);text(String(i+1),x,230,12,'#686879');}
       // Dashed arrows follow the orbit and shooter lane rather than unrelated decorations.
       for(let y=980;y>300;y-=76)line([[703,y+6],[712,y-3],[721,y+6]],'#4fd1c53d',3);
-      for(let i=0;i<7;i++){const a=Math.PI*.94+i*.24;circle(350+235*Math.cos(a),305+180*Math.sin(a),4,'#ffd16670');}
-      for(const [i,r] of targets.entries()){line([[r[0],r[1]],[r[2],r[3]]],'#3d3d58',20);line([[r[0],r[1]],[r[2],r[3]]],i===1?'#4fd1c5':'#b388ff',9);}
-      for(const p of bumpers){circle(p.x,p.y,p.r+6,'#22222f','#3d3d58',3);circle(p.x,p.y,p.r-2,'#181823',p.y>600?'#b388ff':'#ffd166',3);circle(p.x,p.y,p.r-10,'#22222f');}
-      // Reference-inspired central circular feature and offset upper mechanisms.
-      for(let i=0;i<12;i++){const a=i*Math.PI/6;circle(350+78*Math.cos(a),657+78*Math.sin(a),4,i%3===0?'#b388ff':'#3d3d58');}
-      for(let i=0;i<4;i++)line([[270+i*17,514],[275+i*17,498]],'#4fd1c570',5);
-      poly([[328,471],[350,455],[372,471],[350,487]],'#22222f','#3d3d58',2);
-      for(let i=0;i<2;i++){poly(slings[i],'#22222f','#3d3d58',5);line(slings[i].slice(0,2),i===0?'#4fd1c5':'#b388ff',3);}
-      for(const f of flippers){const end=[f.x+Math.cos(f.angle)*112,f.y+Math.sin(f.angle)*112],c=f.side===1?'#4fd1c5':'#b388ff';line([[f.x,f.y],end],'#282837',25);line([[f.x,f.y],end],c,17);circle(f.x,f.y,11,'#22222f',c,3);}
+      for(const r of targets){const c=r[0]<CENTER?'#4fd1c5':'#b388ff';line([[r[0],r[1]],[r[2],r[3]]],'#3d3d58',18);line([[r[0],r[1]],[r[2],r[3]]],c,8);}
+      for(const p of bumpers){
+        const c=p.y>600?'#b388ff':'#ffd166';
+        circle(p.x,p.y+3,p.r+8,'#090910');circle(p.x,p.y,p.r+7,'#1b1b27','#3d3d58',2);
+        circle(p.x,p.y,p.r,'#22222f',c,3);circle(p.x,p.y,p.r-7,'#181823','#303043',1);
+        for(let i=0;i<4;i++){const a=i*Math.PI/2;circle(p.x+(p.r+4)*Math.cos(a),p.y+(p.r+4)*Math.sin(a),1.5,c);}
+      }
+      // Balanced circular inlays frame the centerpiece without hiding the marbles.
+      circle(CENTER,663,53,'#0000','#303043',1);
+      for(let i=0;i<12;i++){const a=i*Math.PI/6;circle(CENTER+53*Math.cos(a),663+53*Math.sin(a),2.4,i%3===0?'#b388ff':'#555571');}
+      poly(roundedPolygon([[342,499],[CENTER,482],[378,499],[CENTER,516]],4),'#1b1b27','#484860',1.5);
+      for(let i=0;i<2;i++){
+        const c=i===0?'#4fd1c5':'#b388ff';
+        poly(slings[i],'#20202d','#42425c',3);
+        const edge=curve([['M',183,795],['C',196,820,221,866,234,889]]);
+        line(i===0?edge:mirror(edge),c,3);
+        circle(i===0?184:536,906,3,'#12121b',c,1.3);
+      }
+      for(const f of flippers){const end=[f.x+Math.cos(f.angle)*FLIPPER_LENGTH,f.y+Math.sin(f.angle)*FLIPPER_LENGTH],c=f.side===1?'#4fd1c5':'#b388ff';line([[f.x,f.y],end],'#282837',24);line([[f.x,f.y],end],c,16);circle(f.x,f.y,10,'#22222f',c,2.5);}
       text('!왼',160,1042,22,'#4fd1c5');text('!오',560,1042,22,'#b388ff');
       line([[695,1070],[729,1070]],'#ffd166',5);line([[698,1083],[726,1083]],'#3d3d58',4);
       const pending=balls.length-nextLaunch;

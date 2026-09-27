@@ -11,3 +11,5 @@ test('SOOP pinball commands deduplicate and stop while paused',()=>{const calls=
 
 test('every marble starts in the right shooter and exits through the top',()=>{const g=game(22);assert(g.balls.every(b=>b.queued&&b.x===712&&b.y===1040));g.update(.1);const flying=g.balls.filter(b=>!b.queued);assert(flying.length>1);assert(flying.every(b=>b.x>680&&b.vy<0));for(let i=0;i<120*3;i++)g.update(1/120);assert(g.balls.some(b=>!b.inLane&&b.x<656));assert(g.balls.every(b=>!b.queued));});
 test('drain is confined to the central chute with closed side aprons',()=>{const g=game(22);const dead=[];for(let i=0;i<120*90&&!g.winner;i++){for(const source of g.update(1/120)){const b=g.balls.find(b=>b.source===source);assert(b.x>315&&b.x<405);assert(b.y>1165);dead.push(source);}}assert.equal(dead.length,21);assert(g.balls.every(b=>b.y<1200));});
+
+test('a returned marble is relaunched instead of remaining in the shooter pocket',()=>{const g=game(2);g.update(.1);Object.assign(g.balls[0],{x:712,y:1035,vx:0,vy:120,inLane:false});g.update(1/120);assert(g.balls[0].vy< -1000);assert(g.balls[0].inLane);});
