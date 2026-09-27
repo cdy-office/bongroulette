@@ -53,10 +53,13 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.locator('#btnStart').click();
   await page.waitForFunction(() => window.RW.S.phase === 'battle');
   assert.equal(await page.locator('#liveGraphicsRow').isVisible(), true);
+  const gateCameraBefore = await page.evaluate(() => ({...RW.gateGame.metrics.camera}));
   await page.locator('#liveGraphicsSeg [data-v="2d"]').click();
   await page.waitForFunction(() => document.getElementById('gate3d')?.style.display === 'none');
+  assert.deepEqual(await page.evaluate(() => RW.gateGame.metrics.camera), gateCameraBefore);
   await page.locator('#liveGraphicsSeg [data-v="3d"]').click();
   await page.waitForFunction(() => document.getElementById('gate3d')?.style.display === 'block');
+  assert.deepEqual(await page.evaluate(() => RW.gateGame.metrics.camera), gateCameraBefore);
   assert.equal(await page.locator('#soopPanel').isVisible(), false);
   assert.equal(await page.evaluate(() => RW.soopConnected), true);
   const keyboardCounts = await page.evaluate(() => [...RW.gateGame.round.counts]);
