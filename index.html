@@ -219,7 +219,7 @@ body[data-run="1"] #ctrl .seg button{padding:5px 8px}
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
   <div class="seg" id="gameSeg" title="콜로세움: 경기장 전투 / 레이스: 트랙을 돌며 한 바퀴마다 꼴찌 탈락. 결전 인원부터 스킬 (피해는 정지·뒤로 밀림)"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button></div>
-  <div id="lobbyTabs" role="tablist" aria-label="로비 메뉴"><button type="button" role="tab" id="settingsTab" aria-selected="true" class="on" data-v="settings">경기 설정</button><button type="button" role="tab" id="participantsTab" aria-selected="false" data-v="participants">참가자 <span id="participantCount">22</span></button></div>
+  <div id="lobbyTabs" role="tablist" aria-label="로비 메뉴"><button type="button" role="tab" id="settingsTab" aria-selected="false" data-v="settings">경기 설정</button><button type="button" role="tab" id="participantsTab" aria-selected="true" class="on" data-v="participants">참가자 <span id="participantCount">22</span></button></div>
   <div id="nameBox">
     <div class="opt" style="margin-bottom:8px" title="켜기: 이름과 같은 그림은 자동 매칭, 없는 이름은 무작위 얼굴 / 끄기: 색 공만"><span class="k">🖼️ 얼굴</span>
       <div class="seg" id="faceSeg"><button data-v="1" class="on">켜기</button><button data-v="0">끄기</button></div>
@@ -2399,7 +2399,7 @@ finalN.addEventListener('change',()=>{opt.finalAt=Math.max(2,parseInt(finalN.val
 $('#gateThreshold').addEventListener('change',()=>{if(!running())setup();});
 btnStart.addEventListener('click',start);
 $('#lobbyTabs').after($('#nameEntry'));
-$('#ctrl').dataset.lobbyTab='settings';
+$('#ctrl').dataset.lobbyTab='participants';
 seg($('#lobbyTabs'),v=>{$('#ctrl').dataset.lobbyTab=v;$('#lobbyTabs').querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.v===v)));});
 function setNamesExpanded(expanded){$('#nameEntry').dataset.collapsed=String(!expanded);}
 seg($('#gateRule'),()=>{$('#gateRule').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.classList.contains('on'))));if(!running())setup();});

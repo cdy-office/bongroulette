@@ -1,10 +1,32 @@
 import { createChatReceiver, speechCandidates } from './soop-chat.js';
 import { mountDonations } from './soop-donations.js';
 const $ = id => document.getElementById(id);
-const panel = document.createElement('section');
-panel.id = 'soopPanel';
-panel.innerHTML = '<strong><img class="soop-logo" src="soop.svg" alt="SOOP"> 방송 채팅</strong><div class="soop-actions"><button type="button" id="soopLogin" disabled>SOOP 로그인 · 연결</button><button type="button" id="soopLogout" hidden>연결 해제</button></div><p id="soopStatus" role="status">연결 설정 확인 중…</p><small>!이름 대사 → 해당 구슬 · !대사 → 무작위 구슬<br>채팅 내용이 게임 화면과 방송에 표시될 수 있습니다. 본인 방송을 켠 뒤 연결해주세요.</small>';
-$('ctrl').append(panel);
+const welcome = document.createElement('dialog');
+welcome.id = 'soopWelcome';
+welcome.setAttribute('aria-labelledby', 'soopWelcomeTitle');
+welcome.innerHTML = `<section id="soopPanel">
+  <img class="soop-logo" src="soop.svg" alt="SOOP">
+  <p class="soop-eyebrow">봉룰렛에 오신 것을 환영합니다</p>
+  <h2 id="soopWelcomeTitle">시청자와 함께 플레이하세요</h2>
+  <p class="soop-intro">방송 채팅과 별풍선 자동 입력을 연결해<br>시청자와 함께 즐길 수 있어요.</p>
+  <div class="soop-actions"><button type="button" id="soopLogin" disabled>SOOP 로그인 · 연결</button><button type="button" id="soopGuest">로그인 없이 시작</button></div>
+  <p id="soopStatus" role="status">연결 설정 확인 중…</p>
+  <small>연결하려면 본인 방송을 켜주세요.<br>채팅 내용이 게임 화면과 방송에 표시될 수 있습니다.</small>
+</section>`;
+document.body.append(welcome);
+let guestDismissed = false;
+try { guestDismissed = sessionStorage.getItem('rw-soop-guest') === '1'; } catch {}
+function showWelcome(force = false) {
+  if ((force || !guestDismissed) && !welcome.open) welcome.showModal();
+}
+function dismissWelcome() {
+  guestDismissed = true;
+  try { sessionStorage.setItem('rw-soop-guest', '1'); } catch {}
+  welcome.close();
+  $('names')?.focus({ preventScroll: true });
+}
+$('soopGuest').addEventListener('click', dismissWelcome);
+welcome.addEventListener('cancel', event => { event.preventDefault(); dismissWelcome(); });
 const audience = document.createElement('aside');
 audience.id = 'soopAudience';
 audience.setAttribute('aria-label', '관중석 채팅');
@@ -78,7 +100,7 @@ function setLive(value) {
   live = value;
   donations.connected(value);
   if (window.RW) window.RW.soopConnected = value;
-  $('soopLogin').hidden = value; $('soopLogout').hidden = !value;
+  if (value) welcome.close();
   $('soopLogin').disabled = pending || !configured;
   if (!value) { clearAudience(); receiver.clear(); }
 }
@@ -105,7 +127,8 @@ async function refresh() {
     setLive(false);
     if (status.connected) connectStream(status.broadcaster);
     else setStatus(configured ? '본인 방송을 켜고 SOOP 로그인으로 연결해주세요.' : 'SOOP 키 설정이 필요합니다. 운영자 설정을 완료한 뒤 새로고침해주세요.');
-  } catch (error) { configured = false; setLive(false); setStatus(error.message); }
+    return status.connected;
+  } catch (error) { configured = false; setLive(false); setStatus(error.message); return false; }
 }
 $('soopLogin').addEventListener('click', async () => {
   if (pending) return;
@@ -116,10 +139,6 @@ $('soopLogin').addEventListener('click', async () => {
     if (url.origin !== 'https://openapi.sooplive.com' || url.pathname !== '/auth/code') throw new Error('로그인 주소를 확인하지 못했습니다.');
     location.assign(url.href);
   } catch (error) { setStatus(error.message); pending = false; $('soopLogin').disabled = !configured; }
-});
-$('soopLogout').addEventListener('click', async () => {
-  try { await api('logout', 'POST'); } catch { /* Stream close also destroys session. */ }
-  stopStream(); await refresh();
 });
 window.addEventListener('pagehide', () => stopStream());
 setInterval(() => {
@@ -134,10 +153,11 @@ if (current.searchParams.has('code')) {
   current.searchParams.delete('code'); current.searchParams.delete('state');
   history.replaceState(null, '', current.pathname + current.search + current.hash);
   setStatus('로그인 복귀 주소가 인증 서버로 연결되지 않았습니다. 운영자 설정을 확인해주세요.');
+  showWelcome(true);
 } else {
   current.searchParams.delete('soop');
   if (result) history.replaceState(null, '', current.pathname + current.search + current.hash);
-  await refresh();
+  const connected = await refresh();
   const errors = {
     state: '로그인 보안 확인에 실패했습니다. SOOP의 인증 응답 설정을 확인해야 합니다.',
     expired: '로그인 요청 시간이 만료되었습니다. 다시 로그인해주세요.',
@@ -146,5 +166,6 @@ if (current.searchParams.has('code')) {
     connection: '채팅 연결에 실패했습니다. 본인 방송이 진행 중인지와 승인 범위를 확인해주세요.',
     closed: '채팅 연결이 종료되었습니다. 다시 로그인해주세요.'
   };
-  if (errors[result]) setStatus(errors[result]);
+  if (errors[result]) { setStatus(errors[result]); showWelcome(true); }
+  else if (!connected) showWelcome();
 }

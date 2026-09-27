@@ -1,4 +1,3 @@
-body[data-run="1"] #soopPanel{display:none}
 #soopPanel{border:1px solid #39394e;border-radius:12px;background:#181823;padding:11px;font-size:12px;line-height:1.5}
 #soopPanel strong{display:flex;align-items:center;gap:8px;color:#ececf4;margin-bottom:10px}
 .soop-logo{display:block;width:72px;height:auto}
@@ -29,5 +28,23 @@ body[data-run="1"] #soopPanel{display:none}
 #soopMarbleChat{position:fixed;inset:0;z-index:4;pointer-events:none;overflow:hidden}
 .soop-marble-bubble{position:absolute;left:0;top:0;transform:translate(-50%,-100%);max-width:180px;padding:6px 10px;border-radius:12px;background:rgba(250,247,237,.94);color:#282231;font:500 13px/1.4 Pretendard,'Malgun Gothic',sans-serif;overflow-wrap:anywhere;box-shadow:0 2px 8px #0005;text-align:center}
 .soop-marble-bubble::after{content:'';position:absolute;top:100%;left:calc(50% - 5px);border:5px solid transparent;border-top-color:rgba(250,247,237,.94)}
-body[data-run="1"] #soopPanel small{display:none}
 @media(max-width:820px){#soopAudience{bottom:76px;width:calc(100vw - 28px)}.soop-bubble{font-size:11px;padding:5px 8px}.soop-marble-bubble{font-size:12px;max-width:140px}}
+
+/* First-entry welcome: independent of the lobby and in-game controls. */
+#soopWelcome{padding:0;width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid #3b485b;border-radius:22px;background:#111824;color:#eef3fa;box-shadow:0 30px 100px #0009;font-family:inherit}
+#soopWelcome::backdrop{background:#060b14b8;backdrop-filter:blur(5px)}
+#soopWelcome #soopPanel{border:0;border-radius:0;background:radial-gradient(ellipse at top,#173b484f,transparent 65%),#111824;padding:36px 30px 26px;text-align:center}
+#soopWelcome .soop-logo{width:104px;margin:0 auto 25px}
+#soopWelcome .soop-eyebrow{font-size:12px;color:#74dcca;margin:0 0 8px}
+#soopWelcome h2{font-size:23px;letter-spacing:-.8px;line-height:1.35;margin:0 0 13px}
+#soopWelcome .soop-intro{font-size:13px;line-height:1.8;color:#aebbcf;margin:0 0 25px}
+#soopWelcome .soop-actions{flex-direction:column;gap:10px}
+#soopWelcome .soop-actions button{font-family:inherit;font-size:14px;font-weight:600;line-height:1.4;min-height:48px;border-radius:10px;transition:background .15s,transform .15s}
+#soopWelcome #soopLogin{background:#55d5c2;border-color:#55d5c2;color:#062e2a;font-size:14px;font-weight:750}
+#soopWelcome #soopLogin:hover:enabled{background:#7de5d5;transform:translateY(-1px)}
+#soopWelcome #soopGuest{background:#1b2534;border-color:#344258;color:#dce5f2;font-size:13px}
+#soopWelcome #soopGuest:hover{background:#273449}
+#soopWelcome button:focus-visible{outline:2px solid #e7fff9;outline-offset:3px}
+#soopWelcome #soopStatus{font-size:11px;line-height:1.6;margin:17px 0 7px;color:#acbfd5}
+#soopWelcome #soopPanel small{font-size:10px;line-height:1.6;color:#73849c}
+@media(max-width:480px){#soopWelcome #soopPanel{padding:29px 20px 22px}#soopWelcome h2{font-size:21px}}
