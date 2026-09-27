@@ -69,7 +69,7 @@ let items = [], lastPhase = '', lastMode = '', lastTime = 0;
 function state() {
   const rw = window.RW;
   if (!rw) return null;
-  return { phase: rw.S.phase, paused: rw.S.paused, finished: !!rw.S.finish, mode: rw.opt.game, round: rw.gateGame?.round?.round };
+  return { phase: rw.S.phase, paused: rw.S.paused, finished: !!rw.S.finish, mode: rw.opt.game, round: (rw.opt.game === 'cannon' ? rw.cannonGame : rw.gateGame)?.round?.round };
 }
 function drawAudience() {
   const fragment = document.createDocumentFragment();

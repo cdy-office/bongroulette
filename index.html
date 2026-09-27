@@ -222,12 +222,17 @@ body[data-run="1"] #gameSeg{display:none}
 @media(max-width:820px){#gameSeg{top:10px;width:calc(100vw - 20px);max-width:560px;padding:4px;gap:2px;border-radius:11px}#gameSeg button{font-size:11px;padding:11px 3px}}
 
 body[data-mode="pinball"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGraphicsRow){display:none!important}
+body:not([data-mode="cannon"]) .cannonOption{display:none!important}
+body[data-mode="cannon"] .opts>.opt:not(#speedRow){display:none!important}
+#cannonThreshold{width:76px}
+#gameSeg{width:min(790px,calc(100vw - 32px));grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:820px){#gameSeg{width:calc(100vw - 16px);max-width:660px}#gameSeg button{font-size:9px}}
 @media(max-width:820px){#gameSeg button{font-size:10px;padding:11px 1px}}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택" title="콜로세움: 경기장 전투 / 레이스: 트랙을 돌며 한 바퀴마다 꼴찌 탈락. 결전 인원부터 스킬 (피해는 정지·뒤로 밀림)"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="pinball">🎱 핀볼</button></div>
+<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="gate">🚪 문 선택</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button></div>
 
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
@@ -242,6 +247,7 @@ body[data-mode="pinball"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveG
     <div class="opt gateOption" id="gatePreviewRow"><span class="k">🔮 결과 미리보기</span><div class="seg" id="gatePreview" role="group" aria-label="결과 미리보기"><button type="button" data-v="1" aria-pressed="false">켜기</button><button type="button" data-v="0" class="on" aria-pressed="true">끄기</button></div></div>
     <div class="opt gateOption" id="gateRuleRow" title="적은 쪽: 모두 내려간 뒤 구슬이 더 적은 쪽이 용암이 됩니다. 동률은 무작위이며, 한쪽에 모두 모이면 전원 생존합니다."><span class="k">⚖️ 탈락 기준</span><div class="seg" id="gateRule" role="group" aria-label="탈락 기준"><button type="button" data-v="random" class="on" aria-pressed="true">무작위</button><button type="button" data-v="minority" aria-pressed="false">적은 쪽</button></div></div>
     <div class="opt gateOption" id="gateThresholdRow"><label class="k" for="gateThreshold">💬 문 여는 채팅 수</label><input id="gateThreshold" type="number" min="1" max="50" value="3"><span class="hint">회</span></div>
+    <div class="opt cannonOption" id="cannonThresholdRow"><label class="k" for="cannonThreshold">💬 발사 채팅 수</label><input id="cannonThreshold" type="number" min="1" max="1000" value="10"><span class="hint">회</span></div>
     <section id="nameEntry" data-collapsed="false" aria-label="참가자 이름 입력">
     <div id="quickNames" aria-label="캐릭터별 이름 선택">
       <div class="quick-head"><span class="quick-title">🎭 캐릭터 선택</span><span id="quickNameSelected"></span><button id="quickNameAll" type="button">전체 해제</button></div>
@@ -460,6 +466,8 @@ const isRace=()=>opt.game==='race';
 const isHole=()=>opt.game==='hole';
 const isGate=()=>opt.game==='gate';
 const isPinball=()=>opt.game==='pinball';
+const isCannon=()=>opt.game==='cannon';
+let cannonGame=null;
 let pinballGame=null;
 let gateGame=null;
 // ---------- 폭탄 돌리기: 넓은 미로에서 폭탄이 손에서 손으로. 심지가 다하면 들고 있던 공이 터짐 ----------
@@ -627,7 +635,7 @@ function setup(){
   const names=parseNames(namesEl.value);
   const uniq=[...new Set(names)];
   // 이름이 하나뿐이면 공 하나하나를 개별로 취급
-  const single=isGate()||isPinball()||uniq.length<2;S.single=single;
+  const single=isGate()||isPinball()||isCannon()||uniq.length<2;S.single=single;
   const keys=names.map((nm,i)=>single?`${nm} #${i+1}`:nm);
   const ukeys=[...new Set(keys)];
   const hue=new Map(ukeys.map((k,i)=>[k,(i*137.508+20)%360]));
@@ -696,6 +704,7 @@ function setup(){
     syncGateUI();
   }
   if(isPinball()&&pinballGame)pinballGame.reset(S.marbles,rng);
+  if(isCannon()&&cannonGame){cannonGame.reset(S.marbles,rng,{threshold:$('#cannonThreshold').value});$('#cannonThreshold').value=cannonGame.round.threshold;}
   checkBars(true);
   btnStart.disabled=n<2;
   deadKey=-1;updateRank();
@@ -765,6 +774,7 @@ const SFX=(()=>{
   def('go',0,()=>{tone({f:1046,dur:0.5,g:0.28,type:'square',a:0.004});tone({f:523,dur:0.5,g:0.18,type:'triangle'});tone({f:90,f2:40,dur:0.35,g:0.4,type:'sine'});noise({f:200,f2:60,dur:0.3,g:0.35});noise({f:4000,dur:0.12,g:0.15,ft:'highpass'})},99);
   def('ui',30,()=>{tone({f:1500,f2:1100,dur:0.03,g:0.10,type:'square',dry:1});noise({f:5000,dur:0.02,g:0.06,ft:'highpass',dry:1})});
   def('uiOff',30,()=>tone({f:700,f2:450,dur:0.05,g:0.10,type:'square',dry:1}));
+  def('cannon',100,()=>{noise({f:1600,f2:120,dur:.22,g:.25});tone({f:130,f2:42,dur:.28,g:.30,type:'sine'});noise({f:4800,f2:1000,dur:.045,g:.12,ft:'highpass'})});
   def('shuffle',0,()=>{for(let i=0;i<3;i++)tone({f:1200+i*300,dur:0.03,g:0.08,at:i*0.055,type:'square',dry:1})});
   def('winPre',0,()=>{[0,0.16,0.32].forEach(t=>{tone({f:392,dur:0.13,g:0.2,at:t,type:'triangle',a:0.008});noise({f:1200,f2:300,dur:0.07,g:0.1,at:t})})},99); // 승리 카드 예고 3박
   def('hit',55,a=>{const d=a.dmg||10,k=Math.min(1,d/32),sf=a.soft?0.6:1;noise({f:1400+900*k,f2:220,dur:0.06+0.07*k,g:(0.10+0.18*k)*sf,v:0.08});tone({f:170-50*k,f2:55,dur:0.10+0.06*k,g:(0.05+0.18*k)*sf,type:'triangle',v:0.06});if(k>0.6)tone({f:82,f2:38,dur:0.22,g:0.22*k*sf,type:'sine',a:0.003});if(a.crit){tone({f:2200,f2:1500,dur:0.07,g:0.16,type:'square',at:0.01});tone({f:3300,dur:0.16,g:0.06,at:0.02})}}); // 세게 맞을수록 낮은 몸통이 붙고, 치명타는 높은 핑
@@ -1068,6 +1078,7 @@ function step(dt){
   S.time+=dt;
   if(isGate()){stepGate(dt);return;}
   if(isPinball()){stepPinball(dt);return;}
+  if(isCannon()){stepCannon(dt);return;}
   const alive=aliveList();const na=alive.length;
   if(!S.final&&na<=opt.finalAt&&S.time>1&&!isBomb())enterFinal(alive); // 폭탄 모드는 폭탄이 스킬을 준다
   if(S.final)S.finalT+=dt;
@@ -1591,7 +1602,7 @@ function poly(x,y,r,n,rot){ctx.beginPath();for(let i=0;i<n;i++){const a=rot+i/n*
 function stadiumPath(L,R){ctx.moveTo(-L,-R);ctx.lineTo(L,-R);ctx.arc(L,0,R,-Math.PI/2,Math.PI/2);ctx.lineTo(-L,R);ctx.arc(-L,0,R,Math.PI/2,Math.PI*1.5);ctx.closePath()}
 
 function updateCamera(dt){
-  if(isGate()||isPinball())return;
+  if(isGate()||isPinball()||isCannon())return;
   const {L,R,T,B}=region();
   const race=isRace(),hole=isHole(),bombM=isBomb(),AW=race?RACE.W/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_L+ARENA_R,AH=race?RACE.H/2+RACE.halfW+20:hole?HOLE.R+20:bombM?MAZE.R+MAZE.pr+20:ARENA_R;
   const fit=Math.max(0.08,Math.min((R-L)/(AW*2+40),(B-T)/(AH*2+40))); // 화면이 아주 작아져도(모바일 키보드 등) 0 이하로 내려가지 않게
@@ -2098,6 +2109,14 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(warmGlyphs);el
 function render(delta=1/60){
   if(W<2||H<2)return; // 창이 아직 크기를 못 받았거나 숨겨진 상태
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(isCannon()&&cannonGame){
+    arena3d?.setActive(false);gateGame?.setActive(false);pinballGame?.setActive(false);
+    const mobile=isMobile(),b=region(),bounds={L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B};
+    const winnerScreen=cannonGame.render(ctx,W,H,bounds,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});
+    $('#cannonThreshold').disabled=running();drawToasts(bounds.L,bounds.T+72,bounds.B);drawConfetti();
+    if(winnerScreen)drawBanner((bounds.L+bounds.R)/2,(bounds.T+bounds.B)/2,bounds.B,winnerScreen);
+    return;
+  }
   if(isPinball()&&pinballGame){
     if(arena3d)arena3d.setActive(false);if(gateGame)gateGame.setActive(false);
     const mobile=isMobile(),b=region(),bounds={L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B};
@@ -2392,6 +2411,7 @@ function frame(now){
 
 // Gate commands use the same path for manual and future approved chat input.
 function gateCommand(message,metadata){
+  if(isCannon())return S.phase==='battle'&&!S.paused&&cannonGame.round.command(message,metadata);
   if(isPinball())return S.phase==='battle'&&!S.paused&&pinballGame.command(message);
   if(!isGate()||S.phase!=='battle'||S.paused||!gateGame)return false;
   const accepted=gateGame.round.command(message,metadata);syncGateUI();return accepted;
@@ -2415,6 +2435,19 @@ function stepGate(dt){
   }
 }
 
+function stepCannon(dt){
+  const g=cannonGame.round,previousShots=g.shots,previousDeaths=g.eliminated.length;g.update(dt);
+  if(g.shots>previousShots)SFX.play('cannon');
+  if(g.eliminated.length>previousDeaths)SFX.play('death',{big:false});
+  for(const p of g.eliminated.slice(previousDeaths)){
+    const m=p.source;m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;
+    const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);
+    S.toasts.push({text:`${m.name} 탈락`,sub:`${m.rank}위  ·  남은 구슬 ${g.aliveCount}개`,color:m.color,life:4,max:4});if(S.toasts.length>10)S.toasts.shift();
+  }
+  if(g.winner){const m=g.winner.source;S.phase='finished';S.determined=true;S.winners=[m.faction];m.win=true;m.faction.win=true;
+    S.bannerDelay=.8;S.bannerNext={text:`🏆 ${m.name} 승리!`,sub:`LAST ONE STANDING  ·  ${fmt(g.time)}`,nameColor:m.color,name:m.name};SFX.play('win');deadKey=-1;updateRank();}
+}
+window.addEventListener('keydown',e=>{if(!isCannon()||e.code!=='Space'||e.repeat||e.target.closest?.('input,textarea,select,[contenteditable="true"]')||document.querySelector('dialog[open]'))return;if(S.phase==='battle'&&!S.paused){e.preventDefault();cannonGame.round.manualFire();}});
 function stepPinball(dt){
   const drained=pinballGame.update(dt);if(drained.length)SFX.play('death',{big:false});
   for(const m of drained){m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);
@@ -2446,6 +2479,7 @@ document.querySelectorAll('#mtabs button').forEach(b=>b.addEventListener('click'
 finalN.addEventListener('input',()=>{const v=parseInt(finalN.value,10);if(!isNaN(v))opt.finalAt=Math.max(2,v)});
 finalN.addEventListener('change',()=>{opt.finalAt=Math.max(2,parseInt(finalN.value,10)||FINAL_AT);finalN.value=opt.finalAt});
 $('#gateThreshold').addEventListener('change',()=>{if(!running())setup();});
+$('#cannonThreshold').addEventListener('change',()=>{if(!running())setup();});
 btnStart.addEventListener('click',start);
 $('#lobbyTabs').after($('#nameEntry'));
 $('#ctrl').dataset.lobbyTab='participants';
@@ -2494,7 +2528,7 @@ $('#quickNameAdd').addEventListener('click',fillSelectedNames);
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&!e.target.closest('button,input,textarea,select,[contenteditable="true"]')){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
 function chatAnchor(m){
-  if(!m?.alive||isGate())return null;
+  if(!m?.alive||isGate()||isCannon())return null;
   const {L,R,T,B}=region(),z=S.cam.zoom;
   const use3d=opt.view3d&&arena3d?.active;
   const p=use3d?arena3d.project(m.x,m.y,m.r*(m.skill?3.3:2.1)+12):{x:(L+R)/2+(m.x-S.cam.x)*z,y:(T+B)/2+(m.y-S.cam.y-(m.skill?m.r*3.1:m.r+8))*z,visible:true};
@@ -2508,6 +2542,7 @@ if(window.createColosseum3D){
 }else{opt.view3d=false;$('#graphicsNote').textContent='3D 파일을 불러오지 못해 기존 2D로 표시합니다.';$('#graphicsSeg [data-v="2d"]').click()}
 pinballGame=window.createPinballGame({roundFace,onError:()=>setGraphicsMode(false)});
 window.RW.pinballGame=pinballGame;
+cannonGame=window.createCannonGame({roundFace});window.RW.cannonGame=cannonGame;
 gateGame=window.createGateGame?.({canvas,roundFace,onError:()=>setGraphicsMode(false)});
 Object.assign(window.RW,{gateCommand,get gateGame(){return gateGame;}});
 const previewParams=new URLSearchParams(['localhost','127.0.0.1','[::1]'].includes(location.hostname)?location.search:''); // 체험·QA 파라미터는 로컬 개발에서만 사용
@@ -2516,6 +2551,7 @@ if(previewParams.get('demo')==='final'){namesEl.value='광견이형, 루시엘, 
 if(previewParams.get('demo')==='skills'){namesEl.value='광견이형, 루시엘, 송판';}
 if(previewParams.get('demo')==='race-duel')namesEl.value='광견이형, 루시엘';
 if(previewParams.get('demo')==='pinball'){$('#gameSeg [data-v="pinball"]').click();}
+if(previewParams.get('demo')==='cannon'){$('#gameSeg [data-v="cannon"]').click();}
 if(previewParams.get('demo')==='gate'){$('#gameSeg [data-v="gate"]').click();}
 if(previewParams.get('demo')==='bomb'){$('#gameSeg [data-v="bomb"]').click();}
 if(['race','race-duel'].includes(previewParams.get('demo'))){$('#gameSeg [data-v="race"]').click();}
