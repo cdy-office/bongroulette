@@ -8,6 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const random = () => randomBytes(32).toString('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const assets = new Map([
+  ['/assets/pinball/playfield.png', ['assets/pinball/playfield.png', 'image/png']],
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
   ['/pinball.js', ['pinball.js', 'text/javascript']],
     ['/soop-client.js', ['soop-client.js', 'text/javascript']],

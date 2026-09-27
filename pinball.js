@@ -64,7 +64,9 @@
   for(const item of colliders){const [x1,y1,x2,y2]=item.r,pad=R+item.radius+3;for(let x=Math.floor((Math.min(x1,x2)-pad)/CELL);x<=Math.floor((Math.max(x1,x2)+pad)/CELL);x++)for(let y=Math.floor((Math.min(y1,y2)-pad)/CELL);y<=Math.floor((Math.max(y1,y2)+pad)/CELL);y++){const key=x+','+y;if(!collisionGrid.has(key))collisionGrid.set(key,[]);collisionGrid.get(key).push(item);}}
   const font = 'Pretendard,"Malgun Gothic",sans-serif';
 
-  window.createPinballGame = ({roundFace}) => {
+  window.createPinballGame = ({roundFace,onError=()=>{}}) => {
+    let view3d=null;
+    const layout={deck,shell,boundary,rightFloor,leftFloor,orbitLeft,orbitRight,leftRamp,rightRamp,lanePosts,targets,bumpers,slings,slingActive,leftApron,rightApron};
     let balls=[], random=Math.random, time=0, launched=false, effects=[], winner=null, activeCount=0;
     let nextLaunch=0, launchClock=0;
     const hitFlashes=new Map();
@@ -222,6 +224,28 @@
         camera.zoom=Math.min(camera.zoom,vw/(base*spanX),boardHeight/(base*spanY));
       }
       const scale=base*camera.zoom,cx=(bounds.L+bounds.R)/2,cy=(boardTop+bounds.B)/2;
+      const pending=balls.length-nextLaunch;
+      function hud(){
+        ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`700 16px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(`🎱 핀볼  ·  생존 ${activeCount} / ${balls.length}`,cx,bounds.T+21);
+        ctx.font=`12px ${font}`;ctx.fillStyle='#8b8d9c';ctx.fillText(options.paused?'일시정지':pending?`오른쪽 발사 대기 ${pending}개`:'!왼 · !오  또는  ← →  플리퍼 조작',cx,bounds.T+44);
+        if(options.phase==='countdown'){ctx.fillStyle='#12121be8';ctx.beginPath();ctx.roundRect(cx-75,cy-55,150,110,10);ctx.fill();ctx.font=`700 48px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(String(Math.ceil(options.countdown)),cx,cy);}
+      }
+      if(options.view3d&&window.createPinball3D){
+        try{
+          if(!view3d)view3d=window.createPinball3D({layout,roundFace,onError});
+          const fieldBounds={...bounds,T:boardTop};
+          if(view3d.render({balls,flippers,time,hitFlashes},{x:camera.x,y:camera.y,halfW:Math.min(W/2+15,vw/(2*scale)),halfH:boardHeight/(2*scale),framing},fieldBounds,width,height,options)){
+            ctx.clearRect(0,0,width,height);ctx.save();ctx.beginPath();ctx.rect(bounds.L,boardTop,vw,boardHeight);ctx.clip();
+            const label=(s,x,y,size,color)=>{ctx.font=`600 ${size}px ${font}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.strokeStyle='#080d14';ctx.lineWidth=3;ctx.lineJoin='round';ctx.strokeText(s,x,y);ctx.fillStyle=color;ctx.fillText(s,x,y);};
+            for(const b of balls){if(!b.alive||b.queued)continue;const p=view3d.project(b.x,b.y,R+1);if(p.visible&&(activeCount<=35||winner))label(b.source.name,p.x,p.y+18,14,b.source.color);if(winner)label('👑',p.x,p.y-25,22,'#ffd166');}
+            for(const [x,s,c] of [[160,'!왼','#4fd1c5'],[560,'!오','#b388ff']]){const p=view3d.project(x,1042,5);label(s,p.x,p.y,16,c);}
+            ctx.restore();hud();
+            if(winner){const p=view3d.project(winner.x,winner.y,R+1),edge=view3d.project(winner.x+R,winner.y,R+1),r=Math.abs(edge.x-p.x);return {...p,r,scale:r/R};}
+            return;
+          }
+        }catch(error){view3d?.setActive(false);onError(error);}
+      }
+      view3d?.setActive(false);
       ctx.save();ctx.beginPath();ctx.rect(bounds.L,boardTop,vw,boardHeight);ctx.clip();
       ctx.translate(cx-camera.x*scale,cy-camera.y*scale);ctx.scale(scale,scale);
       const poly=(pts,fill,stroke,lw=4)=>{ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}};
@@ -259,17 +283,14 @@
       for(const f of flippers){const end=[f.x+Math.cos(f.angle)*FLIPPER_LENGTH,f.y+Math.sin(f.angle)*FLIPPER_LENGTH],c=f.side===1?'#4fd1c5':'#b388ff';line([[f.x,f.y],end],'#282837',24);line([[f.x,f.y],end],c,16);circle(f.x,f.y,10,'#22222f',c,2.5);}
       text('!왼',160,1042,22,'#4fd1c5');text('!오',560,1042,22,'#b388ff');
       line([[695,1070],[729,1070]],'#ffd166',5);line([[698,1083],[726,1083]],'#3d3d58',4);
-      const pending=balls.length-nextLaunch;
       if(pending){circle(712,1040,R,'#4fd1c5','#4fd1c5',2);const face=options.faces&&balls[nextLaunch]&&roundFace(options.faceOf[balls[nextLaunch].source.name]);if(face)ctx.drawImage(face,700,1028,24,24);text(`${pending}`,712,1140,17,'#ffd166');}
       for(const p of effects){ctx.globalAlpha=p.life/.4;circle(p.x,p.y,3,p.color);}ctx.globalAlpha=1;
       for(const b of balls){if(!b.alive||b.queued)continue;circle(b.x,b.y,R,b.source.color);const face=options.faces&&roundFace(options.faceOf[b.source.name]);if(face){ctx.drawImage(face,b.x-R,b.y-R,R*2,R*2);circle(b.x,b.y,R,'#0000',b.source.color,1.7);}if(activeCount<=35||winner)text(b.source.name,b.x,b.y+24,15,b.source.color,true);if(winner)text('👑',b.x,b.y-29,23,'#ffd166');}
       ctx.restore();
       // Screen-space information follows the other modes' unobtrusive centered HUD.
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`700 16px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(`🎱 핀볼  ·  생존 ${activeCount} / ${balls.length}`,cx,bounds.T+21);
-      ctx.font=`12px ${font}`;ctx.fillStyle='#8b8d9c';ctx.fillText(options.paused?'일시정지':pending?`오른쪽 발사 대기 ${pending}개`:'!왼 · !오  또는  ← →  플리퍼 조작',cx,bounds.T+44);
-      if(options.phase==='countdown'){ctx.fillStyle='#12121be8';ctx.beginPath();ctx.roundRect(cx-75,cy-55,150,110,10);ctx.fill();ctx.font=`700 48px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(String(Math.ceil(options.countdown)),cx,cy);}
+      hud();
       if(winner)return {x:cx+(winner.x-camera.x)*scale,y:cy+(winner.y-camera.y)*scale,r:R*scale,scale};
     }
-    return {reset,command,update,render,get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
+    return {reset,command,update,render,setActive:value=>view3d?.setActive(value),get view3dMetrics(){return view3d?.metrics},get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
   };
 })();

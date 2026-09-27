@@ -221,7 +221,7 @@ body[data-run="1"] #gameSeg{display:none}
 @media(min-width:821px) and (max-width:1200px){body:not([data-run="1"]) #ctrl{top:86px}body:not([data-run="1"]) #rank{top:86px}}
 @media(max-width:820px){#gameSeg{top:10px;width:calc(100vw - 20px);max-width:560px;padding:4px;gap:2px;border-radius:11px}#gameSeg button{font-size:11px;padding:11px 3px}}
 
-body[data-mode="pinball"] .opts>.opt:not(#speedRow){display:none!important}
+body[data-mode="pinball"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGraphicsRow){display:none!important}
 @media(max-width:820px){#gameSeg button{font-size:10px;padding:11px 1px}}
 </style>
 </head>
@@ -620,7 +620,7 @@ function parseNames(text){
 function setup(){
   setNamesExpanded(true);
   setPaused(false);
-  $('#graphicsRow').hidden=$('#liveGraphicsRow').hidden=!['arena','race','bomb','gate'].includes(opt.game);
+  $('#graphicsRow').hidden=$('#liveGraphicsRow').hidden=!['arena','race','bomb','gate','pinball'].includes(opt.game);
   document.body.dataset.mode=opt.game;
   if(S.seedUsed){seed=(Math.random()*1e9)>>>0;S.seedUsed=false} // 한 번 쓴 시드는 다시 쓰지 않음
   rng=mulberry32(seed);seedText.textContent=seed;
@@ -2106,6 +2106,7 @@ function render(delta=1/60){
     if(winnerScreen)drawBanner((bounds.L+bounds.R)/2,(bounds.T+bounds.B)/2,bounds.B,{...winnerScreen,bounds});
     return;
   }
+  pinballGame?.setActive(false);
   if(isGate()&&gateGame){
     if(arena3d)arena3d.setActive(false);
     const mobile=isMobile(),b=region();
@@ -2502,7 +2503,7 @@ if(window.createColosseum3D){
   if(result.ready){arena3d=result;window.RW.view3d=result}
   else{opt.view3d=false;$('#graphicsNote').textContent=result.error;$('#graphicsSeg [data-v="2d"]').click()}
 }else{opt.view3d=false;$('#graphicsNote').textContent='3D 파일을 불러오지 못해 기존 2D로 표시합니다.';$('#graphicsSeg [data-v="2d"]').click()}
-pinballGame=window.createPinballGame({roundFace});
+pinballGame=window.createPinballGame({roundFace,onError:()=>setGraphicsMode(false)});
 window.RW.pinballGame=pinballGame;
 gateGame=window.createGateGame?.({canvas,roundFace,onError:()=>setGraphicsMode(false)});
 Object.assign(window.RW,{gateCommand,get gateGame(){return gateGame;}});
