@@ -27,7 +27,7 @@ body[data-run="1"] #liveGraphicsRow,body[data-run="1"] #liveQualityRow{display:f
 /* 데스크톱에서는 이름 입력창을 설정창 오른쪽 아래에 별도로 배치한다 */
 @media (min-width:821px){
   #ctrl>#nameBox{flex:none}
-  #nameEntry{position:fixed;left:294px;bottom:12px;width:min(460px,calc(100vw - 570px));height:min(310px,44vh);display:flex;flex-direction:column;padding:16px;background:#12121af5;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px #0004;z-index:3}
+  #nameEntry{position:fixed;left:294px;bottom:12px;width:min(460px,calc(100vw - 570px));height:min(390px,56vh);display:flex;flex-direction:column;padding:16px;background:#12121af5;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px #0004;z-index:3}
   #ctrl #nameEntry textarea{flex:1;min-height:96px;height:auto;font-size:15px;line-height:1.6;padding:12px}
   #ctrl #nameEntry label.t{font-size:14px;margin-bottom:10px}
   #nameEntry .hint{line-height:1.5;margin-top:8px}
@@ -91,6 +91,20 @@ body[data-run="1"] #nameEntry{display:none}
 #nameEntry[data-collapsed="true"]{height:auto;min-height:0}
 #ctrl #nameEntry[data-collapsed="true"] textarea{height:60px;min-height:60px;flex:none;overflow:auto}
 #nameEntry:focus-within{border-color:#4fd1c580;box-shadow:0 0 0 1px #4fd1c533,0 8px 28px #0004}
+#quickNames{flex:none;display:grid;gap:7px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+#quickNames .quick-title{font-weight:700;font-size:13px}
+#quickNames .quick-options,#quickNames .quick-entry{display:flex;align-items:center;gap:7px;min-width:0}
+#quickNames .quick-options label{color:var(--muted);font-size:12px;white-space:nowrap}
+#quickNames input{min-width:0;background:#0d0d14;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
+#quickNames input[type=number]{width:57px;padding-right:3px}
+#quickNames input[type=text]{flex:1;width:0}
+#quickNames input:disabled{opacity:.5}
+#quickNames .seg{margin-left:auto}
+#quickNames .seg button{padding:6px 8px}
+#quickNames .quick-entry button{flex:none;border:0;border-radius:7px;background:var(--accent);color:#06201d;padding:8px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+#quickNames .quick-entry button:hover{filter:brightness(1.08)}
+#quickNameStatus{min-height:14px;margin:0;font-size:11px;color:var(--muted)}
+#quickNameStatus[data-error="true"]{color:#ff879b}
 /* 모바일: 위쪽은 경기장, 아래 46%는 설정/순위 시트 (탭으로 전환) */
 @media (max-width:820px){
   body{touch-action:manipulation}
@@ -150,6 +164,12 @@ body[data-mode="gate"] .opts>.opt:not(#speedRow){display:none!important}
     <div class="opt gateOption" id="gateRuleRow" title="적은 쪽: 모두 내려간 뒤 구슬이 더 적은 쪽이 용암이 됩니다. 동률은 무작위이며, 한쪽에 모두 모이면 전원 생존합니다."><span class="k">⚖️ 탈락 기준</span><div class="seg" id="gateRule" role="group" aria-label="탈락 기준"><button type="button" data-v="random" class="on" aria-pressed="true">무작위</button><button type="button" data-v="minority" aria-pressed="false">적은 쪽</button></div></div>
     <div class="opt gateOption" id="gateThresholdRow"><label class="k" for="gateThreshold">💬 문 여는 채팅 수</label><input id="gateThreshold" type="number" min="1" max="50" value="3"><span class="hint">회</span></div>
     <section id="nameEntry" data-collapsed="false" aria-label="참가자 이름 입력">
+    <div id="quickNames" aria-label="빠른 이름 추가">
+      <span class="quick-title">➕ 빠른 이름 추가</span>
+      <div class="quick-options"><label for="quickNameCount">이름당 구슬</label><input id="quickNameCount" type="number" min="1" max="500" value="1"><div class="seg" id="quickNameMode" role="group" aria-label="구슬 수 적용"><button type="button" data-v="one" aria-pressed="false">1개씩</button><button type="button" data-v="count" class="on" aria-pressed="true">지정 수</button></div></div>
+      <div class="quick-entry"><input id="quickNameText" type="text" maxlength="800" placeholder="이름 입력 · 여러 명은 쉼표로 구분" aria-label="추가할 이름"><button id="quickNameAdd" type="button">추가</button></div>
+      <p id="quickNameStatus" role="status" aria-live="polite"></p>
+    </div>
     <label class="t" for="names">이름들을 입력하세요</label>
     <textarea id="names" spellcheck="false" placeholder="참가자 이름을 입력하세요">송판*1, 네즈미*1, 강자*1, 루시엘*1, 신가호*1, 게코스*1, 비아가*1, 헤이요*1, 테무르*1, 미카엘린*1, 미카엘라*1, 테스메르*1, 배해수*1, 안나*1, 오마에*1, 헤이즐*1, 한봉식*1, 큐피*1, 세실리아*1, 광견이형*1, 햇냥이*1, 숍숍*1,</textarea>
     <div class="hint">쉼표나 줄바꿈으로 구분. <b>이름*숫자</b>로 같은 이름을 여러 개 넣어요. 입력을 고치면 바로 리셋됩니다.</div>
@@ -2326,6 +2346,24 @@ btnShuffle.addEventListener('click',()=>{SFX.play('shuffle');seed=(Math.random()
 $('#btnStop').addEventListener('click',()=>{SFX.play('uiOff');setup()});
 // 입력을 고치기 시작하면 진행 중이던 전투는 즉시 리셋
 let deb=0;namesEl.addEventListener('input',()=>{if(S.phase!=='idle')setup();clearTimeout(deb);deb=setTimeout(()=>setup(),200)});
+const quickNameText=$('#quickNameText'),quickNameCount=$('#quickNameCount'),quickNameStatus=$('#quickNameStatus');
+seg($('#quickNameMode'),v=>{quickNameCount.disabled=v==='one';$('#quickNameMode').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.classList.contains('on'))));});
+function addQuickNames(){
+  const names=quickNameText.value.split(',').map(s=>s.trim()).filter(Boolean);
+  const count=quickNameCount.disabled?1:Number(quickNameCount.value);
+  const fail=message=>{quickNameStatus.textContent=message;quickNameStatus.dataset.error='true';};
+  if(!names.length){fail('추가할 이름을 입력해주세요.');quickNameText.focus();return;}
+  if(names.some(name=>name.length>80||/[\r\n*×\u0000-\u001f]/u.test(name)||/[xX]\s*\d+$/.test(name))){fail('이름은 80자 이내로 입력하고 *와 줄바꿈은 빼주세요.');quickNameText.focus();return;}
+  if(!Number.isSafeInteger(count)||count<1||count>500){fail('구슬 수는 1~500으로 입력해주세요.');quickNameCount.focus();return;}
+  if(parseNames(namesEl.value).length+names.length*count>1000){fail('구슬은 최대 1,000개까지 추가할 수 있습니다.');return;}
+  const tokens=names.map(name=>`${name}*${count}`);
+  namesEl.value=[namesEl.value.trim().replace(/,\s*$/,''),...tokens].filter(Boolean).join(', ');
+  namesEl.dispatchEvent(new Event('input',{bubbles:true}));
+  quickNameText.value='';quickNameStatus.textContent=`${names.length}명 · 구슬 ${names.length*count}개 추가됨`;
+  quickNameStatus.dataset.error='false';quickNameText.focus();
+}
+$('#quickNameAdd').addEventListener('click',addQuickNames);
+quickNameText.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addQuickNames()}});
 window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&!e.target.closest('button,input,textarea,select,[contenteditable="true"]')){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
 function chatAnchor(m){
