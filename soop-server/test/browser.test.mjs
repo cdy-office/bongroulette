@@ -48,8 +48,15 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   assert.equal(await page.evaluate(() => RW.S.marbles.filter(m => m.name === '아무이름123').length), 10);
   await page.screenshot({ path: 'C:/Users/andth/AppData/Local/Temp/donation-arbitrary-name.png' });
   await page.locator('#gameSeg [data-v="gate"]').click();
+  await page.locator('#settingsTab').click();
+  assert.equal(await page.locator('#graphicsRow').isVisible(), true);
   await page.locator('#btnStart').click();
   await page.waitForFunction(() => window.RW.S.phase === 'battle');
+  assert.equal(await page.locator('#liveGraphicsRow').isVisible(), true);
+  await page.locator('#liveGraphicsSeg [data-v="2d"]').click();
+  await page.waitForFunction(() => document.getElementById('gate3d')?.style.display === 'none');
+  await page.locator('#liveGraphicsSeg [data-v="3d"]').click();
+  await page.waitForFunction(() => document.getElementById('gate3d')?.style.display === 'block');
   assert.equal(await page.locator('#soopPanel').isVisible(), false);
   assert.equal(await page.evaluate(() => RW.soopConnected), true);
   const keyboardCounts = await page.evaluate(() => [...RW.gateGame.round.counts]);
@@ -73,6 +80,7 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   assert.deepEqual(await page.evaluate(() => [...window.RW.gateGame.round.counts]), before);
   await page.locator('#btnStop').click();
   await page.waitForFunction(() => document.getElementById('names').value.includes('테스트이름*2'));
+  await page.locator('#participantsTab').click();
   await page.locator('#names').fill(namesBefore);
   await page.waitForTimeout(300);
   await page.locator('#gameSeg [data-v="arena"]').click();

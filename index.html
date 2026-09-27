@@ -620,7 +620,7 @@ function parseNames(text){
 function setup(){
   setNamesExpanded(true);
   setPaused(false);
-  $('#graphicsRow').hidden=$('#liveGraphicsRow').hidden=!['arena','race','bomb'].includes(opt.game);
+  $('#graphicsRow').hidden=$('#liveGraphicsRow').hidden=!['arena','race','bomb','gate'].includes(opt.game);
   document.body.dataset.mode=opt.game;
   if(S.seedUsed){seed=(Math.random()*1e9)>>>0;S.seedUsed=false} // 한 번 쓴 시드는 다시 쓰지 않음
   rng=mulberry32(seed);seedText.textContent=seed;
@@ -2109,7 +2109,7 @@ function render(delta=1/60){
   if(isGate()&&gateGame){
     if(arena3d)arena3d.setActive(false);
     const mobile=isMobile(),b=region();
-    const bounds={L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:12,B:b.B};
+    const bounds={L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B};
     gateGame.render(ctx,W,H,bounds,opt.view3d,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,gatePreview:$('#gatePreview .on').dataset.v==='1',delta});syncGateUI();return;
   }
   if(gateGame)gateGame.setActive(false);
