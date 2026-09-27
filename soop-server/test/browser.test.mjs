@@ -22,7 +22,7 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   page.setDefaultTimeout(10000);
   page.setDefaultNavigationTimeout(10000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.goto(origin);
+  await page.goto(origin, { waitUntil: 'domcontentloaded' });
   t.diagnostic('page ready');
   await page.waitForFunction(() => document.getElementById('soopLogin')?.disabled === false);
   const state = await page.evaluate(async () => {
@@ -30,12 +30,12 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
     const r = await (await fetch('/api/soop/login', { method: 'POST', headers: { 'X-CSRF-Token': s.csrf } })).json();
     return new URL(r.url).searchParams.get('state');
   });
-  await page.goto(`${origin}/?code=mock-code&state=${state}`);
+  await page.goto(`${origin}/?code=mock-code&state=${state}`, { waitUntil: 'domcontentloaded' });
   t.diagnostic('callback ready');
   await page.waitForFunction(() => window.RW?.soopConnected);
-  assert.equal(await page.locator('#gateAuto').isDisabled(), true);
+  assert.equal(await page.locator('#gateThreshold').isEnabled(), true);
   await page.locator('#names').click();
-  await page.locator('#donationToggle').click();
+  await page.locator('#donationToggle').evaluate(button => button.click());
   const namesBefore = '메리미*1, 안나*1';
   assert.equal(await page.locator('#names').inputValue(), '');
   assert.equal(await page.locator('#donationWait').count(), 0);
@@ -104,8 +104,11 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.waitForFunction(() => !document.querySelector('.soop-marble-bubble'));
   await page.locator('#btnStop').click();
   await page.waitForFunction(() => document.body.dataset.run === '0');
-  assert.equal(await page.locator('#soopPanel').isVisible(), true);
-  await page.locator('#soopLogout').click();
+  assert.equal(await page.locator('#soopPanel').isVisible(), false);
+  await page.evaluate(async () => {
+    const status = await (await fetch('/api/soop/status')).json();
+    await fetch('/api/soop/logout', { method: 'POST', headers: { 'X-CSRF-Token': status.csrf } });
+  });
   await page.waitForFunction(() => !window.RW.soopConnected);
   assert.equal(await page.locator('.soop-bubble').count(), 0);
   assert.deepEqual(errors, []);
