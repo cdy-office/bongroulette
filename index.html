@@ -2420,7 +2420,7 @@ function stepPinball(dt){
     S.bannerDelay=0.9;S.bannerNext={text:`🏆 ${m.name} 승리!`,sub:`LAST ONE STANDING  ·  ${fmt(pinballGame.time)}`,nameColor:m.color,name:m.name};
     deadKey=-1;updateRank();}
 }
-window.addEventListener('keydown',e=>{if((!isPinball()&&!isGate())||e.repeat||e.target.matches('input,textarea,select')||document.querySelector('dialog[open]'))return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const side=e.key==='ArrowLeft'?0:1;if(isGate()){if(S.phase==='battle'&&!S.paused&&gateGame?.round.openFromKeyboard(side))syncGateUI();}else gateCommand(side===0?'!왼':'!오');}});
+window.addEventListener('keydown',e=>{if((!isPinball()&&!isGate())||e.repeat||e.target.matches?.('input,textarea,select')||document.querySelector('dialog[open]'))return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const side=e.key==='ArrowLeft'?0:1;if(isGate()){if(S.phase==='battle'&&!S.paused&&gateGame?.round.openFromKeyboard(side))syncGateUI();}else gateCommand(side===0?'!왼':'!오');}});
 // ---------- UI ----------
 function seg(el,cb){el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');SFX.play('ui');cb(b.dataset.v)}))}
 function setGraphicsMode(value){
