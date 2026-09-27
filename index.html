@@ -1751,19 +1751,32 @@ function bakeBanner(b){
   g.textAlign='center';g.font=`800 15px ${FONT}`;g.lineWidth=5;g.strokeText(b.sub,W2/2,78);g.fillStyle='#fff';g.fillText(b.sub,W2/2,78);
   return {cv:t,w:W2,h:H2};
 }
-function drawBanner(cx,cy,B){
+function drawBanner(cx,cy,B,pinball){
   const b=S.banner;if(!b)return;
   if(b.age<0)return; // 살짝 늦게 등장시키고 싶을 때 age를 음수로
   const q=clamp(b.age/0.35,0,1),kb=1.2,e=1+(kb+1)*(q-1)**3+kb*(q-1)**2,s=1+0.5*(1-e); // 살짝 넘쳤다가 자리 잡는다
   let alpha=clamp(b.age/0.15,0,1),lift=0;if(b.life!==undefined&&b.life<0.4){const x=b.life/0.4;alpha*=x;lift=-12*(1-x)} // 사라질 땐 위로 살짝 떠오르며
+  const im=b.img||(b.img=bakeBanner(b)); // 배너는 한 번만 그려 두고 그림으로
   // 승리 박스는 마지막 남은 공 바로 아래에 (이름·스킬 라벨 아래). 결전 배너는 화면 중앙
-  let bx=cx,by=cy+60;
-  if(S.phase==='finished'){const w=aliveList()[0];
+  let bx=cx,by=cy+60,fit=1;
+  if(pinball){
+    const area=pinball.bounds;
+    fit=Math.min(1,(area.R-area.L-24)/im.w,(area.B-area.T-24)/im.h);
+    bx=clamp(pinball.x,area.L+im.w*fit/2+12,area.R-im.w*fit/2-12);
+    let top=pinball.y+Math.max(pinball.r+10,32*pinball.scale)+18;
+    if(top+im.h*fit>area.B-14)top=pinball.y-45*pinball.scale-im.h*fit-18;
+    top=clamp(top,area.T+58,area.B-im.h*fit-14);
+    by=top+44*fit;
+  }
+  else if(S.phase==='finished'){const w=aliveList()[0];
     if(w){const z=S.cam.zoom,fs=Math.max(clamp(w.r*0.95,7,14),12/z),labelH=fs+(w.skill?Math.max(11/z,fs*0.85)+2:0)+8;
       const p3=arena3d&&arena3d.active?arena3d.project(w.x,w.y,w.r):null;
       bx=p3?p3.x:cx+(w.x-S.cam.x)*z;by=p3?p3.y+w.r*p3.scale+104:cy+(w.y-S.cam.y)*z+(w.r+3+labelH)*z+62;if(B)by=Math.min(by,B-70)}}
-  const im=b.img||(b.img=bakeBanner(b)); // 배너는 한 번만 그려 두고 그림으로 (이모지 제목을 매 프레임 그리면 렌더러가 끊긴다)
-  ctx.save();ctx.translate(bx,by+lift);ctx.scale(s,s);ctx.globalAlpha=alpha;ctx.drawImage(im.cv,-im.w/2,-44,im.w,im.h);ctx.restore();
+  ctx.save();ctx.translate(bx,by+lift);ctx.scale(s*fit,s*fit);ctx.globalAlpha=alpha;ctx.drawImage(im.cv,-im.w/2,-44,im.w,im.h);ctx.restore();
+}
+function drawConfetti(){
+  for(const c of S.confetti){const cs=Math.cos(c.rot),sn=Math.sin(c.rot);ctx.setTransform(DPR*cs,DPR*sn,-DPR*sn,DPR*cs,c.x*DPR,c.y*DPR);ctx.globalAlpha=clamp(c.life/1,0,1);ctx.fillStyle=c.color;ctx.fillRect(-c.w/2,-c.h/2,c.w,c.h)}
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.globalAlpha=1;
 }
 function drawBolt(b){
   const a=clamp(b.life/0.3,0,1);const segs=7;const dx=(b.x2-b.x1)/segs,dy=(b.y2-b.y1)/segs;
@@ -2087,7 +2100,11 @@ function render(delta=1/60){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   if(isPinball()&&pinballGame){
     if(arena3d)arena3d.setActive(false);if(gateGame)gateGame.setActive(false);
-    const mobile=isMobile(),b=region();pinballGame.render(ctx,W,H,{L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B},{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});return;
+    const mobile=isMobile(),b=region(),bounds={L:mobile?8:(running()?250:328),R:mobile?W-8:W-216,T:running()?12:82,B:b.B};
+    const winnerScreen=pinballGame.render(ctx,W,H,bounds,{...opt,phase:S.phase,countdown:S.countdown,faceOf:S.faceOf,paused:S.paused,delta});
+    drawConfetti();
+    if(winnerScreen)drawBanner((bounds.L+bounds.R)/2,(bounds.T+bounds.B)/2,bounds.B,{...winnerScreen,bounds});
+    return;
   }
   if(isGate()&&gateGame){
     if(arena3d)arena3d.setActive(false);
@@ -2293,9 +2310,7 @@ function render(delta=1/60){
   if(S.duel&&S.duelists&&(S.phase==='battle'||S.finish))drawDuelHud(L,R,T,B,cx); // 결정타 연출 중에도 남아 체력이 0으로 빠지는 걸 보여준다
   for(const s of S.shards){const c=Math.cos(s.rot),sn=Math.sin(s.rot);ctx.setTransform(DPR*c,DPR*sn,-DPR*sn,DPR*c,s.x*DPR,s.y*DPR);ctx.globalAlpha=clamp(s.life/0.5,0,1);ctx.fillStyle=s.color;ctx.fillRect(-s.w/2,-s.h/2,s.w,s.h)}
   ctx.setTransform(DPR,0,0,DPR,0,0); // save/restore 없이 변환만 바꾼다
-  for(const c of S.confetti){const cs=Math.cos(c.rot),sn=Math.sin(c.rot);ctx.setTransform(DPR*cs,DPR*sn,-DPR*sn,DPR*cs,c.x*DPR,c.y*DPR);ctx.globalAlpha=clamp(c.life/1,0,1);ctx.fillStyle=c.color;ctx.fillRect(-c.w/2,-c.h/2,c.w,c.h)}
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.globalAlpha=1;
+  drawConfetti();
   drawRaceMarkers(use3d,L,R,T,B);
   ctx.textAlign='center';ctx.textBaseline='top';
   const duelPanel=S.duel&&(S.phase==='battle'||S.finish)?duelHudLayout():null;
@@ -2401,7 +2416,9 @@ function stepGate(dt){
 function stepPinball(dt){
   const drained=pinballGame.update(dt);if(drained.length)SFX.play('death',{big:false});
   for(const m of drained){m.alive=false;m.hp=0;S.eliminated.push(m);m.rank=S.marbles.length-S.eliminated.length+1;const f=m.faction;f.alive=0;f.out=true;f.rank=m.rank;S.factionsOut.push(f);}
-  if(pinballGame.winner){const m=pinballGame.winner;S.phase='finished';S.determined=true;S.winners=[m.faction];m.win=true;m.faction.win=true;SFX.play('win');deadKey=-1;updateRank();}
+  if(pinballGame.winner){const m=pinballGame.winner;S.phase='finished';S.determined=true;S.winners=[m.faction];m.win=true;m.faction.win=true;
+    S.bannerDelay=0.9;S.bannerNext={text:`🏆 ${m.name} 승리!`,sub:`LAST ONE STANDING  ·  ${fmt(pinballGame.time)}`,nameColor:m.color,name:m.name};
+    deadKey=-1;updateRank();}
 }
 window.addEventListener('keydown',e=>{if(!isPinball()||e.repeat||e.target.matches('input,textarea,select')||document.querySelector('dialog[open]'))return;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();gateCommand(e.key==='ArrowLeft'?'!왼':'!오');}});
 // ---------- UI ----------

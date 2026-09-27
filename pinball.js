@@ -208,9 +208,9 @@
         tx=(framing.minX+framing.maxX)/2;ty=(framing.minY+framing.maxY)/2;
         tz=clamp(Math.min(vw/(framing.maxX-framing.minX),boardHeight/(framing.maxY-framing.minY))/base,.75,2.5);
       }
-      if(winner){tx=winner.x;ty=winner.y;tz=2.45;}
+      if(winner){tx=winner.x;ty=winner.y+70/(base*2.45);tz=2.45;}
       const halfW=vw/(2*base*tz),halfH=boardHeight/(2*base*tz);
-      if(!framing){tx=halfW>=W/2?W/2:clamp(tx,halfW,W-halfW);ty=halfH>=H/2?H/2:clamp(ty,halfH,H-halfH);}
+      if(!framing&&!winner){tx=halfW>=W/2?W/2:clamp(tx,halfW,W-halfW);ty=halfH>=H/2?H/2:clamp(ty,halfH,H-halfH);}
       if(!camera.ready){camera.x=tx;camera.y=ty;camera.zoom=tz;camera.ready=true;}
       const pan=1-Math.exp(-delta*3.8),zoom=1-Math.exp(-delta*1.9);
       camera.x+=(tx-camera.x)*pan;camera.y+=(ty-camera.y)*pan;camera.zoom+=(tz-camera.zoom)*zoom;
@@ -268,7 +268,7 @@
       ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`700 16px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(`🎱 핀볼  ·  생존 ${activeCount} / ${balls.length}`,cx,bounds.T+21);
       ctx.font=`12px ${font}`;ctx.fillStyle='#8b8d9c';ctx.fillText(options.paused?'일시정지':pending?`오른쪽 발사 대기 ${pending}개`:'!왼 · !오  또는  ← →  플리퍼 조작',cx,bounds.T+44);
       if(options.phase==='countdown'){ctx.fillStyle='#12121be8';ctx.beginPath();ctx.roundRect(cx-75,cy-55,150,110,10);ctx.fill();ctx.font=`700 48px ${font}`;ctx.fillStyle='#ecedf3';ctx.fillText(String(Math.ceil(options.countdown)),cx,cy);}
-      if(winner){ctx.font=`700 26px ${font}`;ctx.strokeStyle='#0a0a0f';ctx.lineWidth=5;ctx.strokeText(`🏆 ${winner.source.name} 승리!`,cx,bounds.B-60);ctx.fillStyle='#ffd166';ctx.fillText(`🏆 ${winner.source.name} 승리!`,cx,bounds.B-60);}
+      if(winner)return {x:cx+(winner.x-camera.x)*scale,y:cy+(winner.y-camera.y)*scale,r:R*scale,scale};
     }
     return {reset,command,update,render,get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
   };
