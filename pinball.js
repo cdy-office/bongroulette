@@ -67,20 +67,21 @@
   window.createPinballGame = ({roundFace,onError=()=>{}}) => {
     let view3d=null;
     const layout={deck,shell,boundary,rightFloor,leftFloor,orbitLeft,orbitRight,leftRamp,rightRamp,lanePosts,targets,bumpers,slings,slingActive,leftApron,rightApron,flipperLength:FLIPPER_LENGTH};
-    let balls=[], random=Math.random, time=0, launched=false, effects=[], winner=null, activeCount=0;
+    let balls=[], random=Math.random, time=0, launched=false, effects=[], winner=null, finished=false, activeCount=0;
     let nextLaunch=0, launchClock=0;
     const hitFlashes=new Map();
     const camera={x:W/2,y:H/2,zoom:1,ready:false};
     const flippers=[{x:220,y:1010,angle:.4,side:1},{x:500,y:1010,angle:Math.PI-.4,side:-1}];
     function reset(marbles,rng) {
-      random=rng; time=0; launched=false; effects=[]; winner=null; activeCount=marbles.length;
+      random=rng; time=0; launched=false; effects=[]; winner=null; finished=false; activeCount=marbles.length;
       nextLaunch=0; launchClock=0; camera.ready=false;hitFlashes.clear();
       const order=marbles.slice();
       for(let i=order.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
-      balls=order.map(source=>({source,x:712,y:1040,vx:0,vy:0,r:R,alive:true,queued:true,inLane:true,cool:0,poweredUntil:new Map()}));
+      balls=order.map(source=>({source,x:712,y:1040,vx:0,vy:0,r:R,alive:true,queued:true,inLane:true,cool:0,stillTime:0,poweredUntil:new Map()}));
       flippers.forEach(f=>{f.active=false;f.pending=false;f.stroke=0;f.angle=f.side===1?.4:Math.PI-.4;f.omega=0;});
     }
     function command(text) {
+      if(finished)return false;
       if(text!=='!왼'&&text!=='!오')return false;
       const f=flippers[text==='!왼'?0:1];
       // Coalesce a burst into one next stroke; never prolong the raised phase.
@@ -99,10 +100,25 @@
       b.poweredUntil.set(id,time+.09);hitFlashes.set(id,time+.14);
       spark(x,y,color);
     }
-    function segment(b,x1,y1,x2,y2,radius=5,kick=0,color='#4fd1c5',omega=0,id='') {
-      const dx=x2-x1,dy=y2-y1,t=clamp(((b.x-x1)*dx+(b.y-y1)*dy)/(dx*dx+dy*dy),0,1),px=x1+t*dx,py=y1+t*dy;
+    function segment(b,x1,y1,x2,y2,radius=5,kick=0,color='#4fd1c5',omega=0,id='',sweep=false) {
+      const dx=x2-x1,dy=y2-y1;
+      let t=clamp(((b.x-x1)*dx+(b.y-y1)*dy)/(dx*dx+dy*dy),0,1),px=x1+t*dx,py=y1+t*dy;
       let nx=b.x-px,ny=b.y-py,d=Math.hypot(nx,ny);const min=b.r+radius;
-      if(d>=min)return false;
+      // A flipper or another marble can push a centre through a rail in one step.
+      // Keep it on the side it approached from, even beyond the overlap radius.
+      let crossed=false;
+      if(sweep){
+        const mx=b.x-b.prevX,my=b.y-b.prevY,den=mx*dy-my*dx;
+        if(Math.abs(den)>1e-8){
+          const ax=x1-b.prevX,ay=y1-b.prevY,u=(ax*dy-ay*dx)/den,v=(ax*my-ay*mx)/den;
+          if(u>=0&&u<=1&&v>=0&&v<=1){
+            t=v;px=x1+v*dx;py=y1+v*dy;nx=-dy;ny=dx;
+            if((b.prevX-px)*nx+(b.prevY-py)*ny<0){nx=-nx;ny=-ny;}
+            d=Math.hypot(nx,ny);crossed=true;
+          }
+        }
+      }
+      if(!crossed&&d>=min)return false;
       if(d<.0001){nx=-dy;ny=dx;d=Math.hypot(nx,ny);}
       nx/=d;ny/=d;b.x=px+nx*(min+.1);b.y=py+ny*(min+.1);
       // Resolve against the surface velocity: a resting flipper is not a launcher.
@@ -121,9 +137,21 @@
       }
       return true;
     }
+    function repairRails(b) {
+      // Requery after each pass because a contact may move into another bucket.
+      for(let pass=0;pass<2;pass++){
+        const candidates=new Set(),sx=pass?b.x:b.prevX,sy=pass?b.y:b.prevY;
+        for(let x=Math.floor(Math.min(sx,b.x)/CELL);x<=Math.floor(Math.max(sx,b.x)/CELL);x++)
+          for(let y=Math.floor(Math.min(sy,b.y)/CELL);y<=Math.floor(Math.max(sy,b.y)/CELL);y++)
+            for(const c of collisionGrid.get(x+','+y)||[])candidates.add(c);
+        for(const c of candidates)segment(b,...c.r,c.radius,0,c.color,0,'',pass===0);
+      }
+    }
+    const escaped=b=>![b.x,b.y,b.vx,b.vy].every(Number.isFinite)||b.x<0||b.x>W||b.y<0||b.y>H||
+      (b.y>1165&&(b.x<=315||b.x>=405));
     // Countdown runs only this mechanism: marbles stay in the shooter lane.
     function updateFlippers(dt) {
-      if(winner||!Number.isFinite(dt)||dt<=0)return;
+      if(finished||!Number.isFinite(dt)||dt<=0)return;
       const count=Math.ceil(dt/(1/200)),h=dt/count;
       for(let step=0;step<count;step++)for(const f of flippers) {
         const before=f.angle;
@@ -141,7 +169,7 @@
       }
     }
     function update(dt) {
-      if(winner||dt<=0)return [];
+      if(finished||!Number.isFinite(dt)||dt<=0)return [];
       launched=true;
       const deaths=[],count=Math.ceil(dt/(1/200)),h=dt/count;
       for(let step=0;step<count;step++) {
@@ -152,9 +180,11 @@
           launchClock=.045;
         }
         updateFlippers(h);
-        const falling=[];
+        const falling=[],lost=[];
         for(const b of balls) {
           if(!b.alive||b.queued)continue;
+          b.prevX=b.x;b.prevY=b.y;
+          if(escaped(b)){lost.push(b);continue;}
           b.cool=Math.max(0,b.cool-h);
           b.vy+=460*h;b.vx*=Math.exp(-.10*h);b.vy*=Math.exp(-.10*h);
           b.x+=b.vx*h;b.y+=b.vy*h;
@@ -172,17 +202,13 @@
           if(b.inLane&&b.x<656&&b.y<240)b.inLane=false;
           // A marble returned to the shooter is relaunched by the plunger;
           // it must never sit forever in the closed launch pocket.
-          if(b.x>680&&b.y>1020&&b.vy>0){b.inLane=true;b.vy=-1540;b.vx=(712-b.x)*3;}
+          if(b.x>=697&&b.x<=727&&b.y>1020&&b.y<=1083&&b.vy>0){b.inLane=true;b.vy=-1540;b.vx=(712-b.x)*3;}
           const max=b.inLane?1650:1150,speed=Math.hypot(b.vx,b.vy);
           if(speed>max){b.vx*=max/speed;b.vy*=max/speed;}
-          // The ONLY drain is the narrow central chute, below both flippers.
-          if(b.y>1165&&b.x>315&&b.x<405)falling.push(b);
-          if(b.x<53){b.x=53;b.vx=Math.abs(b.vx);}if(b.x>731){b.x=731;b.vx=-Math.abs(b.vx);}
-          if(b.y<48){b.y=48;b.vy=Math.abs(b.vy);}
         }
         const grid=new Map();
         for(const b of balls) {
-          if(!b.alive||b.queued)continue;
+          if(!b.alive||b.queued||lost.includes(b))continue;
           const gx=Math.floor(b.x/28),gy=Math.floor(b.y/28);
           for(let x=gx-1;x<=gx+1;x++)for(let y=gy-1;y<=gy+1;y++)for(const a of grid.get(x+','+y)||[]) {
             let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d>=R*2)continue;
@@ -193,9 +219,31 @@
           }
           const key=gx+','+gy;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(b);
         }
-        falling.sort((a,b)=>(b.y-1165)/Math.max(1,b.vy)-(a.y-1165)/Math.max(1,a.vy)||a.source.i-b.source.i);
+        // Finish all contacts before deciding who drained or escaped.
+        for(const b of balls){
+          if(!b.alive||b.queued||lost.includes(b))continue;
+          if(escaped(b)){lost.push(b);continue;}
+          repairRails(b);
+          if(b.x<53){b.x=53;b.vx=Math.abs(b.vx);}if(b.x>731){b.x=731;b.vx=-Math.abs(b.vx);}
+          if(b.y<48){b.y=48;b.vy=Math.abs(b.vy);}
+          if(escaped(b)){lost.push(b);continue;}
+          if(b.y>1165){falling.push(b);continue;}
+          const stationary=Math.hypot(b.x-(b.restX??b.x),b.y-(b.restY??b.y))<3&&Math.hypot(b.vx,b.vy)<25;
+          if(!stationary||b.restX===undefined){b.restX=b.x;b.restY=b.y;}
+          b.stillTime=stationary?b.stillTime+h:0;
+          // A gentle nudge releases a marble balanced on a post, without teleporting it.
+          if(b.stillTime>=2){b.vx=(random()<.5?-1:1)*65;b.vy=-85;b.stillTime=0;}
+        }
+        for(const b of lost){b.alive=false;activeCount--;deaths.push(b.source);}
+        const crossing=b=>clamp((1165-b.prevY)/Math.max(.0001,b.y-b.prevY),0,1);
+        falling.sort((a,b)=>crossing(a)-crossing(b)||a.source.i-b.source.i);
         for(const b of falling){if(activeCount<=1)break;b.alive=false;activeCount--;deaths.push(b.source);spark(b.x,1150,'#ff4d6d');}
-        if(activeCount===1&&nextLaunch===balls.length){winner=balls.find(b=>b.alive);break;}
+        if(activeCount<=1&&nextLaunch===balls.length){
+          winner=balls.find(b=>b.alive)||null;finished=true;
+          // The last drain crossing wins a simultaneous finish; show it above the chute.
+          if(winner){if(winner.y>1165){winner.x=winner.prevX;winner.y=Math.min(winner.prevY,1148);}winner.vx=winner.vy=0;}
+          break;
+        }
       }
       effects=effects.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;return p.life>0;});
       return deaths;
@@ -294,6 +342,6 @@
       hud();
       if(winner)return {x:cx+(winner.x-camera.x)*scale,y:cy+(winner.y-camera.y)*scale,r:R*scale,scale};
     }
-    return {reset,command,updateFlippers,update,render,setActive:value=>view3d?.setActive(value),get view3dMetrics(){return view3d?.metrics},get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
+    return {reset,command,updateFlippers,update,render,setActive:value=>view3d?.setActive(value),get view3dMetrics(){return view3d?.metrics},get finished(){return finished},get winner(){return winner?.source},get balls(){return balls},get time(){return time},get camera(){return {...camera}},get flippers(){return flippers.map(f=>({...f}))}};
   };
 })();
