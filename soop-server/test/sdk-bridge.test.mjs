@@ -23,14 +23,18 @@ test('SDK readiness enables room access before relaying text without closing', a
   globalThis.window = { SOOP: { ChatSDK: Sdk }, deliverChat: text => messages.push(text), chatClosed: () => closed++ };
   await initializeSdk({ clientId: 'test', clientSecret: 'test', accessToken: 'test' });
   assert.equal(instance.getRoomInfo().bjId, 'test-streamer');
-  instance.onMessage('MESSAGE', { message: '!왼', userId: 'not-forwarded' });
+  instance.onMessage('MESSAGE', { message: '!발사', userId: 'viewer-id', userNickname: '테스트시청자' });
+  instance.onMessage('MESSAGE', { message: '!왼', userId: 'no-nickname' });
   instance.onMessage('DONATION', { message: 'not-forwarded' });
-  assert.deepEqual(messages, [{ type: 'chat', text: '!왼', userId: 'not-forwarded' }]);
+  assert.deepEqual(messages, [
+    { type: 'chat', text: '!발사', userId: 'viewer-id', nickname: '테스트시청자' },
+    { type: 'chat', text: '!왼', userId: 'no-nickname', nickname: '' },
+  ]);
   instance.onMessage('BALLOON_GIFTED', { userId: 'donor', userNickname: '후원자', count: 100 });
   assert.deepEqual(messages.at(-1), { type: 'donation', userId: 'donor', nickname: '후원자', count: 100 });
   instance.onMessage('BALLOON_GIFTED', { userId: 'donor', count: 100, fromVod: true });
   instance.onMessage('BALLOON_GIFTED', { userId: 'donor', count: -100 });
-  assert.equal(messages.length, 2);
+  assert.equal(messages.length, 3);
   assert.equal(closed, 0);
   instance.onClose();
   assert.equal(closed, 1);

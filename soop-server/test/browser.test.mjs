@@ -15,7 +15,8 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   });
   server.on('request', app.handler);
   t.diagnostic('mock server ready');
-  const browser = await chromium.launch({ headless: true });
+  // Use the real GPU when one exists; SwiftShader runs the 3D modes ~5x slower than the 10s waits allow.
+  const browser = await chromium.launch({ headless: true, args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'] });
   t.diagnostic('browser ready');
   t.after(async () => { await browser.close(); await app.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

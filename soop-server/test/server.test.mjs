@@ -64,6 +64,9 @@ test('one-time callback connects, SSE receives no credentials, logout destroys c
   f.send('!왼');
   const packet = decode.decode((await reader.read()).value);
   assert.match(packet, /!왼/); assert.equal(/SECRET|private-access|private-refresh/.test(packet), false);
+  f.send({type:'chat',text:'!발사',userId:'viewer-id',nickname:'구슬응원단'});
+  const named=JSON.parse(decode.decode((await reader.read()).value).replace(/^data: /,'').trim());
+  assert.equal(named.nickname,'구슬응원단');assert.equal(named.text,'!발사');
   assert.equal((await f.call('/api/soop/events')).status, 409);
   assert.equal((await f.call('/api/soop/logout', { method: 'POST' })).status, 200);
   assert.equal((await f.call('/api/soop/events')).status, 401);
