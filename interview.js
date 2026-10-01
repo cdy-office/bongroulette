@@ -19,12 +19,15 @@
   ].map(([name, id]) => ({ name, id }));
   const STORE = 'bongInterview.v1';
   const ID_RE = /^[a-z0-9]{2,24}$/;
+  // 면접 날짜: 부제는 고르기만 한다.
+  const DAYS = [['sat', '10월 3일 (토)'], ['sun', '10월 4일 (일)']];
+  const dayLabel = day => DAYS.find(d => d[0] === day)?.[1] || DAYS[0][1];
   const BOARD_COL = 225, BAR_H = 84;
   // 단계별 시간(초). speed로 한꺼번에 줄인다.
   const T = { mix: 1.6, toExit: .35, tube: .5, pop: .45, hold: 1.7, fly: .6, autoGap: .55 };
 
   const st = {
-    title: '봉우리 면접 순서', sub: '', selected: [], extra: [], order: [],
+    title: '봉우리 면접 순서', sub: '', day: new Date() >= new Date(2026, 9, 4) ? 'sun' : 'sat', selected: [], extra: [], order: [],
     phase: 'setup', // setup → ready ⇄ (mixing → rising → reveal → fly) → done
     auto: false, fast: false,
   };
@@ -48,7 +51,7 @@
       const s = JSON.parse(localStorage.getItem(STORE) || 'null');
       if (!s || s.v !== 1) return;
       if (typeof s.title === 'string') st.title = s.title.slice(0, 30);
-      if (typeof s.sub === 'string') st.sub = s.sub.slice(0, 30);
+      if (DAYS.some(d => d[0] === s.day)) st.day = s.day;
       st.extra = (Array.isArray(s.extra) ? s.extra : []).filter(p => p && ID_RE.test(p.id) && typeof p.name === 'string' && !APPLICANTS.some(a => a.id === p.id)).map(p => ({ id: p.id, name: p.name.slice(0, 20) }));
       const known = new Set(people().map(p => p.id));
       st.selected = (Array.isArray(s.selected) ? s.selected : []).filter(id => known.has(id));
@@ -59,7 +62,7 @@
     } catch {}
   }
   function save() {
-    try { localStorage.setItem(STORE, JSON.stringify({ v: 1, title: st.title, sub: st.sub, selected: st.selected, extra: st.extra, order: st.order, fast: st.fast, locked: st.phase !== 'setup' })); } catch {}
+    try { localStorage.setItem(STORE, JSON.stringify({ v: 1, title: st.title, day: st.day, selected: st.selected, extra: st.extra, order: st.order, fast: st.fast, locked: st.phase !== 'setup' })); } catch {}
   }
 
   // 얼굴: 지원자 38명은 사이트에 들어 있는 240px 움직이는 webp, 직접 추가한 사람은 서버가 SOOP에서 받아 준다.
@@ -91,7 +94,7 @@
       <aside id="ivSetup">
         <div class="ivHead">🎟️ 면접 순서 추첨<small>지원자를 골라 추첨기에 넣으세요</small></div>
         <label class="ivField"><span>제목</span><input id="ivTitle" maxlength="30"></label>
-        <label class="ivField"><span>부제</span><input id="ivSub" maxlength="30" placeholder="예: 10월 3일 (토)"></label>
+        <div class="ivField"><span>날짜</span><div id="ivDays" class="ivSeg"></div></div>
         <div class="ivPickHead"><span>지원자 <b id="ivCount">0</b>명</span><button type="button" id="ivAll">전체 선택</button><button type="button" id="ivNone">전체 해제</button></div>
         <div id="ivPeople"></div>
         <form id="ivAdd" autocomplete="off"><input id="ivAddId" placeholder="SOOP 아이디" maxlength="24"><input id="ivAddName" placeholder="닉네임" maxlength="20"><button type="submit">추가</button></form>
@@ -103,13 +106,12 @@
       <div id="ivToast" hidden></div>`;
     document.body.append(root);
     canvas = root.querySelector('#ivCanvas'); ctx = canvas.getContext('2d');
-    for (const id of ['ivSetup', 'ivTitle', 'ivSub', 'ivCount', 'ivAll', 'ivNone', 'ivPeople', 'ivAdd', 'ivAddId', 'ivAddName', 'ivStart', 'ivBoard', 'ivBTitle', 'ivBSub', 'ivSlots', 'ivBar', 'ivReveal', 'ivToast']) ui[id] = root.querySelector('#' + id);
-    ui.ivTitle.value = st.title; ui.ivSub.value = st.sub;
+    for (const id of ['ivSetup', 'ivTitle', 'ivDays', 'ivCount', 'ivAll', 'ivNone', 'ivPeople', 'ivAdd', 'ivAddId', 'ivAddName', 'ivStart', 'ivBoard', 'ivBTitle', 'ivBSub', 'ivSlots', 'ivBar', 'ivReveal', 'ivToast']) ui[id] = root.querySelector('#' + id);
+    ui.ivTitle.value = st.title; renderDays();
     // 숨은 카드에 모든 이름을 한 번 배치해 두면 첫 공개 때 글꼴 준비로 멈칫하지 않는다.
     ui.ivReveal.querySelector('.ivRevNum').textContent = '0번';
     ui.ivReveal.querySelector('.ivRevName').textContent = APPLICANTS.map(p => p.name).join(' ');
     ui.ivTitle.addEventListener('input', () => { st.title = ui.ivTitle.value; renderBoardHead(); save(); });
-    ui.ivSub.addEventListener('input', () => { st.sub = ui.ivSub.value; renderBoardHead(); save(); });
     ui.ivAll.onclick = () => { st.selected = people().map(p => p.id); syncSelection(); };
     ui.ivNone.onclick = () => { st.selected = []; syncSelection(); };
     ui.ivAdd.addEventListener('submit', e => {
@@ -199,6 +201,14 @@
     renderSlots();
   }
 
+  function renderDays() {
+    st.sub = dayLabel(st.day);
+    ui.ivDays.replaceChildren(...DAYS.map(([day, label]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.classList.toggle('on', st.day === day);
+      b.onclick = () => { st.day = day; renderDays(); renderBoardHead(); save(); sfx('ui'); };
+      return b;
+    }));
+  }
   function renderBoardHead() { ui.ivBTitle.textContent = st.title || '면접 순서'; ui.ivBSub.textContent = st.sub; ui.ivBSub.hidden = !st.sub; }
   function slotEl(i) {
     const li = document.createElement('li'); li.className = 'ivSlot';
@@ -582,6 +592,9 @@ body.ivOn #credit{z-index:3}
 #ivSetup[hidden]{display:none}
 .ivHead{font-size:16px;font-weight:800}.ivHead small{display:block;color:#8b8d9c;font-weight:500;font-size:12px;margin-top:3px}
 .ivField{display:flex;align-items:center;gap:8px}.ivField span{width:34px;color:#a4a9b8;font-size:12px}
+.ivSeg{display:flex;flex:1;gap:3px;padding:3px;background:#0c111a;border:1px solid #364153;border-radius:9px}
+#iv .ivSeg button{flex:1;padding:7px 6px;border:0;border-radius:7px;background:transparent;font-size:13px}
+#iv .ivSeg button.on{background:#294442;color:#9af2dd;box-shadow:inset 0 0 0 1px #5c9f93}
 #iv input{flex:1;min-width:0;height:32px;box-sizing:border-box;background:#0c111a;color:#ecedf3;border:1px solid #364153;border-radius:8px;padding:5px 9px;font:inherit;font-size:13px}
 #iv input:focus{outline:2px solid #5c9f93;outline-offset:-1px}
 .ivPickHead{display:flex;align-items:center;gap:6px;color:#a4a9b8;font-size:12px}.ivPickHead span{flex:1}.ivPickHead b{color:#9af2dd}
