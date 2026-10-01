@@ -226,7 +226,7 @@ body[data-mode="pinball"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveG
 body:not([data-mode="cannon"]) .cannonOption{display:none!important}
 body[data-mode="cannon"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGraphicsRow){display:none!important}
 #cannonThreshold{width:76px}
-#gameSeg{width:min(920px,calc(100vw - 32px));grid-template-columns:repeat(7,minmax(0,1fr))}
+#gameSeg{width:min(790px,calc(100vw - 32px));grid-template-columns:repeat(6,minmax(0,1fr))}
 @media(max-width:820px){#gameSeg{width:calc(100vw - 16px);max-width:660px}#gameSeg button{font-size:9px}}
 @media(max-width:820px){#gameSeg button{font-size:10px;padding:11px 1px}}
 </style>
@@ -234,7 +234,7 @@ body[data-mode="cannon"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGr
 <body>
 <canvas id="game"></canvas>
 <div id="credit">봉신_듀이쵸</div>
-<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="gate">🚪 문 선택</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button><button data-v="interview">🎟️ 면접 순서</button></div>
+<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="gate">🚪 문 선택</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button><button data-v="interview" hidden>🎟️ 면접 순서</button></div>
 
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
@@ -2562,8 +2562,6 @@ if(previewParams.get('demo')==='gate'){$('#gameSeg [data-v="gate"]').click();}
 if(previewParams.get('demo')==='bomb'){$('#gameSeg [data-v="bomb"]').click();}
 if(previewParams.get('demo')==='interview'){$('#gameSeg [data-v="interview"]').click();}
 if(['race','race-duel'].includes(previewParams.get('demo'))){$('#gameSeg [data-v="race"]').click();}
-// 사이트에 들어오면 면접 순서 화면이 먼저 보인다.
-if(!previewParams.get('demo'))$('#gameSeg [data-v="interview"]').click();
 setup();
 if(!previewParams.has('qa'))requestAnimationFrame(frame);
 })();

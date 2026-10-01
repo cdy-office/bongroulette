@@ -34,8 +34,6 @@ test('browser: login relay, donation names, gate commands, pause, audience text 
   await page.goto(`${origin}/?code=mock-code&state=${state}`, { waitUntil: 'domcontentloaded' });
   t.diagnostic('callback ready');
   await page.waitForFunction(() => window.RW?.soopConnected);
-  // The site opens on the interview draw; this flow uses the regular game panel.
-  await page.locator('#gameSeg [data-v="arena"]').click();
   assert.equal(await page.locator('#gateThreshold').isEnabled(), true);
   await page.locator('#names').click();
   await page.locator('#donationToggle').evaluate(button => button.click());
