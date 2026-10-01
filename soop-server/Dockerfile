@@ -5,6 +5,7 @@ RUN npm ci && npx playwright install --with-deps chromium
 COPY soop-server/server.mjs soop-server/sdk-bridge.mjs ./
 COPY index.html pinball.js interview.js colosseum3d.bundle.js soop-client.js soop-chat.js soop-donations.js soop.css soop.svg THREE-LICENSE.txt /app/
 COPY assets/pinball/playfield.png /app/assets/pinball/playfield.png
+COPY assets/applicants /app/assets/applicants
 ENV HOST=0.0.0.0 PORT=8080
 EXPOSE 8080
 CMD ["node", "server.mjs"]

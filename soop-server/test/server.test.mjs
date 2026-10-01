@@ -107,3 +107,12 @@ test('thumbnails relay only validated station IDs, only images, and are cached',
   for (const path of ['/thumb/../server.mjs', '/thumb/Kanoz0', '/thumb/a', '/thumb/kano%2F..', '/thumb/']) assert.equal((await call(path)).status, 404);
   assert.equal(requested.length, 3, 'invalid IDs never reach SOOP');
 });
+
+test('bundled applicant images are served as webp; anything else under that path is not', async t => {
+  const { call } = await fixture(t);
+  const ok = await call('/assets/applicants/kanoz0.webp');
+  assert.equal(ok.status, 200); assert.equal(ok.headers.get('content-type'), 'image/webp');
+  assert.equal(new TextDecoder().decode(new Uint8Array(await ok.arrayBuffer()).subarray(8, 12)), 'WEBP');
+  for (const path of ['/assets/applicants/nobody123.webp', '/assets/applicants/../../soop-server/.env.local', '/assets/applicants/Kanoz0.webp', '/assets/applicants/kanoz0.png', '/assets/applicants/'])
+    assert.equal((await call(path)).status, 404, path);
+});

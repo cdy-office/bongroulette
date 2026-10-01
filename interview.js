@@ -31,7 +31,8 @@
   let root, canvas, ctx, ui = {}, built = false, visible = false, raf = 0, last = 0;
   let W = 0, H = 0, dpr = 1, drum = { cx: 0, cy: 0, R: 200, tube: 70 }, cxNow = null;
   let balls = [], captured = null, timer = 0, air = .45, confetti = [], resetArmed = 0, autoWait = 0, mixSound = 0;
-  const imgs = new Map();
+  const faces = new Map(), sprites = new Map();
+  let layers = null;
   const api = { speed: 1, show, hide, get state() { return { phase: st.phase, order: [...st.order], pool: balls.map(b => b.id), selected: [...st.selected] }; } };
   window.InterviewDraw = api;
 
@@ -61,21 +62,23 @@
     try { localStorage.setItem(STORE, JSON.stringify({ v: 1, title: st.title, sub: st.sub, selected: st.selected, extra: st.extra, order: st.order, fast: st.fast, locked: st.phase !== 'setup' })); } catch {}
   }
 
-  function img(id) {
-    let im = imgs.get(id);
-    if (!im) { im = new Image(); im.decoding = 'async'; im.src = '/thumb/' + id; imgs.set(id, im); }
+  // 얼굴: 지원자 38명은 사이트에 들어 있는 240px 움직이는 webp, 직접 추가한 사람은 서버가 SOOP에서 받아 준다.
+  const faceSrc = id => APPLICANTS.some(a => a.id === id) ? `/assets/applicants/${id}.webp` : `/thumb/${id}`;
+  function face(id) {
+    let im = faces.get(id);
+    if (!im) { im = new Image(); im.decoding = 'async'; im.src = faceSrc(id); faces.set(id, im); }
     return im;
   }
-  const imgReady = im => im.complete && im.naturalWidth > 0;
+  const faceReady = im => im.complete && im.naturalWidth > 0;
   function faceEl(id, cls) {
     const box = document.createElement('span'); box.className = cls;
     box.style.setProperty('--h', hueOf(id));
-    box.textContent = [...personOf(id).name.replace(/[^\p{L}\p{N}]/gu, '')][0] || '?';
-    const im = document.createElement('img'); im.alt = ''; im.src = '/thumb/' + id; im.draggable = false;
-    im.onload = () => box.classList.add('loaded'); im.onerror = () => im.remove();
+    box.textContent = initial(id);
+    const im = document.createElement('img'); im.alt = ''; im.src = faceSrc(id); im.draggable = false; im.onerror = () => im.remove();
     box.append(im);
     return box;
   }
+  const initial = id => [...personOf(id).name.replace(/[^\p{L}\p{N}]/gu, '')][0] || '?';
 
   function build() {
     built = true;
@@ -96,12 +99,15 @@
       </aside>
       <aside id="ivBoard"><div class="ivBoardHead"><div id="ivBTitle"></div><div id="ivBSub"></div></div><ol id="ivSlots"></ol></aside>
       <div id="ivBar"></div>
-      <div id="ivReveal" hidden><div class="ivRevNum"></div><span class="ivRevFace"></span><div class="ivRevName"></div></div>
+      <div id="ivReveal"><div class="ivRevNum"></div><span class="ivRevFace"></span><div class="ivRevName"></div></div>
       <div id="ivToast" hidden></div>`;
     document.body.append(root);
     canvas = root.querySelector('#ivCanvas'); ctx = canvas.getContext('2d');
     for (const id of ['ivSetup', 'ivTitle', 'ivSub', 'ivCount', 'ivAll', 'ivNone', 'ivPeople', 'ivAdd', 'ivAddId', 'ivAddName', 'ivStart', 'ivBoard', 'ivBTitle', 'ivBSub', 'ivSlots', 'ivBar', 'ivReveal', 'ivToast']) ui[id] = root.querySelector('#' + id);
     ui.ivTitle.value = st.title; ui.ivSub.value = st.sub;
+    // 숨은 카드에 모든 이름을 한 번 배치해 두면 첫 공개 때 글꼴 준비로 멈칫하지 않는다.
+    ui.ivReveal.querySelector('.ivRevNum').textContent = '0번';
+    ui.ivReveal.querySelector('.ivRevName').textContent = APPLICANTS.map(p => p.name).join(' ');
     ui.ivTitle.addEventListener('input', () => { st.title = ui.ivTitle.value; renderBoardHead(); save(); });
     ui.ivSub.addEventListener('input', () => { st.sub = ui.ivSub.value; renderBoardHead(); save(); });
     ui.ivAll.onclick = () => { st.selected = people().map(p => p.id); syncSelection(); };
@@ -115,10 +121,12 @@
       ui.ivAddId.value = ui.ivAddName.value = '';
       renderPeople(); syncSelection();
     });
-    ui.ivStart.onclick = () => { if (st.selected.length < 2) return toast('2명 이상 골라주세요'); st.phase = 'ready'; save(); renderAll(); sfx('go'); };
+    ui.ivStart.onclick = () => { if (st.selected.length < 2) return toast('2명 이상 골라주세요'); ui.ivStart.blur(); st.phase = 'ready'; save(); renderAll(); sfx('go'); };
     window.addEventListener('keydown', e => {
       if (!visible || e.repeat || (e.code !== 'Space' && e.code !== 'Enter')) return;
-      if (e.target.closest?.('input,textarea,select,button,[contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+      if (e.target.closest?.('input,textarea,select,[contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+      // 보이는 버튼에 포커스가 있으면 그 버튼이 눌리게 두고, 방금 숨겨진 버튼(추첨 시작)이면 뽑기로 받는다.
+      if (e.target.closest?.('button') && e.target.offsetParent !== null) return;
       e.preventDefault(); draw();
     });
     window.addEventListener('resize', () => visible && layout());
@@ -160,7 +168,7 @@
     for (const id of want) if (!balls.some(b => b.id === id)) {
       const a = Math.random() * Math.PI * 2, d = Math.random() * drum.R * .5;
       balls.push({ id, x: Math.cos(a) * d, y: -drum.R * .5 + Math.sin(a) * d * .5, vx: (Math.random() - .5) * 200, vy: 0, r });
-      img(id);
+      face(id);
     }
   }
   const ballRadius = n => Math.max(16, Math.min(drum.R * .27, drum.R * Math.sqrt(.3 / Math.max(n, 1))));
@@ -192,20 +200,18 @@
   }
 
   function renderBoardHead() { ui.ivBTitle.textContent = st.title || '면접 순서'; ui.ivBSub.textContent = st.sub; ui.ivBSub.hidden = !st.sub; }
+  function slotEl(i) {
+    const li = document.createElement('li'); li.className = 'ivSlot';
+    const num = document.createElement('b'); num.textContent = i + 1;
+    li.append(num);
+    const id = st.order[i];
+    if (id) { li.classList.add('filled'); const nm = document.createElement('span'); nm.className = 'ivSName'; nm.textContent = personOf(id).name; li.append(faceEl(id, 'ivFace'), nm); }
+    else { const e = document.createElement('span'); e.className = 'ivEmpty'; li.append(e); }
+    return li;
+  }
   function renderSlots() {
     renderBoardHead();
-    const n = st.selected.length;
-    const items = [];
-    for (let i = 0; i < n; i++) {
-      const li = document.createElement('li'); li.className = 'ivSlot';
-      const num = document.createElement('b'); num.textContent = i + 1;
-      li.append(num);
-      const id = st.order[i];
-      if (id) { li.classList.add('filled'); const nm = document.createElement('span'); nm.className = 'ivSName'; nm.textContent = personOf(id).name; li.append(faceEl(id, 'ivFace'), nm); }
-      else { const e = document.createElement('span'); e.className = 'ivEmpty'; li.append(e); }
-      items.push(li);
-    }
-    ui.ivSlots.replaceChildren(...items);
+    ui.ivSlots.replaceChildren(...Array.from({ length: st.selected.length }, (_, i) => slotEl(i)));
   }
 
   function renderBar() {
@@ -229,7 +235,7 @@
   }
   function resetDraw() {
     if (!resetArmed) { resetArmed = performance.now(); renderBar(); return; }
-    resetArmed = 0; st.order = []; st.phase = 'setup'; st.auto = false; captured = null; ui.ivReveal.hidden = true;
+    resetArmed = 0; st.order = []; st.phase = 'setup'; st.auto = false; captured = null; hideCard();
     balls = []; syncBalls(); save(); renderAll();
   }
   function renderAll() {
@@ -250,39 +256,46 @@
     balls = balls.filter(b => b !== best);
     captured = { ...best, sx: best.x, sy: best.y };
     st.phase = 'rising'; timer = 0; sfx('suck');
-  }
-  function reveal() {
-    const id = captured.id, n = st.order.length + 1, p = personOf(id);
+    // 공이 관을 올라가는 동안 카드 내용을 미리 채우고 이미지를 풀어 둔다.
     const card = ui.ivReveal;
-    card.querySelector('.ivRevNum').textContent = `${n}번`;
-    card.querySelector('.ivRevName').textContent = p.name;
-    card.querySelector('.ivRevFace').replaceWith(faceEl(id, 'ivRevFace'));
+    card.querySelector('.ivRevNum').textContent = `${st.order.length + 1}번`;
+    card.querySelector('.ivRevName').textContent = personOf(captured.id).name;
+    const box = faceEl(captured.id, 'ivRevFace');
+    card.querySelector('.ivRevFace').replaceWith(box);
+    box.querySelector('img')?.decode?.().catch(() => {});
+  }
+  // 카드는 숨길 때도 배치는 남겨 두고(첫 등장 때 글꼴·배치 준비로 멈칫하지 않게),
+  // transform/opacity 애니메이션으로만 움직여 위치를 다시 계산하지 않는다.
+  const cardAt = (x, y, s) => `translate(${x}px,${y}px) translate(-50%,-50%) scale(${s})`;
+  let cardAnim = null, cardTo = '';
+  function moveCard(to, seconds, easing, opacity = [1, 1]) {
+    const from = cardTo || to;
+    cardAnim?.cancel(); cardTo = to;
+    ui.ivReveal.classList.add('on');
+    cardAnim = ui.ivReveal.animate([{ transform: from, opacity: opacity[0] }, { transform: to, opacity: opacity[1] }], { duration: seconds * 1000, easing, fill: 'forwards' });
+  }
+  function hideCard() { cardAnim?.cancel(); cardAnim = null; cardTo = ''; ui.ivReveal.classList.remove('on'); }
+  function reveal() {
     const exit = toScreen(0, -drum.R - drum.tube);
-    card.style.transition = 'none';
-    card.style.left = exit.x + 'px'; card.style.top = exit.y + 'px';
-    card.style.transform = `translate(-50%,-50%) scale(${(captured.r * 2) / 220})`; card.style.opacity = '1';
-    card.hidden = false; card.classList.remove('land');
-    card.getBoundingClientRect();
-    card.style.transition = `left ${T.pop / sp()}s cubic-bezier(.2,1.3,.4,1), top ${T.pop / sp()}s cubic-bezier(.2,1.3,.4,1), transform ${T.pop / sp()}s cubic-bezier(.2,1.3,.4,1)`;
-    card.style.left = drum.cx + 'px'; card.style.top = (drum.cy - drum.R * .12) + 'px';
-    card.style.transform = 'translate(-50%,-50%) scale(1)';
+    cardTo = cardAt(exit.x, exit.y, (captured.r * 2) / 220);
+    moveCard(cardAt(drum.cx, drum.cy - drum.R * .12, 1), T.pop / sp(), 'cubic-bezier(.2,1.3,.4,1)');
     st.phase = 'reveal'; timer = 0; sfx('lap'); burst(drum.cx, drum.cy - drum.R * .12);
   }
   function fly() {
-    const card = ui.ivReveal, i = st.order.length;
+    const i = st.order.length;
     st.order.push(captured.id); captured = null; save();
-    renderSlots();
-    const slot = ui.ivSlots.children[i], face = slot?.querySelector('.ivFace');
-    slot?.classList.add('incoming');
-    const target = (face || slot)?.getBoundingClientRect();
+    // 순서판 전체를 다시 만들지 않고 이번 칸만 바꾼다.
+    const slot = slotEl(i);
+    ui.ivSlots.children[i]?.replaceWith(slot);
+    const faceBox = slot.querySelector('.ivFace');
+    slot.classList.add('incoming');
+    const target = (faceBox || slot).getBoundingClientRect();
     st.phase = 'fly'; timer = 0;
-    if (!target || !target.width) { card.hidden = true; return; }
-    card.style.transition = `left ${T.fly / sp()}s cubic-bezier(.6,0,.3,1), top ${T.fly / sp()}s cubic-bezier(.6,0,.3,1), transform ${T.fly / sp()}s cubic-bezier(.6,0,.3,1), opacity ${T.fly / sp()}s ease-in`;
-    card.style.left = target.left + target.width / 2 + 'px'; card.style.top = target.top + target.height / 2 + 'px';
-    card.style.transform = `translate(-50%,-50%) scale(${target.height / 220})`; card.style.opacity = '.35';
+    if (!target.width) { hideCard(); return; }
+    moveCard(cardAt(target.left + target.width / 2, target.top + target.height / 2, target.height / 220), T.fly / sp(), 'cubic-bezier(.6,0,.3,1)', [1, .35]);
   }
   function landed() {
-    ui.ivReveal.hidden = true;
+    hideCard();
     const slot = ui.ivSlots.children[st.order.length - 1];
     slot?.classList.remove('incoming'); slot?.classList.add('pop');
     sfx('pass');
@@ -361,36 +374,53 @@
     return { x: 0, y: -R + c.r * .3 + (-drum.tube + c.r * .2 - c.r * .3) * k };
   }
 
+  // 움직이지 않는 그림(받침대, 관, 유리, 테두리)과 공 장식은 미리 그려 두고 매 프레임 붙이기만 한다.
+  function offscreen(w, h) {
+    const c = document.createElement('canvas'); c.width = Math.ceil(w * dpr); c.height = Math.ceil(h * dpr);
+    const g = c.getContext('2d'); g.scale(dpr, dpr);
+    return { c, g, w, h, ox: 0, oy: 0 };
+  }
+  function drumLayers() {
+    const { R, tube } = drum, tw = Math.round(balls.reduce((m, b) => Math.max(m, b.r), captured?.r || 24) + 9);
+    const key = `${R}|${tube}|${tw}|${dpr}`;
+    if (layers?.key === key) return layers;
+    const pad = 12, baseW = R * 1.15;
+    // 뒤: 받침대, 관, 유리 뒷면. 통 중심이 (ox, oy)에 온다.
+    const back = offscreen(baseW * 2 + pad * 2, R * 2 + tube + 8 + 56 + pad * 2);
+    back.ox = back.w / 2; back.oy = R + tube + 8 + pad;
+    let g = back.g, cx = back.ox, cy = back.oy;
+    const metal = g.createLinearGradient(cx - baseW, 0, cx + baseW, 0);
+    metal.addColorStop(0, '#39424f'); metal.addColorStop(.5, '#8693a5'); metal.addColorStop(1, '#2f3742');
+    g.fillStyle = metal;
+    g.beginPath(); g.moveTo(cx - R * .45, cy + R * .78); g.lineTo(cx + R * .45, cy + R * .78); g.lineTo(cx + baseW / 1.1, cy + R + 46); g.lineTo(cx - baseW / 1.1, cy + R + 46); g.closePath(); g.fill();
+    g.fillStyle = '#1d232c'; g.fillRect(cx - baseW, cy + R + 44, baseW * 2, 12);
+    const tg = g.createLinearGradient(cx - tw, 0, cx + tw, 0);
+    tg.addColorStop(0, 'rgba(160,210,255,.10)'); tg.addColorStop(.5, 'rgba(160,210,255,.03)'); tg.addColorStop(1, 'rgba(160,210,255,.12)');
+    g.fillStyle = tg; g.fillRect(cx - tw, cy - R - tube, tw * 2, tube + 6);
+    g.strokeStyle = 'rgba(190,225,255,.45)'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(cx - tw, cy - R + 4); g.lineTo(cx - tw, cy - R - tube); g.moveTo(cx + tw, cy - R + 4); g.lineTo(cx + tw, cy - R - tube); g.stroke();
+    g.fillStyle = '#c9a54a'; g.fillRect(cx - tw - 6, cy - R - tube - 8, tw * 2 + 12, 8);
+    const glass = g.createRadialGradient(cx - R * .25, cy - R * .3, R * .1, cx, cy, R);
+    glass.addColorStop(0, 'rgba(120,190,255,.10)'); glass.addColorStop(1, 'rgba(40,80,130,.22)');
+    g.fillStyle = glass; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+    // 앞: 테두리와 유리 반사광.
+    const front = offscreen(R * 2 + 16, R * 2 + 16);
+    front.ox = front.oy = R + 8; g = front.g; cx = cy = R + 8;
+    const rim = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+    rim.addColorStop(0, '#dfe7f1'); rim.addColorStop(.5, '#7d8a9b'); rim.addColorStop(1, '#c5cfdb');
+    g.strokeStyle = rim; g.lineWidth = 7; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = R * .05; g.lineCap = 'round';
+    g.beginPath(); g.arc(cx, cy, R * .86, Math.PI * 1.08, Math.PI * 1.42); g.stroke();
+    g.lineWidth = R * .02; g.beginPath(); g.arc(cx, cy, R * .86, Math.PI * 1.5, Math.PI * 1.56); g.stroke();
+    return (layers = { key, back, front });
+  }
+  const blit = (L, x, y) => ctx.drawImage(L.c, x - L.ox, y - L.oy, L.w, L.h);
+
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const bg = ctx.createRadialGradient(W / 2, H * .45, 0, W / 2, H * .45, Math.max(W, H) * .75);
-    bg.addColorStop(0, '#16202d'); bg.addColorStop(1, '#090c12');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    const { R, tube } = drum, cx = cxNow, cy = drum.cy, maxR = balls.reduce((m, b) => Math.max(m, b.r), captured?.r || 24);
-    // 받침대
-    ctx.save();
-    const baseTop = cy + R * .78, baseW = R * 1.15;
-    const metal = ctx.createLinearGradient(cx - baseW, 0, cx + baseW, 0);
-    metal.addColorStop(0, '#39424f'); metal.addColorStop(.5, '#8693a5'); metal.addColorStop(1, '#2f3742');
-    ctx.fillStyle = metal;
-    ctx.beginPath(); ctx.moveTo(cx - R * .45, baseTop); ctx.lineTo(cx + R * .45, baseTop); ctx.lineTo(cx + baseW / 1.1, cy + R + 46); ctx.lineTo(cx - baseW / 1.1, cy + R + 46); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#1d232c'; ctx.fillRect(cx - baseW, cy + R + 44, baseW * 2, 12);
-    ctx.restore();
-    // 관(출구)
-    const tw = maxR + 9;
-    ctx.save();
-    const tg = ctx.createLinearGradient(cx - tw, 0, cx + tw, 0);
-    tg.addColorStop(0, 'rgba(160,210,255,.10)'); tg.addColorStop(.5, 'rgba(160,210,255,.03)'); tg.addColorStop(1, 'rgba(160,210,255,.12)');
-    ctx.fillStyle = tg; ctx.fillRect(cx - tw, cy - R - tube, tw * 2, tube + 6);
-    ctx.strokeStyle = 'rgba(190,225,255,.45)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx - tw, cy - R + 4); ctx.lineTo(cx - tw, cy - R - tube); ctx.moveTo(cx + tw, cy - R + 4); ctx.lineTo(cx + tw, cy - R - tube); ctx.stroke();
-    ctx.fillStyle = '#c9a54a'; ctx.fillRect(cx - tw - 6, cy - R - tube - 8, tw * 2 + 12, 8);
-    ctx.restore();
-    // 통 뒷면
-    ctx.save();
-    const glass = ctx.createRadialGradient(cx - R * .25, cy - R * .3, R * .1, cx, cy, R);
-    glass.addColorStop(0, 'rgba(120,190,255,.10)'); glass.addColorStop(1, 'rgba(40,80,130,.22)');
-    ctx.fillStyle = glass; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    ctx.clearRect(0, 0, W, H);
+    const { R } = drum, cx = cxNow, cy = drum.cy, L = drumLayers();
+    blit(L.back, cx, cy);
     // 바람 거품
     ctx.fillStyle = 'rgba(200,235,255,.16)';
     const tt = performance.now() / 1000;
@@ -398,20 +428,11 @@
       const ph = (tt * (.6 + (i % 5) * .13) + i * .37) % 1, x = Math.sin(i * 12.9) * R * .55, y = R * .9 - ph * R * 1.5;
       if (Math.hypot(x, y) < R - 6) { ctx.beginPath(); ctx.arc(cx + x, cy + y, 2 + (i % 3), 0, Math.PI * 2); ctx.fill(); }
     }
-    ctx.restore();
     // 공
     const labels = balls.length <= 26;
     for (const b of balls) drawBall(cx + b.x, cy + b.y, b.r, b.id, labels);
     if (captured && st.phase === 'rising') { const p = risingPos(); drawBall(cx + p.x, cy + p.y, captured.r, captured.id, false); }
-    // 앞 유리, 테두리
-    ctx.save();
-    const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
-    rim.addColorStop(0, '#dfe7f1'); rim.addColorStop(.5, '#7d8a9b'); rim.addColorStop(1, '#c5cfdb');
-    ctx.strokeStyle = rim; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = R * .05; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(cx, cy, R * .86, Math.PI * 1.08, Math.PI * 1.42); ctx.stroke();
-    ctx.lineWidth = R * .02; ctx.beginPath(); ctx.arc(cx, cy, R * .86, Math.PI * 1.5, Math.PI * 1.56); ctx.stroke();
-    ctx.restore();
+    blit(L.front, cx, cy);
     // 문구
     if (!balls.length && !captured && st.phase === 'setup') {
       ctx.fillStyle = 'rgba(220,230,245,.55)'; ctx.font = '600 18px Pretendard, "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
@@ -423,6 +444,8 @@
       ctx.fillText('추첨 완료!', cx, cy - R * .06);
       ctx.fillStyle = 'rgba(220,230,245,.75)'; ctx.font = `700 ${Math.round(R * .08)}px Pretendard, "Noto Sans KR", sans-serif`;
       ctx.fillText(`${st.order.length}명의 순서가 정해졌어요`, cx, cy + R * .14);
+      ctx.fillStyle = '#9af2dd'; ctx.font = `700 ${Math.round(Math.max(14, R * .065))}px Pretendard, "Noto Sans KR", sans-serif`;
+      ctx.fillText('아래 「텍스트 복사」 「이미지 복사」를 눌러주세요', cx, cy + R * .32);
     }
     if (st.phase === 'reveal') { ctx.fillStyle = `rgba(5,8,12,${Math.min(.55, timer * 2)})`; ctx.fillRect(0, 0, W, H); }
     for (const c of confetti) {
@@ -430,31 +453,46 @@
       ctx.fillStyle = `hsl(${c.h} 90% 62%)`; ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); ctx.restore();
     }
   }
+  // 공 위 장식(광택, 테두리, 이름표). 사람과 크기마다 한 번만 그린다.
+  function ballOverlay(id, r, label) {
+    const key = `${id}|${r.toFixed(1)}|${label ? 1 : 0}|${dpr}`;
+    let s = sprites.get(key);
+    if (s) return s;
+    if (sprites.size > 300) sprites.clear();
+    const font = '700 12px Pretendard, "Noto Sans KR", sans-serif', nm = personOf(id).name;
+    ctx.font = font;
+    const textW = label ? ctx.measureText(nm).width + 10 : 0;
+    s = offscreen(Math.max(2 * r + 6, textW), Math.max(2 * r + 6, r * 1.55 + 22));
+    const g = s.g, x = s.ox = s.w / 2, y = s.oy = r + 3;
+    const gl = g.createRadialGradient(x - r * .35, y - r * .45, r * .05, x - r * .2, y - r * .2, r * 1.05);
+    gl.addColorStop(0, 'rgba(255,255,255,.55)'); gl.addColorStop(.35, 'rgba(255,255,255,.08)'); gl.addColorStop(1, 'rgba(0,0,0,.28)');
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = gl; g.fill();
+    g.lineWidth = Math.max(2, r * .09); g.strokeStyle = `hsl(${hueOf(id)} 85% 70%)`; g.stroke();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(x, y, r + 1, 0, Math.PI * 2); g.stroke();
+    if (label) {
+      g.font = font; g.textAlign = 'center'; g.textBaseline = 'top'; g.lineJoin = 'round';
+      g.lineWidth = 3.5; g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(nm, x, y + r * .55);
+      g.fillStyle = '#fff'; g.fillText(nm, x, y + r * .55);
+    }
+    sprites.set(key, s);
+    return s;
+  }
   function drawBall(x, y, r, id, label) {
-    const im = img(id), h = hueOf(id);
+    const im = face(id);
     ctx.save();
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.closePath();
-    ctx.fillStyle = `hsl(${h} 55% 40%)`; ctx.fill();
-    ctx.save(); ctx.clip();
-    if (imgReady(im)) {
-      const s = Math.max(2 * r / im.naturalWidth, 2 * r / im.naturalHeight), w = im.naturalWidth * s, hh = im.naturalHeight * s;
-      ctx.drawImage(im, x - w / 2, y - hh / 2, w, hh);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${hueOf(id)} 55% 40%)`; ctx.fill();
+    if (faceReady(im)) {
+      // 얼굴은 움직이는 이미지라 매 프레임 그린다.
+      ctx.clip();
+      const s = Math.max(2 * r / im.naturalWidth, 2 * r / im.naturalHeight), w = im.naturalWidth * s, h = im.naturalHeight * s;
+      ctx.drawImage(im, x - w / 2, y - h / 2, w, h);
     } else {
       ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(r * .9)}px Pretendard, "Noto Sans KR", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText([...personOf(id).name.replace(/[^\p{L}\p{N}]/gu, '')][0] || '?', x, y + 1);
-    }
-    const gl = ctx.createRadialGradient(x - r * .35, y - r * .45, r * .05, x - r * .2, y - r * .2, r * 1.05);
-    gl.addColorStop(0, 'rgba(255,255,255,.55)'); gl.addColorStop(.35, 'rgba(255,255,255,.08)'); gl.addColorStop(1, 'rgba(0,0,0,.28)');
-    ctx.fillStyle = gl; ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    ctx.restore();
-    ctx.lineWidth = Math.max(2, r * .09); ctx.strokeStyle = `hsl(${h} 85% 70%)`; ctx.stroke();
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(x, y, r + 1, 0, Math.PI * 2); ctx.stroke();
-    if (label) {
-      ctx.font = '700 12px Pretendard, "Noto Sans KR", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.lineJoin = 'round'; ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.85)';
-      const nm = personOf(id).name; ctx.strokeText(nm, x, y + r * .55); ctx.fillStyle = '#fff'; ctx.fillText(nm, x, y + r * .55);
+      ctx.fillText(initial(id), x, y + 1);
     }
     ctx.restore();
+    blit(ballOverlay(id, r, label), x, y);
   }
 
   function frame(now) {
@@ -477,7 +515,7 @@
     const n = st.order.length, cols = n > 10 ? 2 : 1, rows = Math.ceil(n / cols), rowH = 76, w = cols === 2 ? 1200 : 720, head = st.sub ? 170 : 130;
     const c = document.createElement('canvas'); c.width = w; c.height = head + rows * rowH + 70;
     const g = c.getContext('2d');
-    await Promise.all(st.order.map(id => { const im = img(id); return im.decode ? im.decode().catch(() => {}) : null; }));
+    await Promise.all(st.order.map(id => { const im = face(id); return im.decode ? im.decode().catch(() => {}) : null; }));
     const bg = g.createLinearGradient(0, 0, 0, c.height); bg.addColorStop(0, '#182231'); bg.addColorStop(1, '#0b1018'); g.fillStyle = bg; g.fillRect(0, 0, w, c.height);
     g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillStyle = '#f2f6ff';
     g.font = '800 46px Pretendard, "Noto Sans KR", sans-serif'; g.fillText(st.title || '면접 순서', w / 2, 76);
@@ -488,9 +526,9 @@
       g.fillStyle = row % 2 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.06)'; roundRect(g, x + 6, y + 4, colW - 12, rowH - 8, 14); g.fill();
       g.fillStyle = '#9af2dd'; g.font = '800 28px Pretendard, "Noto Sans KR", sans-serif'; g.textAlign = 'right'; g.textBaseline = 'middle';
       g.fillText(String(i + 1), x + 66, y + rowH / 2);
-      const fx = x + 112, fy = y + rowH / 2, fr = 26, im = img(id);
+      const fx = x + 112, fy = y + rowH / 2, fr = 26, im = face(id);
       g.save(); g.beginPath(); g.arc(fx, fy, fr, 0, Math.PI * 2); g.fillStyle = `hsl(${hueOf(id)} 55% 40%)`; g.fill(); g.clip();
-      if (imgReady(im)) { const s = Math.max(2 * fr / im.naturalWidth, 2 * fr / im.naturalHeight); g.drawImage(im, fx - im.naturalWidth * s / 2, fy - im.naturalHeight * s / 2, im.naturalWidth * s, im.naturalHeight * s); }
+      if (faceReady(im)) { const s = Math.max(2 * fr / im.naturalWidth, 2 * fr / im.naturalHeight); g.drawImage(im, fx - im.naturalWidth * s / 2, fy - im.naturalHeight * s / 2, im.naturalWidth * s, im.naturalHeight * s); }
       g.restore();
       g.textAlign = 'left'; g.fillStyle = '#f2f6ff'; g.font = '700 28px Pretendard, "Noto Sans KR", sans-serif';
       g.fillText(personOf(id).name, fx + fr + 18, fy + 1, colW - 170);
@@ -529,7 +567,7 @@
     if (!built) return;
     visible = false; root.hidden = true; document.body.classList.remove('ivOn'); cancelAnimationFrame(raf);
     if (captured) { // 추첨 도중 나가면 그 공은 통에 돌려놓는다
-      balls.push({ ...captured, x: 0, y: 0, vx: 0, vy: 0 }); captured = null; ui.ivReveal.hidden = true;
+      balls.push({ ...captured, x: 0, y: 0, vx: 0, vy: 0 }); captured = null; hideCard();
       if (st.phase === 'fly') st.order.pop();
     }
     if (st.phase !== 'setup' && st.phase !== 'done') st.phase = 'ready';
@@ -537,7 +575,7 @@
   }
 
   const CSS = `
-#iv{position:fixed;inset:0;z-index:2;color:#ecedf3;font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
+#iv{position:fixed;inset:0;z-index:2;color:#ecedf3;background:radial-gradient(circle calc(max(100vw,100vh) * .75) at 50% 45%,#16202d,#090c12);font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
 #iv[hidden]{display:none}
 #ivCanvas{position:absolute;inset:0;width:100%;height:100%}
 body.ivOn #ctrl,body.ivOn #rank,body.ivOn #mtabs,body.ivOn #soopAudience,body.ivOn #soopMarbleChat{display:none!important}
@@ -583,8 +621,8 @@ body.ivOn #credit{z-index:3}
 #ivBar button{padding:11px 16px;font-size:14px;border-radius:10px;box-shadow:0 6px 18px #0006}
 #ivBar .ivDraw{padding:13px 26px;font-size:17px}
 .ivLeft{color:#a4a9b8;font-size:13px;margin-left:6px}
-#ivReveal{position:absolute;width:300px;padding:22px 18px 20px;box-sizing:border-box;text-align:center;background:radial-gradient(circle at 50% 0,#2f6f63,#141d29 70%);border:2px solid #9af2dd;border-radius:22px;box-shadow:0 0 0 6px #9af2dd22,0 20px 60px #000c;z-index:3;pointer-events:none}
-#ivReveal[hidden]{display:none}
+#ivReveal{position:absolute;left:0;top:0;visibility:hidden;opacity:0;will-change:transform,opacity;width:300px;padding:22px 18px 20px;box-sizing:border-box;text-align:center;background:radial-gradient(circle at 50% 0,#2f6f63,#141d29 70%);border:2px solid #9af2dd;border-radius:22px;box-shadow:0 0 0 6px #9af2dd22,0 20px 60px #000c;z-index:3;pointer-events:none}
+#ivReveal.on{visibility:visible}
 .ivRevNum{font-size:40px;font-weight:900;color:#ffd166;text-shadow:0 2px 0 #0008;line-height:1}
 #ivReveal .ivRevFace{width:220px;height:220px;font-size:80px;margin:14px auto 12px;display:grid;box-shadow:0 0 0 4px #fff,0 0 30px #9af2dd88}
 .ivRevName{font-size:28px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

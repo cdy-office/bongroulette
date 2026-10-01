@@ -180,6 +180,14 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
         return json(res, 200, { ok: true });
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method not allowed' });
+      // Interview applicants' profile images ship with the site (assets/applicants/<id>.webp).
+      const applicant = url.pathname.match(/^\/assets\/applicants\/([a-z0-9]{2,24})\.webp$/)?.[1];
+      if (applicant) {
+        const data = await readFile(resolve(staticRoot, 'assets/applicants', applicant + '.webp')).catch(() => null);
+        if (!data) return json(res, 404, { error: 'Not found' });
+        res.writeHead(200, { ...headers, 'Cache-Control': 'public, max-age=86400', 'Content-Type': 'image/webp' });
+        return res.end(req.method === 'HEAD' ? undefined : data);
+      }
       const asset = assets.get(url.pathname);
       if (!asset) return json(res, 404, { error: 'Not found' });
       const data = await readFile(resolve(staticRoot, asset[0]));
