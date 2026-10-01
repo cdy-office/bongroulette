@@ -2562,6 +2562,8 @@ if(previewParams.get('demo')==='gate'){$('#gameSeg [data-v="gate"]').click();}
 if(previewParams.get('demo')==='bomb'){$('#gameSeg [data-v="bomb"]').click();}
 if(previewParams.get('demo')==='interview'){$('#gameSeg [data-v="interview"]').click();}
 if(['race','race-duel'].includes(previewParams.get('demo'))){$('#gameSeg [data-v="race"]').click();}
+// 사이트에 들어오면 면접 순서 화면이 먼저 보인다.
+if(!previewParams.get('demo'))$('#gameSeg [data-v="interview"]').click();
 setup();
 if(!previewParams.has('qa'))requestAnimationFrame(frame);
 })();

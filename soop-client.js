@@ -19,6 +19,16 @@ try { guestDismissed = sessionStorage.getItem('rw-soop-guest') === '1'; } catch 
 function showWelcome(force = false) {
   if ((force || !guestDismissed) && !welcome.open) welcome.showModal();
 }
+// 면접 순서 화면은 로그인이 필요 없어 팝업을 미루고, 다른 모드로 넘어갈 때 띄운다.
+function welcomeOutsideInterview() {
+  if (document.body.dataset.mode !== 'interview') return showWelcome();
+  const watch = new MutationObserver(() => {
+    if (document.body.dataset.mode === 'interview') return;
+    watch.disconnect();
+    if (!live) showWelcome();
+  });
+  watch.observe(document.body, { attributes: true, attributeFilter: ['data-mode'] });
+}
 function dismissWelcome() {
   guestDismissed = true;
   try { sessionStorage.setItem('rw-soop-guest', '1'); } catch {}
@@ -167,5 +177,5 @@ if (current.searchParams.has('code')) {
     closed: '채팅 연결이 종료되었습니다. 다시 로그인해주세요.'
   };
   if (errors[result]) { setStatus(errors[result]); showWelcome(true); }
-  else if (!connected) showWelcome();
+  else if (!connected) welcomeOutsideInterview();
 }
