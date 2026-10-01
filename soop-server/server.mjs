@@ -11,6 +11,7 @@ const assets = new Map([
   ['/assets/pinball/playfield.png', ['assets/pinball/playfield.png', 'image/png']],
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
   ['/pinball.js', ['pinball.js', 'text/javascript']],
+  ['/interview.js', ['interview.js', 'text/javascript']],
     ['/soop-client.js', ['soop-client.js', 'text/javascript']],
   ['/soop-chat.js', ['soop-chat.js', 'text/javascript']],
   ['/soop-donations.js', ['soop-donations.js', 'text/javascript']],
@@ -55,6 +56,29 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
     return s;
   }
   function validPost(req, s) { return s && req.headers.origin === origin && equal(req.headers['x-csrf-token'], s.csrf); }
+  // SOOP profile thumbnails, relayed so the page can draw them into an exportable canvas.
+  // Only image bodies are cached, keyed by a validated station ID, and the cache is bounded.
+  const thumbs = new Map();
+  let thumbBytes = 0;
+  function loadThumb(id) {
+    const hit = thumbs.get(id);
+    if (hit && hit.expires > now()) return hit.promise;
+    if (hit) { thumbs.delete(id); thumbBytes -= hit.size || 0; }
+    const entry = { expires: now() + 3600000, size: 0 };
+    entry.promise = (async () => {
+      const response = await fetchImpl(`https://profile.img.sooplive.com/LOGO/${id.slice(0, 2)}/${id}/m/${id}.webp`, { signal: AbortSignal.timeout(8000) });
+      const type = String(response.headers?.get?.('content-type') || '').split(';')[0].trim();
+      if (!response.ok || !/^image\/(webp|png|jpeg|gif)$/.test(type)) return null;
+      const data = Buffer.from(await response.arrayBuffer());
+      if (data.length > 6 * 1024 * 1024) return null;
+      entry.size = data.length; thumbBytes += data.length;
+      for (const [key, old] of thumbs) { if (thumbBytes <= 64 * 1024 * 1024) break; if (old !== entry) { thumbs.delete(key); thumbBytes -= old.size; } }
+      return { type, data };
+    })().catch(() => null);
+    thumbs.set(id, entry);
+    entry.promise.then(result => { if (!result && thumbs.get(id) === entry) thumbs.delete(id); });
+    return entry.promise;
+  }
   function push(s, message) {
     if (!s.active || !s.stream) return;
     if (typeof message === 'string') message = { type: 'chat', text: message };
@@ -71,6 +95,13 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
     try {
       const url = new URL(req.url, origin);
       if (url.pathname === '/healthz' && req.method === 'GET') return json(res, 200, { ok: true });
+      const thumbId = url.pathname.match(/^\/thumb\/([a-z0-9]{2,24})$/)?.[1];
+      if (thumbId && req.method === 'GET') {
+        const thumb = await loadThumb(thumbId);
+        if (!thumb) return json(res, 404, { error: 'Not found' });
+        res.writeHead(200, { ...headers, 'Cache-Control': 'public, max-age=3600', 'Content-Type': thumb.type });
+        return res.end(thumb.data);
+      }
       let s = getSession(req);
       if (url.pathname === '/api/soop/status' && req.method === 'GET') {
         if (!s) s = newSession(res);

@@ -88,3 +88,22 @@ test('retry replaces abandoned login without a stale callback consuming the new 
   assert.equal((await f.call(`/?code=new&state=${newState}`)).headers.get('location'), '/?soop=connected');
   assert.equal(f.exchanges(), 1);
 });
+
+test('thumbnails relay only validated station IDs, only images, and are cached', async t => {
+  const requested = [];
+  const { call } = await fixture(t, { fetchImpl: async url => {
+    requested.push(url);
+    if (url.includes('/notimage/')) return new Response('<html>', { headers: { 'content-type': 'text/html' } });
+    if (url.includes('/missing/')) return new Response('', { status: 404 });
+    return new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/webp' } });
+  } });
+  const ok = await call('/thumb/kanoz0');
+  assert.equal(ok.status, 200); assert.equal(ok.headers.get('content-type'), 'image/webp');
+  assert.deepEqual([...new Uint8Array(await ok.arrayBuffer())], [1, 2, 3]);
+  assert.equal(requested[0], 'https://profile.img.sooplive.com/LOGO/ka/kanoz0/m/kanoz0.webp');
+  assert.equal((await call('/thumb/kanoz0')).status, 200);
+  assert.equal(requested.length, 1, 'second request is served from the cache');
+  for (const path of ['/thumb/notimage', '/thumb/missing']) assert.equal((await call(path)).status, 404);
+  for (const path of ['/thumb/../server.mjs', '/thumb/Kanoz0', '/thumb/a', '/thumb/kano%2F..', '/thumb/']) assert.equal((await call(path)).status, 404);
+  assert.equal(requested.length, 3, 'invalid IDs never reach SOOP');
+});

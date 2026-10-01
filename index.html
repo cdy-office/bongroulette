@@ -226,7 +226,7 @@ body[data-mode="pinball"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveG
 body:not([data-mode="cannon"]) .cannonOption{display:none!important}
 body[data-mode="cannon"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGraphicsRow){display:none!important}
 #cannonThreshold{width:76px}
-#gameSeg{width:min(790px,calc(100vw - 32px));grid-template-columns:repeat(6,minmax(0,1fr))}
+#gameSeg{width:min(920px,calc(100vw - 32px));grid-template-columns:repeat(7,minmax(0,1fr))}
 @media(max-width:820px){#gameSeg{width:calc(100vw - 16px);max-width:660px}#gameSeg button{font-size:9px}}
 @media(max-width:820px){#gameSeg button{font-size:10px;padding:11px 1px}}
 </style>
@@ -234,7 +234,7 @@ body[data-mode="cannon"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGr
 <body>
 <canvas id="game"></canvas>
 <div id="credit">봉신_듀이쵸</div>
-<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="gate">🚪 문 선택</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button></div>
+<div class="seg" id="gameSeg" role="group" aria-label="게임 모드 선택"><button data-v="arena" class="on">⚔️ 콜로세움</button><button data-v="race">🏁 레이스</button><button data-v="bomb">💣 폭탄 돌리기</button><button data-v="gate">🚪 문 선택</button><button data-v="pinball">🎱 핀볼</button><button data-v="cannon">💥 회전 대포</button><button data-v="interview">🎟️ 면접 순서</button></div>
 
 <div id="ctrl" class="panel">
   <div class="head">⚔️ 봉 룰렛<small>Bong Roulette · Last Man Standing</small></div>
@@ -300,6 +300,7 @@ body[data-mode="cannon"] .opts>.opt:not(#speedRow):not(#graphicsRow):not(#liveGr
 <script type="module" src="soop-client.js"></script>
 <script src="colosseum3d.bundle.js"></script>
 <script src="pinball.js"></script>
+<script src="interview.js"></script>
 <script>
 (() => {
 'use strict';
@@ -2408,7 +2409,7 @@ function advanceFrame(now){
   rankTimer-=real;if(rankTimer<=0&&S.phase!=='idle'){rankTimer=0.3;updateRank()}
 }
 function frame(now){
-  advanceFrame(now);
+  if(opt.game!=='interview')advanceFrame(now);else last=now;
   requestAnimationFrame(frame);
 }
 
@@ -2473,7 +2474,7 @@ function setGraphicsMode(value){
 seg($('#graphicsSeg'),v=>setGraphicsMode(v==='3d'));
 seg($('#liveGraphicsSeg'),v=>setGraphicsMode(v==='3d'));
 seg($('#modeSeg'),v=>{opt.mode=v;multiRow.hidden=v!=='multi'});
-seg($('#gameSeg'),v=>{opt.game=v;const r=v!=='arena';$('#zoneRow').hidden=r;opt.finalAt=r?10:FINAL_AT;finalN.value=opt.finalAt;setup()}); // 레이스·블랙홀·폭탄은 기본 인원 10
+seg($('#gameSeg'),v=>{if(v==='interview'){opt.game=v;document.body.dataset.mode=v;InterviewDraw.show();return}InterviewDraw.hide();opt.game=v;const r=v!=='arena';$('#zoneRow').hidden=r;opt.finalAt=r?10:FINAL_AT;finalN.value=opt.finalAt;setup()}); // 레이스·블랙홀·폭탄은 기본 인원 10
 seg($('#speedSeg'),v=>{opt.speed=+v});
 seg($('#zoneSeg'),v=>{opt.zone=v==='1'});
 seg($('#teamSeg'),v=>{opt.teamFire=v==='1'});
@@ -2530,7 +2531,7 @@ function fillSelectedNames(){
   quickNameStatus.dataset.error='false';
 }
 $('#quickNameAdd').addEventListener('click',fillSelectedNames);
-window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.isTrusted&&!e.repeat&&!e.target.closest('button,input,textarea,select,[contenteditable="true"]')){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
+window.addEventListener('keydown',e=>{if(e.code==='Space'&&opt.game!=='interview'&&e.isTrusted&&!e.repeat&&!e.target.closest('button,input,textarea,select,[contenteditable="true"]')){e.preventDefault();if(S.phase==='idle'||S.phase==='finished')start()}});
 
 function chatAnchor(m){
   if(!m?.alive||isGate()||isCannon())return null;
@@ -2559,6 +2560,7 @@ if(previewParams.get('demo')==='pinball'){$('#gameSeg [data-v="pinball"]').click
 if(previewParams.get('demo')==='cannon'){$('#gameSeg [data-v="cannon"]').click();}
 if(previewParams.get('demo')==='gate'){$('#gameSeg [data-v="gate"]').click();}
 if(previewParams.get('demo')==='bomb'){$('#gameSeg [data-v="bomb"]').click();}
+if(previewParams.get('demo')==='interview'){$('#gameSeg [data-v="interview"]').click();}
 if(['race','race-duel'].includes(previewParams.get('demo'))){$('#gameSeg [data-v="race"]').click();}
 setup();
 if(!previewParams.has('qa'))requestAnimationFrame(frame);
