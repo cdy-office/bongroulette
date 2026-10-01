@@ -26,13 +26,13 @@
   const st = {
     title: '봉우리 면접 순서', sub: '', selected: [], extra: [], order: [],
     phase: 'setup', // setup → ready ⇄ (mixing → rising → reveal → fly) → done
-    auto: false, fast: false, view3d: true,
+    auto: false, fast: false,
   };
   let root, canvas, ctx, ui = {}, built = false, visible = false, raf = 0, last = 0;
   let W = 0, H = 0, dpr = 1, drum = { cx: 0, cy: 0, R: 200, tube: 70 }, cxNow = null;
   let balls = [], captured = null, timer = 0, air = .45, confetti = [], resetArmed = 0, autoWait = 0, mixSound = 0;
   const faces = new Map(), sprites = new Map();
-  let layers = null, three = null, canvas3d = null;
+  let layers = null;
   const api = { speed: 1, show, hide, get state() { return { phase: st.phase, order: [...st.order], pool: balls.map(b => b.id), selected: [...st.selected] }; } };
   window.InterviewDraw = api;
 
@@ -54,13 +54,12 @@
       st.selected = (Array.isArray(s.selected) ? s.selected : []).filter(id => known.has(id));
       st.order = (Array.isArray(s.order) ? s.order : []).filter(id => st.selected.includes(id));
       st.fast = !!s.fast;
-      if (s.view3d === false) st.view3d = false;
       if (st.order.length) st.phase = st.order.length >= st.selected.length ? 'done' : 'ready';
       else if (s.locked && st.selected.length) st.phase = 'ready';
     } catch {}
   }
   function save() {
-    try { localStorage.setItem(STORE, JSON.stringify({ v: 1, title: st.title, sub: st.sub, selected: st.selected, extra: st.extra, order: st.order, fast: st.fast, view3d: st.view3d, locked: st.phase !== 'setup' })); } catch {}
+    try { localStorage.setItem(STORE, JSON.stringify({ v: 1, title: st.title, sub: st.sub, selected: st.selected, extra: st.extra, order: st.order, fast: st.fast, locked: st.phase !== 'setup' })); } catch {}
   }
 
   // 얼굴: 지원자 38명은 사이트에 들어 있는 240px 움직이는 webp, 직접 추가한 사람은 서버가 SOOP에서 받아 준다.
@@ -88,7 +87,6 @@
     document.head.append(style);
     root = document.createElement('div'); root.id = 'iv'; root.hidden = true;
     root.innerHTML = `
-      <canvas id="ivCanvas3d"></canvas>
       <canvas id="ivCanvas"></canvas>
       <aside id="ivSetup">
         <div class="ivHead">🎟️ 면접 순서 추첨<small>지원자를 골라 추첨기에 넣으세요</small></div>
@@ -97,7 +95,6 @@
         <div class="ivPickHead"><span>지원자 <b id="ivCount">0</b>명</span><button type="button" id="ivAll">전체 선택</button><button type="button" id="ivNone">전체 해제</button></div>
         <div id="ivPeople"></div>
         <form id="ivAdd" autocomplete="off"><input id="ivAddId" placeholder="SOOP 아이디" maxlength="24"><input id="ivAddName" placeholder="닉네임" maxlength="20"><button type="submit">추가</button></form>
-        <div class="ivField"><span>그래픽</span><span id="ivGraphics"></span></div>
         <button type="button" id="ivStart" class="ivPrimary">🎟️ 추첨 시작</button>
       </aside>
       <aside id="ivBoard"><div class="ivBoardHead"><div id="ivBTitle"></div><div id="ivBSub"></div></div><ol id="ivSlots"></ol></aside>
@@ -105,8 +102,8 @@
       <div id="ivReveal"><div class="ivRevNum"></div><span class="ivRevFace"></span><div class="ivRevName"></div></div>
       <div id="ivToast" hidden></div>`;
     document.body.append(root);
-    canvas = root.querySelector('#ivCanvas'); ctx = canvas.getContext('2d'); canvas3d = root.querySelector('#ivCanvas3d');
-    for (const id of ['ivSetup', 'ivTitle', 'ivSub', 'ivCount', 'ivAll', 'ivNone', 'ivPeople', 'ivAdd', 'ivAddId', 'ivAddName', 'ivStart', 'ivBoard', 'ivBTitle', 'ivBSub', 'ivSlots', 'ivBar', 'ivReveal', 'ivToast', 'ivGraphics']) ui[id] = root.querySelector('#' + id);
+    canvas = root.querySelector('#ivCanvas'); ctx = canvas.getContext('2d');
+    for (const id of ['ivSetup', 'ivTitle', 'ivSub', 'ivCount', 'ivAll', 'ivNone', 'ivPeople', 'ivAdd', 'ivAddId', 'ivAddName', 'ivStart', 'ivBoard', 'ivBTitle', 'ivBSub', 'ivSlots', 'ivBar', 'ivReveal', 'ivToast']) ui[id] = root.querySelector('#' + id);
     ui.ivTitle.value = st.title; ui.ivSub.value = st.sub;
     // 숨은 카드에 모든 이름을 한 번 배치해 두면 첫 공개 때 글꼴 준비로 멈칫하지 않는다.
     ui.ivReveal.querySelector('.ivRevNum').textContent = '0번';
@@ -133,7 +130,7 @@
       e.preventDefault(); draw();
     });
     window.addEventListener('resize', () => visible && layout());
-    renderGraphics(); renderPeople();
+    renderPeople();
   }
 
   function renderPeople() {
@@ -199,37 +196,8 @@
     ui.ivBar.style.left = drum.cx + 'px';
     if (old && old !== R) for (const b of balls) { b.x *= R / old; b.y *= R / old; }
     const r = ballRadius(balls.length); for (const b of balls) b.r = r;
-    sync3d();
     renderSlots();
   }
-
-  // 다른 모드처럼 3D가 기본이고, 만들 수 없으면(WebGL 없음 등) 2D로 돌아간다.
-  function sync3d() {
-    if (st.view3d && three === null) {
-      try { three = window.createInterview3D?.({ canvas: canvas3d, getFace: face, initial, hue: hueOf }) || false; } catch { three = false; }
-      if (!three) st.view3d = false;
-    }
-    canvas3d.hidden = !st.view3d;
-    if (!st.view3d) return;
-    cxNow = drum.cx;
-    three.resize(W, H, dpr);
-    three.layout({ cx: drum.cx, cy: drum.cy, R: drum.R, tube: drum.tube, tw: Math.round((balls[0]?.r || captured?.r || 24) + 9) });
-  }
-  const on3d = () => st.view3d && three;
-  function setView(v3d) {
-    if (st.view3d === v3d) return;
-    st.view3d = v3d; save(); layout(); renderGraphics(); renderBar();
-  }
-  function graphicsSeg() {
-    const seg = document.createElement('span'); seg.className = 'ivSeg';
-    for (const [label, v] of [['3D', true], ['2D', false]]) {
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
-      b.classList.toggle('on', !!st.view3d === v); b.onclick = e => { e.currentTarget.blur(); setView(v); };
-      seg.append(b);
-    }
-    return seg;
-  }
-  function renderGraphics() { ui.ivGraphics.replaceChildren(graphicsSeg()); }
 
   function renderBoardHead() { ui.ivBTitle.textContent = st.title || '면접 순서'; ui.ivBSub.textContent = st.sub; ui.ivBSub.hidden = !st.sub; }
   function slotEl(i) {
@@ -255,7 +223,6 @@
       btn('🖼️ 이미지 복사', copyImage, 'ivPrimary');
       btn('💾 이미지 저장', saveImage);
       btn(resetArmed ? '정말 처음부터?' : '↺ 처음부터', resetDraw, resetArmed ? 'ivWarn' : '');
-      bar.append(graphicsSeg());
       return;
     }
     const busy = st.phase !== 'ready', next = st.order.length + 1, left = st.selected.length - st.order.length;
@@ -264,7 +231,6 @@
     btn(st.auto ? '⏸ 자동 멈춤' : '▶ 자동 뽑기', () => { st.auto = !st.auto; autoWait = 0; renderBar(); }, st.auto ? 'on' : '');
     btn(st.fast ? '⏩ 빠르게' : '▶ 보통 속도', () => { st.fast = !st.fast; save(); renderBar(); }, st.fast ? 'on' : '');
     btn(resetArmed ? '정말 처음부터?' : '↺ 처음부터', resetDraw, resetArmed ? 'ivWarn' : '');
-    bar.append(graphicsSeg());
     const info = document.createElement('span'); info.className = 'ivLeft'; info.textContent = `남은 ${left}명`; bar.append(info);
   }
   function resetDraw() {
@@ -310,7 +276,7 @@
   }
   function hideCard() { cardAnim?.cancel(); cardAnim = null; cardTo = ''; ui.ivReveal.classList.remove('on'); }
   function reveal() {
-    const exit = on3d() ? three.project(0, -drum.R - drum.tube) : toScreen(0, -drum.R - drum.tube);
+    const exit = toScreen(0, -drum.R - drum.tube);
     cardTo = cardAt(exit.x, exit.y, (captured.r * 2) / 220);
     moveCard(cardAt(drum.cx, drum.cy - drum.R * .12, 1), T.pop / sp(), 'cubic-bezier(.2,1.3,.4,1)');
     st.phase = 'reveal'; timer = 0; sfx('lap'); burst(drum.cx, drum.cy - drum.R * .12);
@@ -379,7 +345,7 @@
   function update(dt) {
     const s = sp();
     if (resetArmed && performance.now() - resetArmed > 3000) { resetArmed = 0; renderBar(); }
-    cxNow = on3d() ? drum.cx : cxNow + (drum.cx - cxNow) * Math.min(1, dt * 6);
+    cxNow += (drum.cx - cxNow) * Math.min(1, dt * 6);
     const target = st.phase === 'mixing' ? 2.7 : st.phase === 'setup' ? .35 : .5;
     air += (target - air) * Math.min(1, dt * 3);
     const n = 4; for (let i = 0; i < n; i++) physics(dt / n);
@@ -453,19 +419,7 @@
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const { R } = drum, cx = cxNow, cy = drum.cy;
-    if (on3d()) render3d();
-    else render2d(cx, cy, R);
-    textsAndEffects(cx, cy, R);
-  }
-  function render3d() {
-    const rising = captured && st.phase === 'rising' ? { ...captured, ...risingPos() } : null;
-    three.render(balls, rising);
-    if (balls.length > 26) return;
-    for (const b of balls) { const p = three.project(b.x, b.y, b.r, b.id); blit(labelSprite(b.id), p.x, p.y + b.r * .55); }
-  }
-  function render2d(cx, cy, R) {
-    const L = drumLayers();
+    const { R } = drum, cx = cxNow, cy = drum.cy, L = drumLayers();
     blit(L.back, cx, cy);
     // 바람 거품
     ctx.fillStyle = 'rgba(200,235,255,.16)';
@@ -479,8 +433,6 @@
     for (const b of balls) drawBall(cx + b.x, cy + b.y, b.r, b.id, labels);
     if (captured && st.phase === 'rising') { const p = risingPos(); drawBall(cx + p.x, cy + p.y, captured.r, captured.id, false); }
     blit(L.front, cx, cy);
-  }
-  function textsAndEffects(cx, cy, R) {
     // 문구
     if (!balls.length && !captured && st.phase === 'setup') {
       ctx.fillStyle = 'rgba(220,230,245,.55)'; ctx.font = '600 18px Pretendard, "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
@@ -500,20 +452,6 @@
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - c.t / c.life); ctx.translate(c.x, c.y); ctx.rotate(c.rot);
       ctx.fillStyle = `hsl(${c.h} 90% 62%)`; ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); ctx.restore();
     }
-  }
-  function labelSprite(id) {
-    const key = `label|${id}|${dpr}`;
-    let s = sprites.get(key);
-    if (s) return s;
-    const font = '700 12px Pretendard, "Noto Sans KR", sans-serif', nm = personOf(id).name;
-    ctx.font = font;
-    s = offscreen(ctx.measureText(nm).width + 10, 18);
-    const g = s.g; s.ox = s.w / 2; s.oy = 0;
-    g.font = font; g.textAlign = 'center'; g.textBaseline = 'top'; g.lineJoin = 'round';
-    g.lineWidth = 3.5; g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(nm, s.ox, 2);
-    g.fillStyle = '#fff'; g.fillText(nm, s.ox, 2);
-    sprites.set(key, s);
-    return s;
   }
   // 공 위 장식(광택, 테두리, 이름표). 사람과 크기마다 한 번만 그린다.
   function ballOverlay(id, r, label) {
@@ -639,10 +577,7 @@
   const CSS = `
 #iv{position:fixed;inset:0;z-index:2;color:#ecedf3;background:radial-gradient(circle calc(max(100vw,100vh) * .75) at 50% 45%,#16202d,#090c12);font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif}
 #iv[hidden]{display:none}
-#ivCanvas,#ivCanvas3d{position:absolute;inset:0;width:100%;height:100%}
-.ivSeg{display:inline-flex;gap:2px;padding:3px;background:#0c111a;border:1px solid #364153;border-radius:10px}
-#iv .ivSeg button{padding:5px 12px;border:0;border-radius:7px;background:transparent;box-shadow:none;font-size:12px}
-#iv .ivSeg button.on{background:#294442;color:#9af2dd}
+#ivCanvas{position:absolute;inset:0;width:100%;height:100%}
 body.ivOn #ctrl,body.ivOn #rank,body.ivOn #mtabs,body.ivOn #soopAudience,body.ivOn #soopMarbleChat{display:none!important}
 body.ivOn #credit{z-index:3}
 #ivSetup{position:absolute;left:12px;top:var(--ivSetupTop,12px);bottom:12px;width:316px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;padding:14px;background:linear-gradient(165deg,#1b2330f5,#10151ff5);border:1px solid #364153;border-radius:12px;box-shadow:0 12px 40px #0005;font-size:13px}
