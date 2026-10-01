@@ -513,7 +513,7 @@
   }
   async function resultCanvas() {
     const n = st.order.length, cols = n > 10 ? 2 : 1, rows = Math.ceil(n / cols), rowH = 76, w = cols === 2 ? 1200 : 720, head = st.sub ? 170 : 130;
-    const c = document.createElement('canvas'); c.width = w; c.height = head + rows * rowH + 70;
+    const c = document.createElement('canvas'); c.width = w; c.height = head + rows * rowH + 40;
     const g = c.getContext('2d');
     await Promise.all(st.order.map(id => { const im = face(id); return im.decode ? im.decode().catch(() => {}) : null; }));
     const bg = g.createLinearGradient(0, 0, 0, c.height); bg.addColorStop(0, '#182231'); bg.addColorStop(1, '#0b1018'); g.fillStyle = bg; g.fillRect(0, 0, w, c.height);
@@ -533,8 +533,6 @@
       g.textAlign = 'left'; g.fillStyle = '#f2f6ff'; g.font = '700 28px Pretendard, "Noto Sans KR", sans-serif';
       g.fillText(personOf(id).name, fx + fr + 18, fy + 1, colW - 170);
     });
-    g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.28)'; g.font = '500 18px Pretendard, "Noto Sans KR", sans-serif';
-    g.fillText('봉신_듀이쵸', w - 30, c.height - 26);
     return c;
   }
   const roundRect = (g, x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
