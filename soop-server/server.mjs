@@ -188,14 +188,6 @@ export function createApp({ clientId = '', clientSecret = '', origin = 'http://1
         res.writeHead(200, { ...headers, 'Cache-Control': 'public, max-age=86400', 'Content-Type': 'image/webp' });
         return res.end(req.method === 'HEAD' ? undefined : data);
       }
-      // Encrypted SD character models (assets/sd/<hash>.bin), decrypted by the 3D view.
-      const sdModel = url.pathname.match(/^\/assets\/sd\/([0-9a-f]{12})\.bin$/)?.[1];
-      if (sdModel) {
-        const data = await readFile(resolve(staticRoot, 'assets/sd', sdModel + '.bin')).catch(() => null);
-        if (!data) return json(res, 404, { error: 'Not found' });
-        res.writeHead(200, { ...headers, 'Cache-Control': 'public, max-age=604800, immutable', 'Content-Type': 'application/octet-stream' });
-        return res.end(req.method === 'HEAD' ? undefined : data);
-      }
       const asset = assets.get(url.pathname);
       if (!asset) return json(res, 404, { error: 'Not found' });
       const data = await readFile(resolve(staticRoot, asset[0]));
