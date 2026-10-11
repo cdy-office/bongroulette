@@ -417,6 +417,16 @@ function giveBmSkill(m){const set=BM_SKILLS[S.faceOf?.[m.name]];m.bmSet=set||nul
 // 이름표·알림용 스킬 정보(봉멤은 자기 스킬 이름)
 // 봉멤 기본 평타 동작(3D 캐릭터로 보일 때): 부딪혀 공격할 때·폭탄을 넘길 때
 function bmAttack(m,t){const set=BM_SKILLS[S.faceOf?.[m.name]];if(set&&arena3d?.active)arena3d.basicAttack?.(m,t,set[0])}
+// 봉멤 캐릭터별 보정(모드별): [스킬 피해 배율, 쿨타임 배율, 폭탄 들고 달리는 속도 배율, 콜로세움 1:1 피해 배율]. 모드마다 1200판씩 돌려 우승·1:1 비율을 맞춘 값
+// 폭탄 돌리기는 폭탄을 넘기는 힘이 스킬 사거리에 달려 있어 피해·쿨타임으로는 거의 안 바뀌므로 속도로 맞춘다
+const BM_TUNE={
+  arena:{'송판':[0.94,1.07,1,1.38],'네즈미':[1.09,0.92,1,0.83],'강자':[1,1,1,1.13],'루시엘':[1.07,0.94,1,0.9],'신가호':[1.03,0.97,1,1.09],'게코스':[1.22,0.82,1,0.6],'비아가':[1.08,0.93,1,0.89],'헤이요':[0.91,1.1,1,1.4],'테무르':[1.05,0.95,1,0.89],'미카엘린':[1.13,0.89,1,0.75],'미카엘라':[0.97,1.03,1,1.05],'테스메르':[1.04,0.96,1,1.08],'배해수':[0.95,1.05,1,1.21],'안나':[1.19,0.84,1,0.65],'오마에':[0.97,1.03,1,1.34],'헤이즐':[1.17,0.86,1,0.76],'한봉식':[0.94,1.06,1,1.31],'큐피':[1.06,0.94,1,0.88],'세실리아':[1.05,0.95,1,0.92],'광견이형':[1.16,0.86,1,0.69],'햇냥이':[1.21,0.83,1,0.63],'숍숍':[0.94,1.06,1,1.29]},
+  race:{'송판':[0.9,1.11],'네즈미':[1.03,0.97],'강자':[0.97,1.03],'루시엘':[0.96,1.05],'신가호':[1.06,0.94],'게코스':[1.1,0.91],'비아가':[0.94,1.06],'헤이요':[0.98,1.02],'테무르':[0.93,1.07],'미카엘린':[1.04,0.96],'미카엘라':[1.35,0.74],'테스메르':[1.05,0.95],'배해수':[1.07,0.93],'안나':[1.04,0.96],'오마에':[0.93,1.08],'헤이즐':[0.94,1.06],'한봉식':[1.03,0.97],'큐피':[0.96,1.04],'세실리아':[0.95,1.05],'광견이형':[1.07,0.94],'햇냥이':[1.12,0.89],'숍숍':[1.02,0.98]},
+  bomb:{'송판':[1,1,1.31],'네즈미':[1,1,1.36],'강자':[1,1.58,0.85],'루시엘':[1,1.8,0.85],'신가호':[1,1,1.19],'게코스':[1,1.45,0.85],'비아가':[1,1,1.13],'헤이요':[1,1,1.05],'테무르':[1,1.51,0.85],'미카엘린':[1,1.77,0.85],'미카엘라':[1,1,1],'테스메르':[1,1,0.95],'배해수':[1,1,1.23],'안나':[1,1.57,0.85],'오마에':[1,1,1.12],'헤이즐':[1,1,1.09],'한봉식':[1,1,1.06],'큐피':[1,1.52,0.85],'세실리아':[1,1.9,0.85],'광견이형':[1,1.75,0.85],'햇냥이':[1,1.85,0.85],'숍숍':[1,1,1]},
+};
+function bmTune(m){return m?.bmSet&&BM_TUNE[opt.game]?.[S.faceOf?.[m.name]]||null}
+const bmSpeed=m=>bmTune(m)?.[2]??1;
+function bmDamageMul(m){const t=bmTune(m);return t?t[0]*(isArenaDuelist(m)?t[3]??1:1):1}
 function skillInfo(m){const s=SKILLS[m.skill];if(!m.bmSet||!s)return s;return {...s,name:m.bmSet[1][m.bmIdx][1],icon:'✦'}}
 // 스킬 밸런스 숫자 (피해/쿨타임/배율). 1000판 단위 헤드리스 테스트로 조정
 const BAL={
@@ -525,7 +535,7 @@ function portalWarp(m,pt){ // 대각선 반대편 포탈에서 곧바로 튀어�
 function buildMaze(){return []} // 빈 원형 맵 (벽 없음)
 // 폭탄 보유자는 남에게 달려들고, 나머지는 가장 가까운 보유자에게서 도망친다
 function bombMove(m,dt,pace=1){
-  const acc=CFG.accel*(m.bomb?pace:1);let ax=0,ay=0;
+  const acc=CFG.accel*(m.bomb?pace*bmSpeed(m):1);let ax=0,ay=0;
   const dc=Math.hypot(m.x,m.y)||1,cx=m.x/dc,cy=m.y/dc;                 // 중심에서 바깥으로 향하는 방향
   const rim=clamp((dc-MAZE.R*0.45)/(MAZE.R*0.55),0,1);                  // 가장자리에 가까울수록 1
 
@@ -561,7 +571,8 @@ function giveBomb(m,fuse,from){
   // 봉멤은 남은 인원이 결전 인원(기본 10) 이하일 때만 자기 스킬을 받고, 그 전에는 스킬 없이 폭탄만 든다
   if(BM_SKILLS[S.faceOf?.[m.name]]){if(aliveList().length<=opt.finalAt)giveBmSkill(m);else{m.skill=null;m.bmSet=null;m.bmKey=null}}
   else m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];
-  m.skillCd=MAZE.pass+rand(0,0.6);m.shield=false;m.trail=[]; // 받은 직후 0.5초는 스킬도 못 씀
+  // 받은 직후 0.5초는 스킬도 못 씀. 폭탄을 너무 잘 넘기는 봉멤은 쿨타임 배율만큼 더 기다린다
+  m.skillCd=(MAZE.pass+rand(0,0.6))*Math.max(1,bmTune(m)?.[1]??1);m.shield=false;m.trail=[];
   if(from)bmAttack(from,m);
   if(m.skill){const sk=SKILLS[m.skill];if(!quietFx(m))burst(m.x,m.y,16,sk.color,220);addSkillText(m.x,m.y-m.r-26,m.bmKey||m.skill,17);SFX.play(m.skill)}
 }
@@ -938,7 +949,7 @@ function enterDuel(alive){
 }
 // 콜로세움의 마지막 두 참가자에게만 적용한다. 탈락자의 잔류 효과는 강화하지 않는다.
 function isArenaDuelist(m){return opt.game==='arena'&&S.duel&&!!m&&S.duelists?.includes(m)}
-function skillCooldown(m,seconds){return seconds*(isArenaDuelist(m)&&ACTIVE.has(m.skill)?0.5:1)}
+function skillCooldown(m,seconds){return seconds*(isArenaDuelist(m)&&ACTIVE.has(m.skill)?0.5:1)*(bmTune(m)?.[1]??1)}
 function passiveDamageMul(m){return isArenaDuelist(m)&&m.skill&&!ACTIVE.has(m.skill)?2:1}
 const TARGETED_SKILLS=new Set(['bolt','blink','frost','arrow','laser','bat','iaido','snipe','boomerang','breath','bees','rocket']);
 function useSkill(m,alive){fxOwner=m;try{useSkillNow(m,alive)}finally{fxOwner=null}}
@@ -1306,7 +1317,7 @@ function step(dt){
     m.vx+=ax*dt;m.vy+=ay*dt;
     const damp=Math.max(0,1-(race?0.2:hole?0.9:CFG.damping)*dt);m.vx*=damp;m.vy*=damp;
     if(bombM){m.stun=Math.max(0,m.stun-dt);m.slow=Math.max(0,m.slow-dt);m.boost=Math.max(0,m.boost-dt);if(m.stun>0){m.vx*=0.82;m.vy*=0.82}}
-    const msp=(m.fling>0?1500:(race?620:hole?420:bombM?(m.bomb?MAZE.hold*bombPace:MAZE.flee)*(m.boost>0?1.25:1)*(m.wallT>0?0.55:1):CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
+    const msp=(m.fling>0?1500:(race?620:hole?420:bombM?(m.bomb?MAZE.hold*bombPace*bmSpeed(m):MAZE.flee)*(m.boost>0?1.25:1)*(m.wallT>0?0.55:1):CFG.maxSpeed*m.speedMul*(m.boost>0?1.35:1)));const sp=Math.hypot(m.vx,m.vy);if(sp>msp){m.vx*=msp/sp;m.vy*=msp/sp}
     m.x+=m.vx*dt;m.y+=m.vy*dt;
     m.hit=Math.max(0,m.hit-dt*4);m.dash=Math.max(0,m.dash-dt);m.inv=Math.max(0,m.inv-dt);m.shieldFx=Math.max(0,m.shieldFx-dt);
     if(S.final||bombM){ // 폭탄 모드는 결전 없이도 스킬이 돈다
@@ -1457,7 +1468,7 @@ function hurtNow(m,dmg,by,cx,cy){
   if(m.frozen>0)dmg*=BAL.frozenMul;
   dmg=Math.min(dmg,CFG.dmgCap);
   let crit=false;if(rng()<CFG.critChance){dmg*=2;crit=true}
-  dmg=Math.round(dmg)*passiveDamageMul(by);if(dmg<=0)return; // 기존 상한·치명타 계산 뒤 실제 상시 피해를 두 배로
+  dmg=Math.round(dmg*bmDamageMul(by))*passiveDamageMul(by);if(dmg<=0)return; // 기존 상한·치명타 계산 뒤 실제 상시 피해를 두 배로
   SFX.play('hit',{dmg,crit,soft:!S.final});
   if(isRace()&&by&&RACE_MUL[by.skill])dmg=Math.round(dmg*RACE_MUL[by.skill]); // 레이스에서 약한 근접·설치형 스킬 보정
   if(isBomb()&&by&&by.bomb&&!m.bomb&&by.bombCd<=0&&m.bombCd<=0&&(m!==by.bomb.from||aliveList().length<=2))S.bombTag.push([by,m]); // 스킬로 맞히면 폭탄이 넘어감 (스텝 끝에서 처리)
@@ -2581,7 +2592,7 @@ function chatAnchor(m){
   const p=use3d?arena3d.project(m.x,m.y,m.r*(m.skill?3.3:2.1)+12):{x:(L+R)/2+(m.x-S.cam.x)*z,y:(T+B)/2+(m.y-S.cam.y-(m.skill?m.r*3.1:m.r+8))*z,visible:true};
   return {x:p.x,y:p.y-12,visible:p.visible!==false&&p.x>L&&p.x<R&&p.y>T+35&&p.y<B};
 }
-window.RW={S,CFG,BAL,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,setPaused,advanceFrame,aliveList,ranking,factionRanking,render,updateCamera,fx,updateRank,chatAnchor,setSeed:v=>{seed=v>>>0}};
+window.RW={S,CFG,BAL,BM_TUNE,opt,SKILLS,OBST,RACE,HOLE,MAZE,PORTALS,SFX,trackPos,step,setup,start,setPaused,advanceFrame,aliveList,ranking,factionRanking,render,updateCamera,fx,updateRank,chatAnchor,setSeed:v=>{seed=v>>>0}};
 if(window.createColosseum3D){
   const result=window.createColosseum3D({S,opt,BAL,OBST,RACE,MAZE,PORTALS,bombEliminationCap,roundFace,textBitmap,skillLabel,onError:message=>{opt.view3d=false;$('#graphicsNote').textContent=message;$('#graphicsSeg [data-v="2d"]').click()}});
   if(result.ready){arena3d=result;window.RW.view3d=result}
