@@ -396,6 +396,28 @@ const SKILLS={
   rocket:{name:'로켓 돌진',icon:'🚀',color:'#ff8a65',desc:'고글과 로켓 배낭. 6초마다 0.4초 점화 뒤 직선 폭주, 부딪히면 폭발 피해 34. 벽에 부딪히면 자기도 피해 3'},
 };
 const SKILL_KEYS=Object.keys(SKILLS).filter(k=>k!=='shield'&&k!=='drain'); // 철벽·흡혈은 배정하지 않는다
+// 봉멤은 무작위 스킬 대신 자기 스킬 두 개를 번갈아 쓴다(고봉리 스킬 사본, 궁극기 제외). [동작, 이름, 피해·쿨타임을 빌려 쓰는 룰렛 스킬]
+// 효과 수치는 기존 룰렛 스킬 그대로라 균형이 유지되고, 3D 캐릭터로 보일 때는 그 캐릭터의 동작·이펙트가 나온다.
+const BM_SKILLS={
+  '송판':['songpan',[['skill5','망치 투척','boomerang'],['skill4','정숙!','quake']]],'큐피':['qupi',[['skill2','세 갈래 화살','arrow'],['skill4','꿰뚫는 화살','laser']]],
+  '세실리아':['cecilia',[['skill5','프리즘 광선','laser'],['skill4','보석 비','bolt']]],'네즈미':['nezumi',[['attack','치즈 던지기','arrow'],['skill6','쥐 친구들','bees']]],
+  '신가호':['shingaho',[['skill4','저주 폭발','wave'],['skill5','저주 사슬','magnet']]],'햇냥이':['haetnyang',[['skill3','3연 할퀴기','iaido'],['skill','고양이 덮치기','blink']]],
+  '테무르':['temur',[['skill2','에너지 구 연사','bolt'],['skill3','거대 에너지 구','bolt']]],'오마에':['omae',[['skill5','스타카토','arrow'],['skill4','피날레','quake']]],
+  '테스메르':['tesmer',[['skill3','흡입','magnet'],['skill6','재채기 폭풍','breath']]],'헤이요':['heiyo',[['skill5','날아차기','bat'],['skill6','미래 각인','frost']]],
+  '광견이형':['gwanggyeon',[['skill6','너클 러시','iaido'],['skill5','부담 윙크','bolt']]],'게코스':['gekos',[['attack','단검 날리기','arrow'],['skill6','약점 찌르기','blink']]],
+  '안나':['anna',[['skill5','마취 침','frost'],['skill6','그림자 뒤돌기','blink']]],'한봉식':['hanbongsik',[['skill5','꾸짖기','bolt'],['skill4','단체 사진','wave']]],
+  '배해수':['baehaesu',[['skill','파도 장풍','wave'],['skill6','닻 걸기','magnet']]],'비아가':['beatrice',[['skill2','벌 소환','bees'],['skill5','독침 비','bolt']]],
+  '헤이즐':['hazel',[['skill6','깜짝 인형','frost'],['skill3','인형 조종','bees']]],'미카엘린':['mikaelin',[['skill4','베고 지나가기','iaido'],['skill5','검기 날리기','laser']]],
+  '미카엘라':['michaela',[['skill5','철퇴 내려치기','bat'],['skill2','방패 밀치기','blink']]],'루시엘':['luciel',[['skill2','에너지 파동','laser'],['skill6','공중 파동포','bolt']]],
+  '강자':['gangja',[['skill5','일필휘지','laser'],['skill3','먹물 뿌리기','breath']]],'숍숍':['shopshop',[['skill4','보호의 기도','shield'],['skill','축복의 울림','shield']]],
+};
+// 봉멤 스킬 하나를 구슬에 건다: m.skill 은 빌려 쓰는 룰렛 스킬, m.bmKey 는 이름표·3D 동작용
+function setBmSkill(m,i){const [id,list]=m.bmSet,[clip,,mech]=list[i];m.bmIdx=i;m.skill=mech;m.bmKey=`bm:${id}:${clip}`}
+function giveBmSkill(m){const set=BM_SKILLS[S.faceOf?.[m.name]];m.bmSet=set||null;m.bmKey=null;m.bmSwap=false;if(!set)return false;setBmSkill(m,(rng()*2)|0);return true}
+// 이름표·알림용 스킬 정보(봉멤은 자기 스킬 이름)
+// 봉멤 기본 평타 동작(3D 캐릭터로 보일 때): 부딪혀 공격할 때·폭탄을 넘길 때
+function bmAttack(m,t){const set=BM_SKILLS[S.faceOf?.[m.name]];if(set&&arena3d?.active)arena3d.basicAttack?.(m,t,set[0])}
+function skillInfo(m){const s=SKILLS[m.skill];if(!m.bmSet||!s)return s;return {...s,name:m.bmSet[1][m.bmIdx][1],icon:'✦'}}
 // 스킬 밸런스 숫자 (피해/쿨타임/배율). 1000판 단위 헤드리스 테스트로 조정
 const BAL={
   iaidoDmg:12,iaidoCd:6.5,
@@ -536,10 +558,14 @@ const BOMB_SKILLS=SKILL_KEYS.filter(k=>k!=='giant');
 function giveBomb(m,fuse,from){
   m.bomb={t:fuse!==undefined?fuse:MAZE.fuse+rand(0,2),from:from||null,age:from?0:1,fx:from?from.x:0,fy:from?from.y-from.r-16:0};m.bombCd=MAZE.pass; // age/fx/fy: 준 사람 머리 위에서 받은 사람 머리 위로 날아간다
   m.target=pickBombTarget(m,S.marbles,aliveList().length);m.retarget=0;
-  m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];m.skillCd=MAZE.pass+rand(0,0.6);m.shield=false;m.trail=[]; // 받은 직후 0.5초는 스킬도 못 씀
-  const sk=SKILLS[m.skill];burst(m.x,m.y,16,sk.color,220);addSkillText(m.x,m.y-m.r-26,m.skill,17);SFX.play(m.skill);
+  // 봉멤은 남은 인원이 결전 인원(기본 10) 이하일 때만 자기 스킬을 받고, 그 전에는 스킬 없이 폭탄만 든다
+  if(BM_SKILLS[S.faceOf?.[m.name]]){if(aliveList().length<=opt.finalAt)giveBmSkill(m);else{m.skill=null;m.bmSet=null;m.bmKey=null}}
+  else m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];
+  m.skillCd=MAZE.pass+rand(0,0.6);m.shield=false;m.trail=[]; // 받은 직후 0.5초는 스킬도 못 씀
+  if(from)bmAttack(from,m);
+  if(m.skill){const sk=SKILLS[m.skill];if(!quietFx(m))burst(m.x,m.y,16,sk.color,220);addSkillText(m.x,m.y-m.r-26,m.bmKey||m.skill,17);SFX.play(m.skill)}
 }
-function clearBomb(m){m.bomb=null;m.skill=null;m.skillCd=0;m.shield=false;m.aim=null;m.iai=null;m.magnetT=0;m.tornadoT=0;m.hammerT=0;m.quakeT=0;m.rocketT=0;m.rocketCharge=0;m.breathT=0}
+function clearBomb(m){m.bomb=null;m.skill=null;m.bmSet=null;m.bmKey=null;m.skillCd=0;m.shield=false;m.aim=null;m.iai=null;m.magnetT=0;m.tornadoT=0;m.hammerT=0;m.quakeT=0;m.rocketT=0;m.rocketCharge=0;m.breathT=0}
 const HOLE={R:360,r0:42,pull:185,grow:1.5,esc:90,kick:300,atk:320,danger:0.42}; // pull 기본 흡인력(초당 grow 증가), esc 상시 버티기, kick 몸부림 도약, atk 상대 밀어 넣기 돌진, danger 못 빠져나오는 반경 비율 // R 바닥 반지름, r0 블랙홀 반지름, pull 기본 흡인력(초당 grow씩 증가), esc 공이 버티는 힘
 function holeMove(m,dt){
   const d=Math.hypot(m.x,m.y)||1,rx=m.x/d,ry=m.y/d,tx=-ry,ty=rx; // rx,ry 바깥 방향 / tx,ty 시계 방향 접선
@@ -695,7 +721,7 @@ function setup(){
     }
     if(!done){m.x=rand(-ARENA_L,ARENA_L);m.y=rand(-100,100);placed.push(m)}
   }
-  S.factionsOut=[];S.eliminated=[];S.particles=[];S.texts=[];S.shards=[];S.rings=[];S.bolts=[];S.ghosts=[];S.bombs=[];S.arrows=[];S.confetti=[];S.slashes=[];S.lasers=[];S.fires=[];S.spears=[];S.boomerangs=[];S.swarms=[];S.cracks=[];S.bombTag=[];S.feed=[];
+  S.factionsOut=[];S.eliminated=[];S.particles=particleList([]);S.texts=[];S.shards=[];S.rings=[];S.bolts=[];S.ghosts=[];S.bombs=[];S.arrows=[];S.confetti=[];S.slashes=[];S.lasers=[];S.fires=[];S.spears=[];S.boomerangs=[];S.swarms=[];S.cracks=[];S.bombTag=[];S.feed=[];
   S.toasts=[];S.banner=null;S.bannerDelay=0;S.bannerNext=null;S.confetti2=0;
   S.barsActive=false;S.barsAnim=0;S.final=false;S.finalT=0;S.zoneHold=0;
   S.focus=null;S.focusCd=0;S.showdown=null;S.showdownCd=0;S.finish=null;S.letterbox=0;S.duel=false;S.duelists=null;S.duelT=0;S.raceDuel=null;
@@ -835,7 +861,7 @@ const SFX=(()=>{
 })();
 
 // ---------- 이펙트 도우미 ----------
-function burst(x,y,n,color,speed){n=Math.ceil(n*0.7);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(0.3,1)*speed;S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.35,0.8),color,r:rand(1.5,3.5)})}}
+function burst(x,y,n,color,speed){if(quietFx(fxOwner))return;n=Math.ceil(n*0.7);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(0.3,1)*speed;S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.35,0.8),color,r:rand(1.5,3.5)})}}
 // 폭발: 피해 범위만큼만 부풀었다가 꺼지는 불덩이 (테두리가 계속 퍼지는 동심원은 쓰지 않는다)
 function blast(x,y,rad,color){
   ring(x,y,rad*0.25,rad*4,0,0.28,color,true,rad);            // 불덩이 (피해 범위에서 멈춤)
@@ -843,29 +869,37 @@ function blast(x,y,rad,color){
   for(let k=0;k<26;k++){const a=rand(0,TAU),sp=rand(0.55,1)*rad*4.5; // 사방으로 튀는 파편
     S.particles.push({x:x+Math.cos(a)*rad*0.2,y:y+Math.sin(a)*rad*0.2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rand(0.25,0.5),color:k%3?color:'#ffe66d',r:rand(2,4.5)})}
 }
-function ring(x,y,r0,vr,w,life,color,fill,rmax,kind){S.rings.push({kind,x,y,r:r0,vr,w,life,max:life,color,fill:!!fill,rmax:rmax||Infinity})}
+// fxOwner: 지금 스킬 효과를 만드는 구슬. 봉멤이 3D 캐릭터로 보일 때 룰렛 원래 스킬 그림을 숨기는 데 쓴다.
+let fxOwner=null;
+// 봉멤이 3D 캐릭터로 보이면 자기 동작·이펙트만 보이고 기존 룰렛 스킬 효과(조각·글자·그림)는 만들지 않는다
+function quietFx(o){return !!o&&!!o.bmKey&&!!arena3d?.active&&!!arena3d.isCharacter?.(o)}
+// 스킬 코드가 조각을 직접 넣는 곳도 많아서, 조각 목록 자체가 그때는 받지 않는다
+function particleList(a){a.push=function(...xs){return quietFx(fxOwner)?this.length:Array.prototype.push.apply(this,xs)};return a}
+function ring(x,y,r0,vr,w,life,color,fill,rmax,kind){S.rings.push({kind,x,y,r:r0,vr,w,life,max:life,color,fill:!!fill,rmax:rmax||Infinity,owner:fxOwner})}
 // 검 궤적: 호(arc)는 휘두른 부채꼴, 선(line)은 일직선 베기
-function slashArc(x,y,a,r,color,span,life,kind){life=life||0.32;S.slashes.push({kind,type:'arc',x,y,a,r,span:span||2.6,life,max:life,color})}
+function slashArc(x,y,a,r,color,span,life,kind){life=life||0.32;S.slashes.push({kind,type:'arc',x,y,a,r,span:span||2.6,life,max:life,color,owner:fxOwner})}
 // 화염검 휘두르기: 검 회전 + 큰 부채꼴 궤적 + 궤적을 따라 불꽃
 function flameSwing(m,ang){SFX.play('flame');m.swing=0.42;m.swingDur=0.42;m.swingA=ang;slashArc(m.x,m.y,ang,m.r*3.2,'#ff7a3d',3.0,0.45,'flame');
   for(let k=0;k<=12;k++){const a=ang-1.5+3.0*k/12,rr=m.r*2.9;S.particles.push({x:m.x+Math.cos(a)*rr,y:m.y+Math.sin(a)*rr,vx:Math.cos(a)*rand(60,160),vy:Math.sin(a)*rand(60,160),life:rand(0.3,0.55),color:k%2?'#ffd166':'#ff7a3d',r:rand(2.5,5)})}}
-function slashLine(x1,y1,x2,y2,color,w,kind){S.slashes.push({kind,type:'line',x1,y1,x2,y2,w:w||6,life:0.3,max:0.3,color})}
+function slashLine(x1,y1,x2,y2,color,w,kind){S.slashes.push({kind,type:'line',x1,y1,x2,y2,w:w||6,life:0.3,max:0.3,color,owner:fxOwner})}
 // 파편은 한도(500개) 안에서만 만든다. 한꺼번에 수십 명이 터질 때 수천 개를 만들었다가 잘라 내면 그 한 프레임이 통째로 느려진다
 function boom(m,mult){const n=Math.min(80,Math.max(0,500-S.particles.length),(8+m.r)*mult);const sm=Math.sqrt(mult);for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(60,320)*sm;S.particles.push({x:m.x,y:m.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.5,1.1)*sm,color:m.color,r:rand(1.5,m.r*0.35+1.5)})}}
-function spark(x,y,n){for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(40,220);S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.15,0.4),color:'#fff',r:rand(1,2.5)})}}
-function addText(x,y,text,color,size){S.texts.push({x,y,text,color,size,life:0.9})}
+function spark(x,y,n){if(quietFx(fxOwner))return;for(let k=0;k<n;k++){const a=rand(0,TAU),s=rand(40,220);S.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(0.15,0.4),color:'#fff',r:rand(1,2.5)})}}
+function addText(x,y,text,color,size){if(quietFx(fxOwner))return;S.texts.push({x,y,text,color,size,life:0.9})}
 // 스킬 이름은 그림으로 띄운다 (이모지를 글자로 그리면 한 프레임이 통째로 느려진다)
+// key: 룰렛 스킬 키 또는 봉멤 bm: 키
 function addSkillText(x,y,key,size){S.texts.push({x,y,img:skillLabel(key),size:size||18,life:0.9})}
 // 아이콘이 붙은 고정 문구 (같은 말이 수백 번 반복되므로 그림으로 저장해 쓴다)
-function addIconText(x,y,text,color,size){S.texts.push({x,y,img:textBitmap(text,color,size),size,life:0.9})}
+function addIconText(x,y,text,color,size){if(quietFx(fxOwner))return;S.texts.push({x,y,img:textBitmap(text,color,size),size,life:0.9})}
 function zap(m,t,dmg){
-  S.bolts.push({x1:m.x,y1:m.y,x2:t.x,y2:t.y,life:0.45,w:11});
-  for(let k=0;k<3;k++)S.bolts.push({x1:t.x,y1:t.y,x2:t.x+rand(-100,100),y2:t.y+rand(-100,100),life:0.32,w:5});
+  S.bolts.push({x1:m.x,y1:m.y,x2:t.x,y2:t.y,life:0.45,w:11,owner:m});
+  for(let k=0;k<3;k++)S.bolts.push({x1:t.x,y1:t.y,x2:t.x+rand(-100,100),y2:t.y+rand(-100,100),life:0.32,w:5,owner:m});
   burst(t.x,t.y,28,'#ffe66d',300);burst(t.x,t.y,12,'#fff',180);
   hurt(t,dmg,m,t.x,t.y);
 }
 // 스킬 발동 표시: 이름 텍스트 + 시전자 주변 링 (모든 발동형 스킬 공통)
-function announce(m){addSkillText(m.x,m.y-m.r-26,m.skill,18);SFX.play(m.skill)}
+function announce(m){addSkillText(m.x,m.y-m.r-26,m.bmKey||m.skill,18);SFX.play(m.skill);
+  if(m.bmSet){m.bmSwap=true;const [id,list]=m.bmSet;if(arena3d?.active)arena3d.castSkill?.(m,id,list[m.bmIdx][0])}}
 
 // ---------- 결전 단계 ----------
 function enterFinal(alive){
@@ -873,14 +907,14 @@ function enterFinal(alive){
   const keys=SKILL_KEYS.slice();
   for(let i=keys.length-1;i>0;i--){const j=(rng()*(i+1))|0;[keys[i],keys[j]]=[keys[j],keys[i]]}
   if(previewParams.get('demo')==='skills'&&opt.game==='arena')keys.splice(0,keys.length,'flame','bolt','snipe');
-  alive.forEach((m,i)=>{m.hpFrom=clamp(m.hp/m.hpMax,0,1);m.skill=keys[i%keys.length];m.skillCd=rand(1.5,3);m.shield=false;m.trail=[]; // hpFrom: 체력 링이 차오르는 시작점. 스킬은 인원이 종류보다 많으면 겹쳐서 나눠 준다
+  alive.forEach((m,i)=>{m.hpFrom=clamp(m.hp/m.hpMax,0,1);if(!giveBmSkill(m))m.skill=keys[i%keys.length];m.skillCd=rand(1.5,3);m.shield=false;m.trail=[]; // hpFrom: 체력 링이 차오르는 시작점. 스킬은 인원이 종류보다 많으면 겹쳐서 나눠 준다
     if(m.skill==='giant'){m.r*=1.6;m.mass=m.r*m.r;m.hpMax=Math.round(CFG.hpMax*BAL.giantHp);m.speedMul=isRace()?1:BAL.giantSpeed} // 거인화: 몸집·체력 증가, 느려짐 (1.75배는 너무 잘 살아남아 1.4배로)
     m.hp=m.hpMax;
-    const s=SKILLS[m.skill];burst(m.x,m.y,20,s.color,220);
+    const s=SKILLS[m.skill];if(!quietFx(m))burst(m.x,m.y,20,s.color,220);
   });
   S.banner={text:`⚔️ FINAL ${alive.length}`,sub:'체력 회복  ·  스킬 획득',age:0,life:2.6};
   addFeed(`⚔️ <b>결전 시작</b> · 남은 ${alive.length}명 체력 회복, 스킬 획득`,'gold');
-  for(const m of alive){const s=SKILLS[m.skill];addFeed(`<b style="color:${m.color}">${esc(m.label)}</b> ${s.icon} <b style="color:${s.color}">${s.name}</b> <span style="color:var(--muted)">${s.desc}</span>`)}
+  for(const m of alive){const s=skillInfo(m);addFeed(`<b style="color:${m.color}">${esc(m.label)}</b> ${s.icon} <b style="color:${s.color}">${s.name}</b> <span style="color:var(--muted)">${s.desc}</span>`)}
 }
 // 마지막 1:1: 격투게임식 대결 화면으로 전환 (체력바 2개 + 얼굴, 배너, 카메라 근접)
 function enterDuel(alive){
@@ -907,7 +941,9 @@ function isArenaDuelist(m){return opt.game==='arena'&&S.duel&&!!m&&S.duelists?.i
 function skillCooldown(m,seconds){return seconds*(isArenaDuelist(m)&&ACTIVE.has(m.skill)?0.5:1)}
 function passiveDamageMul(m){return isArenaDuelist(m)&&m.skill&&!ACTIVE.has(m.skill)?2:1}
 const TARGETED_SKILLS=new Set(['bolt','blink','frost','arrow','laser','bat','iaido','snipe','boomerang','breath','bees','rocket']);
-function useSkill(m,alive){
+function useSkill(m,alive){fxOwner=m;try{useSkillNow(m,alive)}finally{fxOwner=null}}
+function useSkillNow(m,alive){
+  if(m.bmSwap&&m.bmSet){m.bmSwap=false;setBmSkill(m,m.bmIdx^1)}
   const foes=alive.filter(o=>isFoe(m,o));
   const n=isBomb()?aliveList().length:alive.length,targets=foes.filter(o=>isTargetable(m,o,n));
   if(TARGETED_SKILLS.has(m.skill)&&!targets.length){m.skillCd=0.3;return}
@@ -929,7 +965,7 @@ function useSkill(m,alive){
         let nx=t.x+Math.cos(a)*gap,ny=t.y+Math.sin(a)*gap;
         if(outOfArena(nx,ny,m.r+2)||hitsObst(nx,ny,m.r)){nx=t.x-Math.cos(a)*gap;ny=t.y-Math.sin(a)*gap}
         announce(m);
-        for(let k=0;k<7;k++){const u=k/7;S.ghosts.push({x:lerp(m.x,nx,u),y:lerp(m.y,ny,u),r:m.r,color:sc,life:0.4+u*0.3})}
+        for(let k=0;k<7;k++){const u=k/7;S.ghosts.push({x:lerp(m.x,nx,u),y:lerp(m.y,ny,u),r:m.r,color:sc,life:0.4+u*0.3,owner:m})}
         slashLine(m.x,m.y,nx,ny,sc,5,'blink');
         for(let k=0;k<18;k++){const a=k/18*TAU;S.particles.push({x:m.x+Math.cos(a)*m.r,y:m.y+Math.sin(a)*m.r,vx:Math.cos(a+1.4)*rand(120,260),vy:Math.sin(a+1.4)*rand(120,260),life:rand(0.35,0.6),color:k%3?sc:'#fff',r:rand(2,4)})}
         m.x=nx;m.y=ny;m.px=nx;m.py=ny;
@@ -969,7 +1005,7 @@ function useSkill(m,alive){
         let ex=m.x+ux*(m.r+4),ey=m.y+uy*(m.r+4);
         for(let k=0;k<200;k++){const nx2=ex+ux*8,ny2=ey+uy*8;if(outOfArena(nx2,ny2,0)||hitsObst(nx2,ny2,2))break;ex=nx2;ey=ny2}
         const sx=m.x+ux*(m.r+4),sy=m.y+uy*(m.r+4);
-        S.lasers.push({kind:'laser',x1:sx,y1:sy,x2:ex,y2:ey,life:0.5,max:0.5,color:sc,w:14});
+        S.lasers.push({kind:'laser',x1:sx,y1:sy,x2:ex,y2:ey,life:0.5,max:0.5,color:sc,w:14,owner:m});
         burst(sx,sy,16,sc,200);burst(ex,ey,14,sc,220);spark(ex,ey,8);
         for(const o of foes){const px=o.x-sx,py=o.y-sy;const len=Math.hypot(ex-sx,ey-sy)||1;let tt=(px*ux+py*uy);if(tt<0||tt>len)continue;const d=Math.abs(px*uy-py*ux);
           if(d<o.r+7){shove(o,ux*260,uy*260);burst(o.x,o.y,14,sc,220);hurt(o,BAL.laserDmg,m,o.x,o.y)}}
@@ -1111,8 +1147,8 @@ function step(dt){
   if(race){let p1=-Infinity,p2=-Infinity,pm=Infinity,lm=null,tm=null;for(const m of alive){if(m.prog>p1){p2=p1;p1=m.prog;lm=m}else if(m.prog>p2)p2=m.prog;if(m.prog<pm||(m.prog===pm&&m.i>tm.i)){pm=m.prog;tm=m}}S.raceLead=p1;S.raceGap2=p2===-Infinity?0:p1-p2;S.raceLeadM=lm;S.raceLastM=tm;S.raceMarkOn=alive.length>1&&lm!==tm}
   if(zoneOn&&S.time>CFG.zoneGrace&&S.zoneHold<=0){const rate=na<=3?CFG.zoneRateFinal:CFG.zoneRate;S.zoneR=Math.max(CFG.zoneMinR,S.zoneR-rate*dt)}
   const zl=zoneL();
-  S.bombs=S.bombs.filter(b=>{const t0=b.t;b.t-=dt;if(b.t>0&&Math.ceil(t0*4)!==Math.ceil(b.t*4))SFX.play('fuse',{t:b.t,span:1.5});if(rng()<0.3)S.particles.push({x:b.x+rand(-3,3),y:b.y-10,vx:rand(-40,40),vy:rand(-90,-30),life:rand(0.15,0.35),color:'#ffe66d',r:rand(1,2)});if(b.t>0)return true;explodeBomb(b);return false});
-  S.arrows=S.arrows.filter(a=>{a.life-=dt;a.x+=a.vx*dt;a.y+=a.vy*dt;
+  S.bombs=S.bombs.filter(b=>{fxOwner=b.owner;const t0=b.t;b.t-=dt;if(b.t>0&&Math.ceil(t0*4)!==Math.ceil(b.t*4))SFX.play('fuse',{t:b.t,span:1.5});if(rng()<0.3)S.particles.push({x:b.x+rand(-3,3),y:b.y-10,vx:rand(-40,40),vy:rand(-90,-30),life:rand(0.15,0.35),color:'#ffe66d',r:rand(1,2)});if(b.t>0)return true;explodeBomb(b);return false});
+  S.arrows=S.arrows.filter(a=>{fxOwner=a.owner;a.life-=dt;a.x+=a.vx*dt;a.y+=a.vy*dt;
     if(rng()<0.6)S.particles.push({x:a.x,y:a.y,vx:rand(-20,20),vy:rand(-20,20),life:rand(0.2,0.35),color:SKILLS.arrow.color,r:rand(1.5,3)}); // 화살 궤적
     if(a.life<=0||outOfArena(a.x,a.y,0)||hitsObst(a.x,a.y,2)){spark(a.x,a.y,6);return false}
     for(const o of alive){if(!isFoe(a.owner,o))continue;
@@ -1120,14 +1156,14 @@ function step(dt){
         burst(o.x,o.y,24,SKILLS.arrow.color,260);SFX.play('arrowHit');hurt(o,BAL.arrowDmg,a.owner,o.x,o.y);return false}}
     return true});
   // 얼음 창: 관통하며 궤적의 상대를 얼림
-  S.spears=S.spears.filter(a=>{a.life-=dt;a.x+=a.vx*dt;a.y+=a.vy*dt;
+  S.spears=S.spears.filter(a=>{fxOwner=a.owner;a.life-=dt;a.x+=a.vx*dt;a.y+=a.vy*dt;
     if(rng()<0.7)S.particles.push({x:a.x+rand(-3,3),y:a.y+rand(-3,3),vx:rand(-30,30),vy:rand(-30,30),life:rand(0.25,0.45),color:rng()<0.5?'#dff7ff':SKILLS.frost.color,r:rand(1.5,3)});
     if(a.life<=0||outOfArena(a.x,a.y,0)||hitsObst(a.x,a.y,2)){burst(a.x,a.y,14,'#dff7ff',160);return false}
     for(const o of alive){if(!isFoe(a.owner,o)||a.hit.has(o))continue;
       if((o.x-a.x)**2+(o.y-a.y)**2<(o.r+9)**2){a.hit.add(o);o.frozen=isRace()?0.5:1.2;o.vx*=0.2;o.vy*=0.2;SFX.play('frost');if(BAL.frostDmg>0)hurt(o,BAL.frostDmg,a.owner,o.x,o.y);burst(o.x,o.y,26,SKILLS.frost.color,170);burst(o.x,o.y,10,'#fff',100);if(S.final)addIconText(o.x,o.y-o.r-10,'❄️ 빙결',SKILLS.frost.color,16)}}
     return true});
   // 부메랑: 주인 쪽으로 계속 당겨져 곡선을 그리며 돌아옴. 나가는 길·돌아오는 길에 각각 한 번씩 피해
-  S.boomerangs=S.boomerangs.filter(b=>{b.t+=dt;b.rot+=22*dt;const o=b.owner;
+  S.boomerangs=S.boomerangs.filter(b=>{fxOwner=b.owner;b.t+=dt;b.rot+=22*dt;const o=b.owner;
     const dx=o.x-b.x,dy=o.y-b.y,d=Math.hypot(dx,dy)||1;b.vx+=dx/d*700*dt;b.vy+=dy/d*700*dt;
     const sp=Math.hypot(b.vx,b.vy);if(sp>640){b.vx*=640/sp;b.vy*=640/sp}
     b.x+=b.vx*dt;b.y+=b.vy*dt;
@@ -1138,7 +1174,7 @@ function step(dt){
     for(const t of alive){if(!isFoe(o,t)||set.has(t))continue;if((t.x-b.x)**2+(t.y-b.y)**2<(t.r+12)**2){set.add(t);SFX.play('bump');const L=Math.hypot(b.vx,b.vy)||1;shove(t,b.vx/L*220,b.vy/L*220);burst(t.x,t.y,18,SKILLS.boomerang.color,220);spark(t.x,t.y,6);hurt(t,BAL.boomDmg,o,t.x,t.y)}}
     return true});
   // 벌떼: 상대 주위를 윙윙 돌며 0.3초마다 2 (방패 무시). 상대가 죽으면 근처 다른 상대에게
-  S.swarms=S.swarms.filter(sw=>{sw.t-=dt;let t=sw.target;
+  S.swarms=S.swarms.filter(sw=>{fxOwner=sw.owner;sw.t-=dt;let t=sw.target;
     if(!isTargetable(sw.owner,t,targetCount)){let best=null,bd=200*200;const b0=sw.bees[0];for(const o of alive){if(!isTargetable(sw.owner,o,targetCount))continue;const d=(o.x-b0.x)**2+(o.y-b0.y)**2;if(d<bd){bd=d;best=o}}sw.target=t=best}
     if(!t||sw.t<=0||!sw.owner.alive){for(const b of sw.bees)burst(b.x,b.y,2,SKILLS.bees.color,80);return false}
     for(const b of sw.bees){b.ph+=dt*9;const gx=t.x+Math.cos(b.ph)*(t.r+10),gy=t.y+Math.sin(b.ph*1.3)*(t.r+10);const dx=gx-b.x,dy=gy-b.y,d=Math.hypot(dx,dy)||1;const sp=Math.min(900,d*12+200);b.vx=dx/d*sp+rand(-60,60);b.vy=dy/d*sp+rand(-60,60);b.x+=b.vx*dt;b.y+=b.vy*dt}
@@ -1146,11 +1182,13 @@ function step(dt){
     if(near&&sw.tick<=0){sw.tick=0.3;if(isRace())t.slow=Math.max(t.slow,0.3);else t.hp-=BAL.beeDmg;t.beeDmg+=BAL.beeDmg;t.hit=Math.max(t.hit,0.4);S.hits++;S.dmgTotal+=BAL.beeDmg;spark(t.x+rand(-t.r,t.r),t.y+rand(-t.r,t.r),2);if(t.hp<=0)die(t,sw.owner)}
     return true});
   // 불길: 밟는 상대에게 지속 피해 (방패 무시, 0.3초마다 4)
-  for(const f of S.fires){for(const o of alive){if(!isFoe(f.owner,o)||o.fireCd>0)continue;
+  for(const f of S.fires){fxOwner=f.owner;for(const o of alive){if(!isFoe(f.owner,o)||o.fireCd>0)continue;
     if((o.x-f.x)**2+(o.y-f.y)**2<(o.r+f.r*0.7)**2){const dmg=BAL.fireDmg*passiveDamageMul(f.owner);o.fireCd=0.3;if(isRace())o.slow=Math.max(o.slow,0.35);else o.hp-=dmg;o.fireDmg+=dmg;o.hit=Math.max(o.hit,0.5);S.hits++;S.dmgTotal+=dmg;burst(o.x,o.y,4,'#ff7a3d',120);if(o.hp<=0)die(o,f.owner)}}}
 
+  fxOwner=null;
   for(const m of alive){
     if(!m.alive)continue;
+    fxOwner=m;
     if(bombM){
       m.target=pickBombTarget(m,alive,targetCount);
       if(m.aim&&!isTargetable(m,m.aim.target,targetCount)){m.aim=null;m.skillCd=Math.min(m.skillCd,0.3)}
@@ -1162,7 +1200,7 @@ function step(dt){
     if(m.boost>0&&m.skill==='drain'&&rng()<0.5){const sp2=Math.hypot(m.vx,m.vy)||1;S.particles.push({x:m.x-m.vx/sp2*m.r,y:m.y-m.vy/sp2*m.r,vx:-m.vx*0.3+rand(-40,40),vy:-m.vy*0.3+rand(-40,40),life:rand(0.2,0.4),color:rng()<0.5?'#ff4d6d':'#c8102e',r:rand(2,4)})} // 흡혈 가속 잔광
     if(m.fireDmg>0){m.fireTextT-=dt;if(m.fireTextT<=0){if(S.final)addIconText(m.x+rand(-6,6),m.y-10,'🔥 -'+m.fireDmg,'#ff7a3d',16);m.fireDmg=0;m.fireTextT=0.6}}
     // 발도술: 0.2초 간격으로 가까운 상대에게 일직선 베기 (상대 뒤로 순간 이동)
-    if(m.iai){m.iai.timer-=dt;
+    if(m.iai){fxOwner=m;m.iai.timer-=dt;
       if(m.iai.timer<=0){const foes=alive.filter(o=>isTargetable(m,o,targetCount));
         const pick=list=>{let best=null,bd=420*420;for(const o of list){const d=(o.x-m.x)**2+(o.y-m.y)**2;if(d<bd){bd=d;best=o}}return best};
         let t=pick(foes.filter(o=>!m.iai.hit.includes(o)))||pick(foes);
@@ -1181,10 +1219,10 @@ function step(dt){
           o.vx=0;o.vy=0;shove(o,dx/d*1300,dy/d*1300);o.fling=0.6;o.frozen=0;slashArc(hx,hy,m.hammerA+Math.PI/2,m.r*1.6,SKILLS.bat.color,2.0,undefined,'bat');burst(hx,hy,22,'#fff',260);spark(hx,hy,10);
           hurt(o,BAL.batDmg,m,o.x,o.y);if(S.final&&o.alive)addIconText(o.x,o.y-o.r-24,'⚾ 홈런!',SKILLS.bat.color,18)}}}
     // 지진: 망치를 들어 올렸다가 내리침 → 반경 190 안의 상대 기절 + 피해, 바닥에 금이 감
-    if(m.quakeT>0){m.quakeT-=dt;
+    if(m.quakeT>0){fxOwner=m;m.quakeT-=dt;
       if(m.quakeT<=0){SFX.play('quake');const qx=m.x,qy=m.y;ring(qx,qy,20,900,0,0.35,'#c9a86a',true,190);burst(qx,qy,30,'#c9a86a',260);burst(qx,qy,14,'#8a6a3a',180);
         const cr=[];for(let k=0;k<9;k++){const a=k/9*TAU+rand(-0.2,0.2),pts=[[qx,qy]];let px=qx,py=qy,len=rand(120,190);for(let j=1;j<=4;j++){const u=j/4;px=qx+Math.cos(a)*len*u+rand(-10,10);py=qy+Math.sin(a)*len*u+rand(-10,10);pts.push([px,py])}cr.push(pts)}
-        S.cracks.push({pts:cr,life:0.8,max:0.8});
+        S.cracks.push({pts:cr,life:0.8,max:0.8,owner:fxOwner});
         for(const o of alive){if(!isFoe(m,o))continue;const dx=o.x-qx,dy=o.y-qy,d=Math.hypot(dx,dy);if(d<190+o.r){o.stun=Math.max(o.stun,0.7);o.frozen=0;shove(o,dx/(d||1)*160,dy/(d||1)*160);hurt(o,BAL.quakeDmg,m,o.x,o.y);if(S.final&&o.alive)addIconText(o.x,o.y-o.r-24,'💫 기절',SKILLS.quake.color,16)}}}}
     // 자석: 물결 원 안의 상대를 계속 끌어당김
     if(m.magnetT>0){m.magnetT-=dt;
@@ -1288,6 +1326,7 @@ function step(dt){
       }
     }
   }
+  fxOwner=null;
   // 스킬 연출 진행: 0.3초 준비 → 발동 → 1.1초에 종료
   if(S.focus){const f=S.focus;f.t+=dt;
     if(!f.m.alive)S.focus=null;
@@ -1338,7 +1377,7 @@ function step(dt){
         if(a.magnetT>0&&b.magnetT<=0)atk=a;else if(b.magnetT>0&&a.magnetT<=0)atk=b;
         const def=atk===a?b:a;
         const mul=(atk.skill==='flame'?BAL.flameMul:1)*(atk.skill==='giant'?BAL.giantDmg:1)*(atk.magnetT>0?BAL.magnetMul:1);
-        if(def.inv<=0){hurt(def,base*mul*rand(0.8,1.2),atk,cx,cy);def.inv=CFG.hitInv;
+        if(def.inv<=0){hurt(def,base*mul*rand(0.8,1.2),atk,cx,cy);def.inv=CFG.hitInv;bmAttack(atk,def);
           if(S.final)burst(cx,cy,12,atk.skill==='flame'?'#ff7a3d':'#fff',240)
           if(S.final&&atk.skill==='flame')flameSwing(atk,Math.atan2(def.y-atk.y,def.x-atk.x))}
         // 상대를 쓰러뜨렸으면 반격 피해 없음 (더블 KO 방지)
@@ -1411,7 +1450,8 @@ function step(dt){
   checkEnd();
 }
 
-function hurt(m,dmg,by,cx,cy){
+function hurt(m,dmg,by,cx,cy){const fo=fxOwner;fxOwner=null;try{return hurtNow(m,dmg,by,cx,cy)}finally{fxOwner=fo}}
+function hurtNow(m,dmg,by,cx,cy){
   if(!m.alive)return;
   if(m.shield&&by){m.shield=false;m.shieldFx=0.5;SFX.play('block');burst(cx,cy,24,'#7fd3ff',260);if(S.final)addIconText(cx,cy-12,'🛡️ BLOCK','#7fd3ff',18);return}
   if(m.frozen>0)dmg*=BAL.frozenMul;
@@ -1505,7 +1545,7 @@ function updateRank(){
    for(let i=0;i<show.length;i++){const m=show[i],r=rankRow(i);
      const cls='row'+(m.win?' win':''); if(r.className!==cls)r.className=cls;
      const rk=String(i+1); if(r.$rk.textContent!==rk)r.$rk.textContent=rk;
-     const nm=(m.skill?SKILLS[m.skill].icon+' ':'')+m.label; if(r.$nmText!==nm){r.$nmText=nm;r.$nm.textContent=nm;r.$nm.title=m.label}
+     const nm=(m.skill?(m.bmSet?'✦':SKILLS[m.skill].icon)+' ':'')+m.label; if(r.$nmText!==nm){r.$nmText=nm;r.$nm.textContent=nm;r.$nm.title=m.label}
      const col=m.win?'':m.color; if(r.$nmCol!==col){r.$nmCol=col;r.$nm.style.color=col}
    }
    // 순서가 바뀐 줄만 옮긴다 (통째로 다시 만들면 80줄 파싱에 7ms가 든다)
@@ -1541,7 +1581,7 @@ function fx(dt){
   flushFeed(); // 이번 프레임에 쌓인 기록을 한 번에 반영
   {const t=running()?1:0;if(S.uiAnim===undefined)S.uiAnim=t;else S.uiAnim+=(t-S.uiAnim)*Math.min(1,dt*7)} // 경기장 폭 전환
   if(S.particles.length>500)S.particles.splice(0,S.particles.length-500);
-  S.particles=S.particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.96;p.vy*=0.96;return p.life>0});
+  S.particles=particleList(S.particles.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=0.96;p.vy*=0.96;return p.life>0}));
   S.texts=S.texts.filter(t=>{t.life-=dt;t.y-=lerp(10,110,clamp(t.life/0.9,0,1))*dt;return t.life>0}); // 빠르게 떠올랐다가 느려진다
   S.shards=S.shards.filter(s=>{s.life-=dt;s.vy+=1100*dt;s.x+=s.vx*dt;s.y+=s.vy*dt;s.rot+=s.vr*dt;return s.life>0});
   S.rings=S.rings.filter(r=>{r.life-=dt;r.r=Math.min(r.rmax,Math.max(0,r.r+(r.vr===undefined?520:r.vr)*dt));return r.life>0});
@@ -1702,7 +1742,7 @@ function drawDuelHud(L,R,T,B,cx){
       ctx.font=`800 11px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.9)';ctx.fillStyle='#fff';
       ctx.strokeText(numS,(tx0+tx1)/2,sy+sh/2+.5);ctx.fillText(numS,(tx0+tx1)/2,sy+sh/2+.5);
     }
-    if(m.skill){const c=skillLabel(m.skill),sc=11/LBL_PX;ctx.drawImage(c.cv,right?tx1-c.w*sc:tx0,y+h-3-c.h*sc,c.w*sc,c.h*sc)} // 스킬 이름표는 그림으로
+    if(m.skill){const c=skillLabel(m.bmKey||m.skill),sc=11/LBL_PX;ctx.drawImage(c.cv,right?tx1-c.w*sc:tx0,y+h-3-c.h*sc,c.w*sc,c.h*sc)} // 스킬 이름표는 그림으로
     ctx.restore();
   };
   draw(A,-gap-w,false,(1-pL)*60,pL);draw(Bm,gap,true,(1-pR)*60,pR);
@@ -1821,7 +1861,8 @@ function textBitmap(txt,color,px,weight,outline,ss){ // outline: 검은 외곽�
 }
 function skillLabel(key){
   let c=labelCache[key];if(c)return c;
-  const sk=SKILLS[key];
+  const bm=key.startsWith('bm:')&&Object.values(BM_SKILLS).find(([id])=>key.startsWith(`bm:${id}:`)),clip=bm&&key.split(':')[2],entry=bm&&bm[1].find(e=>e[0]===clip);
+  const sk=entry?{...SKILLS[entry[2]],name:entry[1],icon:'✦'}:SKILLS[key];
   c=textBitmap(`${sk.icon} ${sk.name}`,sk.color,LBL_PX,700);labelCache[key]=c;return c;
 }
 function drawMarble(m){
@@ -2059,7 +2100,7 @@ function drawMarble(m){
   else{ctx.font=`700 ${fs}px ${FONT}`;ctx.textAlign='center';ctx.textBaseline='top';
     ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillText(m.name,x+1,y+rr+3+1);ctx.fillText(m.name,x-1,y+rr+3+1);
     ctx.fillStyle=m.color;ctx.fillText(m.name,x,y+rr+3)}
-  if(s){const c=skillLabel(m.skill),sc=Math.max(11/S.cam.zoom,fs*0.85)/LBL_PX; // 저장해 둔 이름표를 필요한 크기로 늘려 그린다
+  if(s){const c=skillLabel(m.bmKey||m.skill),sc=Math.max(11/S.cam.zoom,fs*0.85)/LBL_PX; // 저장해 둔 이름표를 필요한 크기로 늘려 그린다
     ctx.drawImage(c.cv,x-c.w*sc/2,y+rr+2+fs,c.w*sc,c.h*sc)}
   if(m.win){const c=textBitmap('👑','#ffd166',24),sc=fs*1.25/24,top=(s?y-r*2.5:y-rr-4)-c.h*sc;ctx.drawImage(c.cv,x-c.w*sc/2,top,c.w*sc,c.h*sc)} // 우승자 왕관
 }
