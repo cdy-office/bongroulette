@@ -421,12 +421,17 @@ function bmAttack(m,t){const set=BM_SKILLS[S.faceOf?.[m.name]];if(set&&arena3d?.
 // 폭탄 돌리기는 폭탄을 넘기는 힘이 스킬 사거리에 달려 있어 피해·쿨타임으로는 거의 안 바뀌므로 속도로 맞춘다
 const BM_TUNE={
   arena:{'송판':[0.94,1.07,1,1.38],'네즈미':[1.09,0.92,1,0.83],'강자':[1,1,1,1.13],'루시엘':[1.07,0.94,1,0.9],'신가호':[1.03,0.97,1,1.09],'게코스':[1.22,0.82,1,0.6],'비아가':[1.08,0.93,1,0.89],'헤이요':[0.91,1.1,1,1.4],'테무르':[1.05,0.95,1,0.89],'미카엘린':[1.13,0.89,1,0.75],'미카엘라':[0.97,1.03,1,1.05],'테스메르':[1.04,0.96,1,1.08],'배해수':[0.95,1.05,1,1.21],'안나':[1.19,0.84,1,0.65],'오마에':[0.97,1.03,1,1.34],'헤이즐':[1.17,0.86,1,0.76],'한봉식':[0.94,1.06,1,1.31],'큐피':[1.06,0.94,1,0.88],'세실리아':[1.05,0.95,1,0.92],'광견이형':[1.16,0.86,1,0.69],'햇냥이':[1.21,0.83,1,0.63],'숍숍':[0.94,1.06,1,1.29]},
-  race:{'송판':[0.9,1.11],'네즈미':[1.03,0.97],'강자':[0.97,1.03],'루시엘':[0.96,1.05],'신가호':[1.06,0.94],'게코스':[1.1,0.91],'비아가':[0.94,1.06],'헤이요':[0.98,1.02],'테무르':[0.93,1.07],'미카엘린':[1.04,0.96],'미카엘라':[1.35,0.74],'테스메르':[1.05,0.95],'배해수':[1.07,0.93],'안나':[1.04,0.96],'오마에':[0.93,1.08],'헤이즐':[0.94,1.06],'한봉식':[1.03,0.97],'큐피':[0.96,1.04],'세실리아':[0.95,1.05],'광견이형':[1.07,0.94],'햇냥이':[1.12,0.89],'숍숍':[1.02,0.98]},
+  race:{'송판':[0.95,1.05],'네즈미':[1.03,0.97],'강자':[0.97,1.03],'루시엘':[0.96,1.05],'신가호':[1.06,0.94],'게코스':[1.1,0.91],'비아가':[0.94,1.06],'헤이요':[0.98,1.02],'테무르':[0.93,1.07],'미카엘린':[1.07,0.93],'미카엘라':[1.35,0.74],'테스메르':[1.05,0.95],'배해수':[1.07,0.93],'안나':[1.04,0.96],'오마에':[0.93,1.08],'헤이즐':[0.94,1.06],'한봉식':[1.03,0.97],'큐피':[0.96,1.04],'세실리아':[0.95,1.05],'광견이형':[1.07,0.94],'햇냥이':[1.12,0.89],'숍숍':[1.05,0.95]},
   bomb:{'송판':[1,1,1.31],'네즈미':[1,1,1.36],'강자':[1,1.58,0.85],'루시엘':[1,1.8,0.85],'신가호':[1,1,1.19],'게코스':[1,1.45,0.85],'비아가':[1,1,1.13],'헤이요':[1,1,1.05],'테무르':[1,1.51,0.85],'미카엘린':[1,1.77,0.85],'미카엘라':[1,1,1],'테스메르':[1,1,0.95],'배해수':[1,1,1.23],'안나':[1,1.57,0.85],'오마에':[1,1,1.12],'헤이즐':[1,1,1.09],'한봉식':[1,1,1.06],'큐피':[1,1.52,0.85],'세실리아':[1,1.9,0.85],'광견이형':[1,1.75,0.85],'햇냥이':[1,1.85,0.85],'숍숍':[1,1,1]},
 };
 function bmTune(m){return m?.bmSet&&BM_TUNE[opt.game]?.[S.faceOf?.[m.name]]||null}
 const bmSpeed=m=>bmTune(m)?.[2]??1;
-function bmDamageMul(m){const t=bmTune(m);return t?t[0]*(isArenaDuelist(m)?t[3]??1:1):1}
+// 판마다 캐릭터(이름)별로 피해·쿨타임 배율을 따로 굴린다(0.625~1.6배, 로그 균등). 누가 셀지 매 판 달라진다
+const BM_ROLL=1.6;
+function rollBmCondition(){const r=()=>Math.exp((rng()*2-1)*Math.log(BM_ROLL));for(const f of S.factions)f.bmRoll=[r(),r()]}
+const bmRoll=(m,i)=>m?.bmSet&&m.faction?.bmRoll?.[i]||1;
+function bmDamageMul(m){const t=bmTune(m);return (t?t[0]*(isArenaDuelist(m)?t[3]??1:1):1)*bmRoll(m,0)}
+const bmCdMul=m=>(bmTune(m)?.[1]??1)*bmRoll(m,1);
 function skillInfo(m){const s=SKILLS[m.skill];if(!m.bmSet||!s)return s;return {...s,name:m.bmSet[1][m.bmIdx][1],icon:'✦'}}
 // 스킬 밸런스 숫자 (피해/쿨타임/배율). 1000판 단위 헤드리스 테스트로 조정
 const BAL={
@@ -572,7 +577,7 @@ function giveBomb(m,fuse,from){
   if(BM_SKILLS[S.faceOf?.[m.name]]){if(aliveList().length<=opt.finalAt)giveBmSkill(m);else{m.skill=null;m.bmSet=null;m.bmKey=null}}
   else m.skill=BOMB_SKILLS[(rng()*BOMB_SKILLS.length)|0];
   // 받은 직후 0.5초는 스킬도 못 씀. 폭탄을 너무 잘 넘기는 봉멤은 쿨타임 배율만큼 더 기다린다
-  m.skillCd=(MAZE.pass+rand(0,0.6))*Math.max(1,bmTune(m)?.[1]??1);m.shield=false;m.trail=[];
+  m.skillCd=(MAZE.pass+rand(0,0.6))*Math.max(1,bmCdMul(m));m.shield=false;m.trail=[];
   if(from)bmAttack(from,m);
   if(m.skill){const sk=SKILLS[m.skill];if(!quietFx(m))burst(m.x,m.y,16,sk.color,220);addSkillText(m.x,m.y-m.r-26,m.bmKey||m.skill,17);SFX.play(m.skill)}
 }
@@ -690,6 +695,7 @@ function setup(){
     if(!f){f={name:k,color:m.color,members:[],total:0,alive:0,rank:0,out:false,outAnim:0,win:false,barred:false,side:'top'};fmap.set(k,f);S.factions.push(f)}
     f.members.push(m);f.total++;f.alive++;m.faction=f;
   });
+  rollBmCondition();
   // 얼굴 배정: 이름과 같은 그림이 있으면 그것, 없으면 남은 얼굴 중 무작위 (같은 판에서는 이름마다 고정, 목록에 있는 다른 이름의 얼굴은 피함)
   S.faceOf={};
   const rawNames=[...new Set(names)];
@@ -949,7 +955,7 @@ function enterDuel(alive){
 }
 // 콜로세움의 마지막 두 참가자에게만 적용한다. 탈락자의 잔류 효과는 강화하지 않는다.
 function isArenaDuelist(m){return opt.game==='arena'&&S.duel&&!!m&&S.duelists?.includes(m)}
-function skillCooldown(m,seconds){return seconds*(isArenaDuelist(m)&&ACTIVE.has(m.skill)?0.5:1)*(bmTune(m)?.[1]??1)}
+function skillCooldown(m,seconds){return seconds*(isArenaDuelist(m)&&ACTIVE.has(m.skill)?0.5:1)*bmCdMul(m)}
 function passiveDamageMul(m){return isArenaDuelist(m)&&m.skill&&!ACTIVE.has(m.skill)?2:1}
 const TARGETED_SKILLS=new Set(['bolt','blink','frost','arrow','laser','bat','iaido','snipe','boomerang','breath','bees','rocket']);
 function useSkill(m,alive){fxOwner=m;try{useSkillNow(m,alive)}finally{fxOwner=null}}
